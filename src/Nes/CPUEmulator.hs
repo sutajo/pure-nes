@@ -17,6 +17,16 @@ import Data.Functor
 import Nes.EmulatorMonad
 import Nes.CPU6502
 
+data Penalty = None | BoundaryCross deriving (Enum)
+
+data Opcode = Opcode {
+  instruction   :: Emulator (),
+  length        :: !Word8,
+  cycles        :: !Int
+}
+
+op = Opcode
+
 initialize :: IO CPU
 initialize = undefined
 
@@ -456,16 +466,6 @@ txs = transfer x s
 
 tya :: Emulator ()
 tya = transfer y a
-
-data Penalty = None | BoundaryCross deriving (Enum)
-
-data Opcode = Opcode {
-  instruction   :: Emulator (),
-  length        :: !Word8,
-  cycles        :: !Int
-}
-
-op = Opcode
 
 -- Addressing modes
 
