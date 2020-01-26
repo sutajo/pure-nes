@@ -500,8 +500,8 @@ absolute :: Emulator Word16
 absolute = fetchNext >>= readAddress
 
 addPenaltyCycles :: Bool -> Penalty -> Emulator ()
+addPenaltyCycles _    None = pure ()
 addPenaltyCycles False _   = pure ()
-addPenaltyCycles True None = pure ()
 addPenaltyCycles True BoundaryCross = cycle 1
 
 absoluteGen :: Emulator Word8 -> Penalty -> Emulator Word16
