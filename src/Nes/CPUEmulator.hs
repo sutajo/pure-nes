@@ -40,7 +40,7 @@ toWord16 :: Bool -> Word16
 toWord16 = fromIntegral . fromEnum
 
 word16toWord8 :: Word16 -> (Word8, Word8)
-word16toWord8 word = (fromIntegral ((word .&. 0xFF00) `shiftR` 8), fromIntegral (word .&. 0x00FF))
+word16toWord8 word = (fromIntegral ((word `shiftR` 8) .&. 0xFF) , fromIntegral (word .&. 0x00FF))
 
 word8toWord16 :: Word8 -> Word8 -> Word16
 word8toWord16 low high = (fromIntegral high `shiftL` 8) .|. fromIntegral low
