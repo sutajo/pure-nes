@@ -506,11 +506,10 @@ addPenaltyCycles True BoundaryCross = cycle 1
 
 absoluteGen :: Emulator Word8 -> Penalty -> Emulator Word16
 absoluteGen acquire penalty = do
-  addr <- absolute 
-  xreg <- acquire
-  let
-    xreg16 = fromIntegral xreg 
-    result = addr + xreg16
+  addr  <- absolute 
+  reg16 <- fromIntegral <$> acquire
+  let 
+    result = addr + reg16
     pageCrossed = addr `onDifferentPage` result
   addPenaltyCycles pageCrossed penalty
   return result
