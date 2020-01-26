@@ -1,3 +1,3 @@
 # pure-nes
 
-![Alt text](showcase/menu.png "Menu")
+<img align="center" src="showcase/menu.png" alt="Menu">
