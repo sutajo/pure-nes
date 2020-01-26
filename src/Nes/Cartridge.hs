@@ -60,18 +60,14 @@ loader = do
   return INES{..}
     
 
-tryLoadingINES :: FilePath -> IO (Maybe INES)
+tryLoadingINES :: FilePath -> IO INES
 tryLoadingINES path = do
-  let 
-    fileNotFound (e :: IOException) = putStrLn "ROM not found on path." >> pure Nothing
-
-  flip catch fileNotFound $ do
     contents <- B.readFile path
     case runGetOrFail loader contents of
-      Left err -> do
-        pure Nothing
+      Left (_,_,err) -> do
+        fail (show err)
       Right (_,_,cartridge) -> 
-        pure (Just cartridge) 
+        pure cartridge 
 
 data Mirroring
   = Horizontal
@@ -92,7 +88,7 @@ init INES{..} = do
   let 
     mapper = (flags6 `shiftR` 4) .|. ((flags7 `shiftR` 4) `shiftL` 4)
     mirror = if flags6 `testBit` 3 then FourScreen else (toEnum . fromEnum) (flags6 `testBit` 0)
-  when (mapper /= 0) . fail $ "Mapper type " ++ show mapper ++ " is not supported" 
+  when (mapper /= 0) . fail $ "Mapper type " ++ show mapper ++ " is currently not supported" 
   chr_rom <- newListArray (0, (fromIntegral $ BS.length chr_rom_bs)) $ unpack chr_rom_bs
   prg_rom <- newListArray (0, (fromIntegral $ BS.length prg_rom_bs)) $ unpack prg_rom_bs
   prg_ram <- newArray (0, (fromIntegral prg_ram_size)) 0
@@ -100,7 +96,5 @@ init INES{..} = do
 
 
 initFrom :: FilePath -> IO Cartridge
-initFrom path = tryLoadingINES path >>= \case
-  Nothing -> error "Cartridge.initFrom: could not load INES"
-  Just ines -> init ines
+initFrom path = tryLoadingINES path >>= init
 
