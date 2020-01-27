@@ -736,9 +736,8 @@ irq = do
 processInterrupt = do
   readReg intr <&> (toEnum . fromEnum) >>= \case
     NONE -> pure ()
-    NMI  -> nmi
-    IRQ  -> irq
-  writeReg intr 0
+    NMI  -> nmi >> writeReg intr 0
+    IRQ  -> irq >> writeReg intr 0 
 
 decodeNextOpcode :: Emulator Opcode
 decodeNextOpcode = (fetch >>= read) <&> decodeOpcode
@@ -746,10 +745,12 @@ decodeNextOpcode = (fetch >>= read) <&> decodeOpcode
 clock :: Emulator ()
 clock = do
   processInterrupt
+  setFlag Unused True
   Opcode instruction length cycles <- decodeNextOpcode
   modifyReg pc ((+) $ fromIntegral length)
   cycle cycles
   instruction -- run the instruction
+  setFlag Unused True
 
 
 

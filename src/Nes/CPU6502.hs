@@ -33,6 +33,7 @@ data Flag
   | InterruptDisable
   | DecimalMode
   | BreakCommand
+  | Unused
   | Overflow
   | Negative 
   deriving (Enum)
