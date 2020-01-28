@@ -14,6 +14,7 @@ import           Data.IORef
 import           System.Exit
 import           SDL
 import           SDL.Audio
+import qualified SDL.Image as Img
 import           SDL.Input.Joystick
 import           Nes.Cartridge
 
@@ -80,13 +81,13 @@ initAudio = do
   samples <- newIORef sinSamples
   let spec = OpenDeviceSpec
             {
-                openDeviceFreq = Mandate $ 44100
-              , openDeviceFormat = Mandate $ Signed16BitNativeAudio
-              , openDeviceChannels = Mandate $ Mono
-              , openDeviceSamples = 4096 * 2
+                openDeviceFreq     = Desire 44100
+              , openDeviceFormat   = Desire Signed16BitNativeAudio
+              , openDeviceChannels = Desire Mono
+              , openDeviceSamples  = 4096 * 2
               , openDeviceCallback = audioCB samples
-              , openDeviceUsage = ForPlayback
-              , openDeviceName = Nothing
+              , openDeviceUsage    = ForPlayback
+              , openDeviceName     = Nothing
             }
   fst <$> openAudioDevice spec
 
@@ -101,18 +102,25 @@ runEmulator :: FilePath -> TChan ParentMessage -> IO ()
 runEmulator romPath msgpipe = do
   Nes.Cartridge.initFrom romPath
   SDL.initializeAll
-  device <- initAudio
-  setAudioDevicePlaybackState device Play
+  Img.initialize [Img.InitJPG]
+  jpg      <- Img.load "resources/background.jpg"
+  device   <- initAudio
+  --setAudioDevicePlaybackState device Play
   greetings
   let windowConfig = SDL.defaultWindow {
     windowInitialSize = V2 (fromIntegral $ width * scale) (fromIntegral $ height * scale)
   }
-  window <- SDL.createWindow "Pure-Nes Emulator" windowConfig
+  window     <- SDL.createWindow "Pure-Nes Emulator" windowConfig
+  windowSurf <- SDL.getWindowSurface window
+  surfaceBlitScaled jpg Nothing windowSurf Nothing
+  updateWindowSurface window
   void $ iterateUntil (elem Quit) $ do
     threadDelay (10^4)
     sdlIntents <- fmap concat $ mapM (processEvent . SDL.eventPayload) =<< SDL.pollEvents
     gtkIntents <- fmap concat $ mapM processParentMessage =<< (atomically $ readAllTchan msgpipe)
     return (gtkIntents ++ sdlIntents)
+  SDL.freeSurface jpg
+  destroyWindow window
   SDL.closeAudioDevice device
   SDL.quit
   bye

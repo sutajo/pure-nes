@@ -72,7 +72,7 @@ executable pure-nes
       -threaded 
       -rtsopts 
       -with-rtsopts=-N 
-      -O2 
+      -O2
       -fllvm
       -funbox-strict-fields
       -dynamic
@@ -87,11 +87,14 @@ executable pure-nes
     , text
     , vector
     , sdl2
+    , sdl2-ttf
+    , sdl2-image
     , monad-loops
     , stm
     , mtl
     , transformers
     , containers
+    , concurrent-extra
   default-language: Haskell2010
 
 test-suite pure-nes-test

@@ -18,24 +18,39 @@ import           Data.Functor()
 import           Data.Maybe (fromMaybe)
 import           Data.Word
 import           Nes.Controls as Controls
+import qualified Data.List as L
 import qualified Data.Vector as V
 import qualified Data.Map as M
 import           SDL.Event
 import           SDL.Input.Joystick
 import           SDL.Input.GameController()
 
+
+type ButtonMappings = M.Map Word8 Controls.Button
+
+
+data ConnectedJoy = ConnectedJoy {
+  joy :: Joystick,
+  id  :: Int32
+} deriving (Show)
+
+instance Eq ConnectedJoy where
+  (ConnectedJoy _ id1) == (ConnectedJoy _ id2) = id1 == id2
+
+
 data JoyControlState = JoyControlState {
   previousHatState :: IORef JoyHatPosition,
-  connectedJoys    :: IORef (V.Vector Joystick),
-  buttonMappings   :: M.Map Word8 Button
+  connectedJoys    :: IORef [ConnectedJoy],
+  buttonMappings   :: ButtonMappings
 }
 
-init :: IO JoyControlState
-init = 
-  JoyControlState      <$>
-  newIORef HatCentered <*>
-  newIORef V.empty     <*>
-  pure M.empty
+
+init :: ButtonMappings -> IO JoyControlState
+init mappings = 
+    JoyControlState <$>
+    newIORef HatCentered <*>
+    newIORef [] <*>
+    pure mappings
 
 convertHatState :: JoyHatPosition -> Button
 convertHatState hatPos = case hatPos of
@@ -54,6 +69,7 @@ manageButtonEvent JoyControlState{..} (JoyButtonEventData _ btn state) = do
       JoyButtonReleased -> Release
   pure [action controllerButton]
 
+
 manageHatEvent :: JoyControlState -> JoyHatEventData -> IO [UserInput]
 manageHatEvent JoyControlState{..} (JoyHatEventData _ _ newState) = execWriterT $ do
   when (newState `elem` [HatUp, HatDown, HatLeft, HatRight, HatCentered]) $ do
@@ -65,22 +81,21 @@ manageHatEvent JoyControlState{..} (JoyHatEventData _ _ newState) = execWriterT 
     when (newState /= HatCentered) $ do 
       tell [Press $ convertHatState newState]
 
+
 manageDeviceEvent :: JoyControlState -> JoyDeviceEventData -> IO ()
 manageDeviceEvent JoyControlState{..} (JoyDeviceEventData conn id) = do
   let
-    getJoysWithID :: IO (V.Vector (Joystick, Int32))
-    getJoysWithID = readIORef connectedJoys >>= V.mapM (\joy -> (,) <$> pure joy <*> getJoystickID joy)
-    getEventJoy :: V.Vector (Joystick, Int32) -> Maybe Joystick 
-    getEventJoy = fmap fst . V.find (\(_,joyID) -> joyID == id)
+    getEventJoy :: [ConnectedJoy] -> Maybe ConnectedJoy 
+    getEventJoy = L.find (\(ConnectedJoy _ joyId) -> joyId == id)
   case conn of
     JoyDeviceAdded -> void $ runMaybeT $ do
       joyDevice <- MaybeT $ V.find (\joy -> joystickDeviceId joy == fromIntegral id) <$> availableJoysticks
       liftIO $ do
         joy <- openJoystick joyDevice
-        modifyIORef' connectedJoys (V.cons joy) 
+        modifyIORef' connectedJoys (ConnectedJoy joy id :) 
     JoyDeviceRemoved -> void $ runMaybeT $ do
-      joysWithID <- liftIO $ getJoysWithID
-      eventJoy  <- MaybeT . pure . getEventJoy $ joysWithID
+      connections <- liftIO $ readIORef connectedJoys
+      ConnectedJoy eventJoy  _ <- MaybeT . pure . getEventJoy $ connections
       liftIO $ do
-        writeIORef connectedJoys (V.map fst . V.filter ((/= id) . snd) $ joysWithID)
+        modifyIORef' connectedJoys (L.deleteBy (==) (ConnectedJoy eventJoy id))
         closeJoystick eventJoy 

@@ -8,6 +8,7 @@ import           Control.Concurrent.STM
 import           Control.Concurrent.STM.TChan
 import qualified Data.Text                     as Text
 import           Data.Int
+import           Data.IORef
 import           Data.Vector                    ( Vector )
 import           GI.Gtk                         ( Box(..)
                                                 , Button(..)
@@ -130,26 +131,26 @@ windowContent s = case s of
 just x = x *> pure Nothing
 noop = just (return ())
 
-launchEmulator :: FilePath -> TChan ParentMessage -> IO ()
-launchEmulator path existingChan = do
- chan <- atomically $ dupTChan existingChan
- runEmulator path chan
+launchEmulator :: FilePath -> IORef (TChan ParentMessage) -> IO ()
+launchEmulator path chanRef = do
+ newTChanIO >>= writeIORef chanRef
+ readIORef chanRef >>= runEmulator path
 
-update' :: TChan ParentMessage -> State -> Event -> Transition State Event
-update' child (Started _) (FileSelectionChanged p) =
+update' :: IORef (TChan ParentMessage) -> State -> Event -> Transition State Event
+update' _ (Started _) (FileSelectionChanged p) =
   Transition (Started p) (return Nothing)
-update' child _ Closed = Exit
-update' child s@(Started (Just path)) StartEmulator = Transition Emulating (just $ forkIO (launchEmulator path child))
-update' child s@(Started Nothing) StartEmulator = Transition (Message "No ROM selected.") noop
-update' child (Message _) MessageAck = Transition (Started Nothing) noop
-update' child Emulating CloseEmulator = Transition (Started Nothing) (just $ atomically $ writeTChan child Stop)
-update' child s _      = Transition s noop
+update' _ _ Closed = Exit
+update' childRef s@(Started (Just path)) StartEmulator = Transition Emulating (just $ forkOS (launchEmulator path childRef))
+update' _ s@(Started Nothing) StartEmulator = Transition (Message "No ROM selected.") noop
+update' _ (Message _) MessageAck = Transition (Started Nothing) noop
+update' childRef Emulating CloseEmulator = Transition (Started Nothing) (just $ readIORef childRef >>= \child -> atomically $ writeTChan child Stop)
+update' _ s _      = Transition s noop
 
 main :: IO ()
 main = do
-    chan <- newTChanIO
+    chanRef <- newTChanIO >>= newIORef
     void $ run App {    view         = view'
-                      , update       = update' chan
+                      , update       = update' chanRef
                       , inputs       = []
                       , initialState = Started Nothing
                     }
