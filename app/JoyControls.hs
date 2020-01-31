@@ -97,5 +97,5 @@ manageDeviceEvent JoyControlState{..} (JoyDeviceEventData conn id) = do
       connections <- liftIO $ readIORef connectedJoys
       ConnectedJoy eventJoy  _ <- MaybeT . pure . getEventJoy $ connections
       liftIO $ do
-        modifyIORef' connectedJoys (L.deleteBy (==) (ConnectedJoy eventJoy id))
+        modifyIORef' connectedJoys (L.delete (ConnectedJoy eventJoy id))
         closeJoystick eventJoy 

@@ -1,14 +1,17 @@
-{-# LANGUAGE ScopedTypeVariables, LambdaCase #-}
+{-# LANGUAGE ScopedTypeVariables, LambdaCase, RecordWildCards #-}
 
 module Nes.CPUEmulator(
-  initialize,
-  reset,
-  clock
+  clock,
+  fetchOpcode,
+  getSnapshot,
+  writeReg,
+  readReg,
+  fetch
 )where
 
 import Prelude hiding (read, cycle, and)
 import Control.Monad.Reader
-import Data.IORef.Unboxed (IORefU, readIORefU, writeIORefU)
+import Data.IORef.Unboxed
 import Data.Array.IO
 import Data.Primitive(Prim)
 import Data.Word
@@ -26,12 +29,6 @@ data Opcode = Opcode {
 }
 
 op = Opcode
-
-initialize :: IO CPU
-initialize = undefined
-
-reset :: Emulator ()
-reset = undefined
 
 toWord8 :: Bool -> Word8
 toWord8 = fromIntegral . fromEnum
@@ -68,22 +65,16 @@ readRAM addr = useMemory ram $ (flip readArray addr)
 writeRAM :: Word16 -> Word8 -> Emulator ()
 writeRAM addr val = useMemory ram $ (\arr -> writeArray arr addr val)
 
-readIORegisters :: Word16 -> Emulator Word8
-readIORegisters addr = useMemory ioRegisters $ (flip readArray addr)
-
-writeIORegisters :: Word16 -> Word8 -> Emulator ()
-writeIORegisters addr val = useMemory ioRegisters $ (\arr -> writeArray arr addr val)
-
 zeropage :: Word16 -> Word8 -> Word16
 zeropage arg reg = (arg + fromIntegral reg) `rem` 0x100
 
 read :: Word16 -> Emulator Word8
 read addr 
   | addr <= 0x1FFF = readRAM (addr `rem` 0x800)         -- mirrored
-  | addr <= 0x2007 = error "PPU read" -- readPPU addr
-  | addr <= 0x3FFF = error "PPU read" -- readPPU (0x2000 + addr `rem` 0x8)  -- mirrored
-  | addr <= 0x4017 = readIORegisters addr
-  | addr <= 0xFFFF = error "Cartridge read" -- readCartridge
+  | addr <= 0x2007 = error "PPU read"                   -- readPPU addr
+  | addr <= 0x3FFF = error "PPU read"                   -- readPPU (0x2000 + addr `rem` 0x8)  -- mirrored
+  | addr <= 0x4017 = error "APU read"
+  | addr <= 0xFFFF = readCartridge addr                 -- readCartridge
 
 readAddress :: Word16 -> Emulator Word16
 readAddress addr = word8toWord16 <$> read addr <*> read (addr+1)
@@ -100,8 +91,8 @@ write addr val
   | addr <= 0x1FFF = writeRAM addr val
   | addr <= 0x2007 = error "PPU write"
   | addr <= 0x3FFF = error "PPU write"
-  | addr <= 0x4017 = writeIORegisters addr val
-  | addr <= 0xFFFF = error "Cartridge write"
+  | addr <= 0x4017 = error "APU write"
+  | addr <= 0xFFFF = writeCartridge addr val
 
 setFlag :: Flag -> Bool -> Emulator ()
 setFlag flag cond = modifyReg p (setFlag' flag cond)
@@ -155,7 +146,11 @@ popAddress = word8toWord16 <$> pop <*> pop
 fetch :: Emulator Word16
 fetch = readReg pc
 
-fetchNext = fetchNext 
+fetchNext :: Emulator Word16
+fetchNext = fetch <&> (+1)
+
+fetchOpcode :: Emulator Word8
+fetchOpcode = fetch >>= read
 
 
 -- http://obelisk.me.uk/6502/reference.html
@@ -740,7 +735,18 @@ processInterrupt = do
     IRQ  -> irq >> writeReg intr 0 
 
 decodeNextOpcode :: Emulator Opcode
-decodeNextOpcode = (fetch >>= read) <&> decodeOpcode
+decodeNextOpcode = fetchOpcode <&> decodeOpcode
+
+getSnapshot :: Emulator CpuSnapshot
+getSnapshot = 
+  CpuSnapshot <$>
+  readReg a   <*>
+  readReg x   <*>
+  readReg y   <*>
+  readReg pc  <*>
+  readReg s   <*>
+  readReg p   <*>
+  readReg cyc
 
 clock :: Emulator ()
 clock = do

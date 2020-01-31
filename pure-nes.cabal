@@ -58,6 +58,7 @@ library
      , binary
      , bytestring
      , containers
+     , vector
   default-language: Haskell2010
 
 executable pure-nes
@@ -66,6 +67,7 @@ executable pure-nes
       Paths_pure_nes
       SDLWindow
       JoyControls
+      Communication
   hs-source-dirs:
       app
   ghc-options: 
@@ -95,6 +97,7 @@ executable pure-nes
     , transformers
     , containers
     , concurrent-extra
+    , pipes
   default-language: Haskell2010
 
 test-suite pure-nes-test
@@ -102,10 +105,16 @@ test-suite pure-nes-test
   main-is: Spec.hs
   other-modules:
       Paths_pure_nes
+      CPU.Nestest.Spec
+      CPU.Nestest.LogParser
   hs-source-dirs:
       test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
     , pure-nes
+    , tasty
+    , tasty-hunit
+    , attoparsec
+    , bytestring
   default-language: Haskell2010

@@ -6,6 +6,7 @@ import           Control.Monad
 import           Control.Concurrent
 import           Control.Concurrent.STM
 import           Control.Concurrent.STM.TChan
+import           Control.Exception
 import           Control.Monad.Loops
 import qualified Data.Vector.Storable.Mutable as V
 import           Data.Word
@@ -16,11 +17,8 @@ import           SDL
 import           SDL.Audio
 import qualified SDL.Image as Img
 import           SDL.Input.Joystick
+import           Communication
 import           Nes.Cartridge
-
-data ParentMessage 
-  = Stop
-  | TraceRequest
 
 data ChildMessage
   = Trace Int
@@ -98,9 +96,14 @@ readAllTchan tchan =  do
     Nothing -> return []
     Just a  -> (a:) <$> readAllTchan tchan
 
-runEmulator :: FilePath -> TChan ParentMessage -> IO ()
-runEmulator romPath msgpipe = do
-  Nes.Cartridge.initFrom romPath
+
+except op (comms, msg) = op `onException` do
+  writeChan (fromSDLWindow comms) (ErrorReport msg)
+
+
+runEmulator :: FilePath -> CommResources -> IO ()
+runEmulator romPath comms = do
+  Nes.Cartridge.loadFrom romPath `except` (comms, "Error: Failed to load cartridge.")
   SDL.initializeAll
   Img.initialize [Img.InitJPG]
   jpg      <- Img.load "resources/background.jpg"
@@ -117,8 +120,9 @@ runEmulator romPath msgpipe = do
   void $ iterateUntil (elem Quit) $ do
     threadDelay (10^4)
     sdlIntents <- fmap concat $ mapM (processEvent . SDL.eventPayload) =<< SDL.pollEvents
-    gtkIntents <- fmap concat $ mapM processParentMessage =<< (atomically $ readAllTchan msgpipe)
+    gtkIntents <- fmap concat $ mapM processParentMessage =<< (atomically $ readAllTchan (toSDLWindow comms))
     return (gtkIntents ++ sdlIntents)
+  writeChan (fromSDLWindow comms) SDLWindowClosed
   SDL.freeSurface jpg
   destroyWindow window
   SDL.closeAudioDevice device

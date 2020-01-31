@@ -1,20 +1,23 @@
-{-# LANGUAGE OverloadedStrings, ScopedTypeVariables, RecordWildCards, LambdaCase, FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings, ScopedTypeVariables, RecordWildCards, LambdaCase, FlexibleContexts, TypeFamilies #-}
 
 module Nes.Cartridge (
-  Cartridge(..),
-  initFrom
+  Cartridge,
+  loadFrom,
+  readCartridge,
+  writeCartridge
 ) where
 
 -- INES format: https://wiki.nesdev.com/w/index.php/INES
 -- https://formats.kaitai.io/ines/index.html 
 
-import           Prelude hiding (init)
-import           Data.Array.IO
+import           Prelude hiding (load)
+import qualified Data.Vector.Unboxed         as V
+import qualified Data.Vector.Unboxed.Mutable as VM
 import           Data.Word
 import           Data.Binary
 import           Data.Binary.Get
 import           Data.Bits
-import           Data.ByteString      as BS hiding (readFile, init, putStrLn) 
+import           Data.ByteString      as BS hiding (readFile, load, putStrLn) 
 import qualified Data.ByteString.Lazy as B (readFile, toStrict)
 import           Control.Monad
 import           Control.Applicative()
@@ -76,25 +79,73 @@ data Mirroring
   deriving (Show, Enum)
     
 data Cartridge = Cartridge {
-    mapper       :: Word8,
+    mapper       :: Mapper,
     mirror       :: Mirroring,
-    chr_rom      :: IOUArray Word32 Word8,
-    prg_rom      :: IOUArray Word32 Word8,
-    prg_ram      :: IOUArray Word32 Word8
+    chr_rom      :: VM.IOVector Word8,
+    prg_rom      :: VM.IOVector Word8,
+    prg_ram      :: VM.IOVector Word8
 }
 
-init :: INES -> IO Cartridge
-init INES{..} = do
+toVector :: ByteString -> IO (VM.IOVector Word8)
+toVector bs = V.unsafeThaw $ V.fromList (BS.unpack bs)
+
+load :: INES -> IO Cartridge
+load INES{..} = do
   let 
-    mapper = (flags6 `shiftR` 4) .|. ((flags7 `shiftR` 4) `shiftL` 4)
+    mapperId = (flags6 `shiftR` 4) .|. ((flags7 `shiftR` 4) `shiftL` 4)
     mirror = if flags6 `testBit` 3 then FourScreen else (toEnum . fromEnum) (flags6 `testBit` 0)
-  when (mapper /= 0) . fail $ "Mapper type " ++ show mapper ++ " is currently not supported" 
-  chr_rom <- newListArray (0, (fromIntegral $ BS.length chr_rom_bs)) $ unpack chr_rom_bs
-  prg_rom <- newListArray (0, (fromIntegral $ BS.length prg_rom_bs)) $ unpack prg_rom_bs
-  prg_ram <- newArray (0, (fromIntegral prg_ram_size)) 0
-  return Cartridge{..}
+    mapper = defaultMapper
+  when (mapperId /= 0) . fail $ "Mapper type " ++ show mapperId ++ " is currently not supported" 
+  chr_rom <- toVector chr_rom_bs
+  prg_rom <- toVector prg_rom_bs
+  prg_ram <- VM.new (fromIntegral prg_ram_size)
+  let cart = Cartridge{..} 
+  pure $ attachMapper mapperId cart
 
 
-initFrom :: FilePath -> IO Cartridge
-initFrom path = tryLoadingINES path >>= init
+loadFrom :: FilePath -> IO Cartridge
+loadFrom path = tryLoadingINES path >>= load
 
+data Mapper = Mapper {
+    read    :: Word16 -> IO Word8
+ ,  write   :: Word16 -> Word8 -> IO ()
+}
+
+defaultMapper = Mapper undefined undefined
+
+attachMapper :: Word8 -> Cartridge -> Cartridge
+attachMapper mappedId cart = cart { mapper = newMapper cart }
+  where
+    newMapper = case mappedId of
+      0 -> nrom
+      _ -> error "Unimplemented mapper type"
+
+
+readCartridge :: Cartridge -> Word16 -> IO Word8
+readCartridge c@Cartridge{ mapper = Mapper r _ } addr = r addr
+    
+
+writeCartridge :: Cartridge -> Word16 -> Word8 -> IO ()
+writeCartridge c@Cartridge{ mapper = Mapper _ w } addr val = w addr val
+
+
+-- aka mapper0
+nrom :: Cartridge -> Mapper
+nrom Cartridge{..} = Mapper{..}
+ where 
+  prg_ram_size = VM.length prg_ram
+  mirrored  addr = (fromIntegral addr - 0x8000) `rem` 0x4000
+  intact addr = fromIntegral addr - 0x8000
+  prg_ram_addr addr = (fromIntegral addr - 0x6000) `rem` prg_ram_size
+  guardRam :: IO a -> IO a
+  guardRam op = if prg_ram_size == 0 then error "Tried to access non-existent prg_ram" else op  
+  readWith mode addr
+   | addr < 0x8000 = guardRam $ VM.read prg_ram (prg_ram_addr addr)
+   | addr < 0xFFFF = VM.read prg_rom (mode addr)
+  write addr val
+   | addr < 0x8000 = guardRam $ VM.write prg_ram (prg_ram_addr addr) val
+   | addr < 0xFFFF = error $ "The program tried to write PRG_ROM at $" ++ show addr 
+  read = readWith $
+    case VM.length prg_rom of
+      0x4000 ->  mirrored
+      0x8000 ->  intact

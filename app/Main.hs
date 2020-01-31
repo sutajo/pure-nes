@@ -1,11 +1,14 @@
-{-# LANGUAGE OverloadedLabels, OverloadedLists, OverloadedStrings, FlexibleContexts, NamedFieldPuns, ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedLabels, OverloadedLists, OverloadedStrings, FlexibleContexts, NamedFieldPuns, ScopedTypeVariables, RecordWildCards #-}
 
 module Main where
 
-import           Control.Monad                  ( void )
-import           Control.Concurrent
+import           Control.Monad                  
+import           Control.Monad.IO.Class
+import           Control.Concurrent       hiding (yield)
 import           Control.Concurrent.STM
 import           Control.Concurrent.STM.TChan
+import           Control.Concurrent.Chan
+import           Control.Exception
 import qualified Data.Text                     as Text
 import           Data.Int
 import           Data.IORef
@@ -27,22 +30,15 @@ import qualified GI.GObject                    as GI
 import           GI.Gtk.Enums
 import           GI.Gtk.Declarative
 import           GI.Gtk.Objects.Image(Image(..))
-import           GI.Gtk.Declarative.App.Simple
+import           GI.Gtk.Declarative.App.Simple as DAS
+import           Communication
+import           Pipes
 import           SDLWindow
 
 data State = Started (Maybe FilePath) 
            | Done FilePath
            | Message Text.Text
            | Emulating
-
-data Event = FileSelectionChanged (Maybe FilePath) 
-          |  Closed 
-          |  Help 
-          |  StartEmulator 
-          |  ControllerConfig
-          |  MessageAck
-          | CloseEmulator
-
 
 menuBar :: Widget Event
 menuBar = 
@@ -82,7 +78,7 @@ windowContent s = case s of
         $ widget Label [#label := text]
       , BoxChild defaultBoxChildProperties { padding = 15 } $ widget
         Button
-        [ #label := "I'll try again."
+        [ #label := "Ok"
         , on #clicked MessageAck
         ]
       ]
@@ -128,30 +124,39 @@ windowContent s = case s of
         ]
       ]
 
-just x = x *> pure Nothing
-noop = just (return ())
+noop = pure Nothing
+just x = do x; noop
 
-launchEmulator :: FilePath -> IORef (TChan ParentMessage) -> IO ()
-launchEmulator path chanRef = do
- newTChanIO >>= writeIORef chanRef
- readIORef chanRef >>= runEmulator path
+launchEmulator :: FilePath -> CommResources -> IO ()
+launchEmulator path comms = do
+ toSDLWindow' <- atomically $ dupTChan (toSDLWindow comms)
+ void . forkOS $ runEmulator path comms { toSDLWindow = toSDLWindow' }
 
-update' :: IORef (TChan ParentMessage) -> State -> Event -> Transition State Event
-update' _ (Started _) (FileSelectionChanged p) =
+update :: CommResources -> State -> Event -> Transition State Event
+update _ (Started _) (FileSelectionChanged p) =
   Transition (Started p) (return Nothing)
-update' _ _ Closed = Exit
-update' childRef s@(Started (Just path)) StartEmulator = Transition Emulating (just $ forkOS (launchEmulator path childRef))
-update' _ s@(Started Nothing) StartEmulator = Transition (Message "No ROM selected.") noop
-update' _ (Message _) MessageAck = Transition (Started Nothing) noop
-update' childRef Emulating CloseEmulator = Transition (Started Nothing) (just $ readIORef childRef >>= \child -> atomically $ writeTChan child Stop)
-update' _ s _      = Transition s noop
+update _  _ Closed = Exit
+update comms s@(Started (Just path)) StartEmulator = Transition Emulating (just $ launchEmulator path comms)
+update _ s@(Started Nothing) StartEmulator = Transition (Message "No ROM selected.") noop
+update _ (Message _) MessageAck = Transition (Started Nothing) noop
+update comms Emulating CloseEmulator 
+  = Transition (Started Nothing) (just . atomically $ writeTChan (toSDLWindow comms) Stop)
+update _ Emulating SDLWindowClosed = Transition (Started Nothing) noop
+update _ _ (ErrorReport msg) = Transition (Message $ Text.pack msg) noop
+update _ s _      = Transition s noop
 
 main :: IO ()
 main = do
-    chanRef <- newTChanIO >>= newIORef
+    gtkMessages    <- newBroadcastTChanIO
+    sdlEvents      <- newChan
+    let comms = CommResources { 
+                toSDLWindow   = gtkMessages, 
+                fromSDLWindow = sdlEvents 
+              }
+    let sdlWindowEventProxy = forever $ liftIO (readChan sdlEvents) >>= yield 
     void $ run App {    view         = view'
-                      , update       = update' chanRef
-                      , inputs       = []
+                      , DAS.update   = Main.update comms
+                      , inputs       = [sdlWindowEventProxy]
                       , initialState = Started Nothing
                     }
                       
