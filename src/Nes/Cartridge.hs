@@ -13,6 +13,7 @@ module Nes.Cartridge (
 import           Prelude hiding (load)
 import qualified Data.Vector.Unboxed         as V
 import qualified Data.Vector.Unboxed.Mutable as VM
+import           Data.Functor
 import           Data.Word
 import           Data.Binary
 import           Data.Binary.Get
@@ -44,7 +45,8 @@ header = replicateM 7 getWord8
   
 loader :: Get INES
 loader = do
-  "NES\SUB"   <- getByteString 4
+  magicNumbersMatch <- getByteString 4 <&> (== "NES\SUB")
+  when (not magicNumbersMatch) $ fail "INES magic numbers are missing."
   [  len_prg_rom , len_chr_rom 
    , flags6      , flags7      
    , len_prg_ram , flags9      
@@ -58,7 +60,7 @@ loader = do
   when (has_trainer) $ skip 512      --We are skipping trainers for now
   prg_rom_bs  <- getByteString (prg_rom_page_size * fromIntegral len_prg_rom)
   chr_rom_bs  <- getByteString (chr_rom_page_size * fromIntegral len_chr_rom)
-  playChoice  <- when has_playChoice (skip 8224)
+  when has_playChoice (skip 8224)
   title       <- B.toStrict <$> getRemainingLazyByteString
   return INES{..}
     
@@ -111,7 +113,7 @@ data Mapper = Mapper {
  ,  write   :: Word16 -> Word8 -> IO ()
 }
 
-defaultMapper = Mapper undefined undefined
+defaultMapper = Mapper (const (pure 0)) (\_ _ -> pure ())
 
 attachMapper :: Word8 -> Cartridge -> Cartridge
 attachMapper mappedId cart = cart { mapper = newMapper cart }

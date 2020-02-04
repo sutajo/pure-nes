@@ -93,9 +93,13 @@ readAddressWithBug addr = do
   lo <- read addr
   hi <- read (addr+1)
   let addr = word8toWord16 lo hi
-  case lo of
-    0xFF -> word8toWord16 <$> read addr <*> read (addr .&. 0xFF00)
-    _    -> word8toWord16 <$> read addr <*> read (addr+1)
+  word8toWord16 <$> 
+    read addr   <*> 
+    read (
+      case lo of
+        0xFF -> addr .&. 0xFF00
+        _    -> addr  +  1
+    )
 
 write :: Word16 -> Word8 -> Emulator ()
 write addr val
