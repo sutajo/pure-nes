@@ -11,7 +11,7 @@ $ sudo apt-get install libgirepository1.0-dev libwebkit2gtk-4.0-dev libgtksource
 
 # Install Sdl2
 ```console
-$ sudo apt-get install libsdl2-dev
+$ sudo apt-get install libsdl2-dev libsdl2-ttf-dev libsdl2-image-dev
 ```
 
 # Build with stack
@@ -24,3 +24,7 @@ $ stack build
 $ stack exec pure-nes
 ```
 
+# Run tests
+```console
+$ stack test
+```
