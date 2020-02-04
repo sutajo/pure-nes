@@ -9,5 +9,8 @@ main = defaultMain tests
 tests :: TestTree
 tests = testGroup "Pure-Nes Tests" $
   [
+    testGroup "CPU" $
+    [
       Nestest.test
+    ]
   ]

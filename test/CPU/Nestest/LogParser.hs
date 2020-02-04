@@ -14,22 +14,22 @@ import Nes.CPU6502
 
 snapshotParser :: Parser (Word8, CpuSnapshot)
 snapshotParser = do
-  spc <- hexadecimal
+  pc'    <- hexadecimal
   count 2  space
   opcode <- hexadecimal
   count 40 anyChar
-  sa  <- string "A:"  *> hexadecimal <* space
-  sx  <- string "X:"  *> (hexadecimal :: Parser Word8) <* space
-  sy  <- string "Y:"  *> hexadecimal <* space
-  sp  <- string "P:"  *> hexadecimal <* space
-  ss  <- string "SP:" *> hexadecimal <* space
+  a'  <- string "A:"  *> hexadecimal <* space
+  x'  <- string "X:"  *> (hexadecimal :: Parser Word8) <* space
+  y'  <- string "Y:"  *> hexadecimal <* space
+  p'  <- string "P:"  *> hexadecimal <* space
+  s'  <- string "SP:" *> hexadecimal <* space
   count 12 anyChar
-  scyc <- string "CYC:" *> decimal <* endOfLine
+  cyc' <- string "CYC:" *> decimal <* endOfLine
   pure (opcode, CpuSnapshot{..})
 
 logParser :: Parser [(Word8, CpuSnapshot, Int)]
 logParser = do
   snaps <- some snapshotParser
-  zipWithM (\(a,b) c -> pure (a,b,c)) snaps [1..]  
+  pure $ zipWith (\(a,b) c -> (a,b,c)) snaps [1..]  
 
 

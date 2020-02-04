@@ -32,7 +32,7 @@ powerUp = do
   y <- newIORefU 0
   s <- newIORefU 0xFD
   pc <- newIORefU 0
-  cyc  <- newIORefU 0
+  cyc  <- newIORefU 7 -- https://forums.nesdev.com/viewtopic.php?f=3&t=14231
   intr <- newIORefU 0
   return CPU{..} 
 
@@ -67,11 +67,11 @@ data Instruction
 
 
 data CpuSnapshot = CpuSnapshot {
-  sa     ::  Word8, 
-  sx     ::  Word8, 
-  sy     ::  Word8, 
-  spc    ::  Word16,
-  ss     ::  Word8, 
-  sp     ::  Word8, 
-  scyc   ::  Int
+  a'     ::  Word8, 
+  x'     ::  Word8, 
+  y'     ::  Word8, 
+  pc'    ::  Word16,
+  s'     ::  Word8, 
+  p'     ::  Word8, 
+  cyc'   ::  Int
 } deriving (Eq, Show)

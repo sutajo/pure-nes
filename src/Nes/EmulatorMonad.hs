@@ -42,7 +42,7 @@ newtype Emulator a = Emulator {
 runEmulator :: Nes -> Emulator a -> IO a
 runEmulator nes (Emulator emu) = runReaderT emu nes
 
-useMemory :: (Nes -> b) -> (b-> IO a) -> Emulator a
+useMemory :: (Nes -> b) -> (b -> IO a) -> Emulator a
 useMemory memory action = ask <&> memory >>= liftIO . action
 
 readCartridge :: Word16 -> Emulator Word8

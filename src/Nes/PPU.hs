@@ -11,4 +11,4 @@ data PPU = PPU {
 }
 
 powerUp :: IO PPU
-powerUp = PPU <$> newArray (2000, 2007) 0
+powerUp = PPU <$> newArray (0x2000, 0x2007) 0

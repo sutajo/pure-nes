@@ -13,7 +13,7 @@ homepage:       https://github.com/githubuser/pure-nes#readme
 bug-reports:    https://github.com/githubuser/pure-nes/issues
 author:         Suhajda Tamás
 maintainer:     sutajo@gmail.com
-copyright:      2020 Author name here
+copyright:      2020 Suhajda Tamás
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
@@ -45,6 +45,7 @@ library
       -fno-warn-name-shadowing
       -fwarn-unused-imports
       -fllvm
+      -optlc -O3
       -funbox-strict-fields
   build-depends:
        base >=4.7 && <5
@@ -54,7 +55,6 @@ library
      , unboxed-ref
      , primitive
      , array
-     , lens
      , binary
      , bytestring
      , containers
@@ -75,9 +75,9 @@ executable pure-nes
       -rtsopts 
       -with-rtsopts=-N 
       -O2
-      -fllvm
       -funbox-strict-fields
-      -dynamic
+      -- -fllvm
+      -- -dynamic
   build-depends:
       base >=4.7 && <5
     , pure-nes
@@ -109,7 +109,7 @@ test-suite pure-nes-test
       CPU.Nestest.LogParser
   hs-source-dirs:
       test
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -O2
   build-depends:
       base >=4.7 && <5
     , pure-nes

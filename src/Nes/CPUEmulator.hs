@@ -2,29 +2,29 @@
 
 module Nes.CPUEmulator(
   clock,
-  fetchOpcode,
+  fetch,
+  fetchByte,
   getSnapshot,
   writeReg,
-  readReg,
-  fetch
+  readReg
 )where
 
-import Prelude hiding (read, cycle, and)
-import Control.Monad.Reader
-import Data.IORef.Unboxed
-import Data.Array.IO
-import Data.Primitive(Prim)
-import Data.Word
-import Data.Bits hiding (bit)
-import Data.Functor
-import Nes.EmulatorMonad
-import Nes.CPU6502
+import           Prelude hiding (read, cycle, and)
+import           Control.Monad.Reader
+import           Data.IORef.Unboxed
+import           Data.Array.IO
+import           Data.Primitive(Prim)
+import           Data.Word
+import           Data.Bits hiding (bit)
+import           Data.Functor
+import           Nes.EmulatorMonad
+import           Nes.CPU6502
+import qualified Nes.APU as APU
 
 data Penalty = None | BoundaryCross deriving (Enum)
 
 data Opcode = Opcode {
   instruction   :: Emulator (),
-  length        :: !Word8,
   cycles        :: !Int
 }
 
@@ -59,11 +59,20 @@ writeReg reg val = useCpu (flip writeIORefU val) reg
 modifyReg :: Prim a => (CPU -> IORefU a) -> (a -> a) -> Emulator ()
 modifyReg reg f = readReg reg >>= writeReg reg . f
 
-readRAM :: Word16 -> Emulator Word8
-readRAM addr = useMemory ram $ (flip readArray addr)
+readComponent :: (Nes -> IOUArray Word16 Word8) -> Word16 -> Emulator Word8
+readComponent comp addr = useMemory comp $ (flip readArray addr)
 
-writeRAM :: Word16 -> Word8 -> Emulator ()
-writeRAM addr val = useMemory ram $ (\arr -> writeArray arr addr val)
+writeComponent :: (Nes -> IOUArray Word16 Word8) -> Word16 -> Word8 -> Emulator ()
+writeComponent comp addr val = useMemory comp $ (\arr -> writeArray arr addr val)
+
+readRAM = readComponent ram
+writeRAM = writeComponent ram
+
+readAPU :: Word16 -> Emulator Word8
+readAPU = readComponent (APU.registers. apu)
+
+writeAPU :: Word16 -> Word8 -> Emulator ()
+writeAPU = writeComponent (APU.registers . apu)
 
 zeropage :: Word16 -> Word8 -> Word16
 zeropage arg reg = (arg + fromIntegral reg) `rem` 0x100
@@ -73,7 +82,7 @@ read addr
   | addr <= 0x1FFF = readRAM (addr `rem` 0x800)         -- mirrored
   | addr <= 0x2007 = error "PPU read"                   -- readPPU addr
   | addr <= 0x3FFF = error "PPU read"                   -- readPPU (0x2000 + addr `rem` 0x8)  -- mirrored
-  | addr <= 0x4017 = error "APU read"
+  | addr <= 0x4017 = readAPU addr 
   | addr <= 0xFFFF = readCartridge addr                 -- readCartridge
 
 readAddress :: Word16 -> Emulator Word16
@@ -81,17 +90,19 @@ readAddress addr = word8toWord16 <$> read addr <*> read (addr+1)
 
 readAddressWithBug :: Word16 -> Emulator Word16
 readAddressWithBug addr = do
-  lowByte <- read addr
-  let (addr8 :: Word8) = fromIntegral addr 
-  highByte <- read ((0xFF00 .&. addr) .|. fromIntegral (addr8 + 1))
-  return (word8toWord16 lowByte highByte)
+  lo <- read addr
+  hi <- read (addr+1)
+  let addr = word8toWord16 lo hi
+  case lo of
+    0xFF -> word8toWord16 <$> read addr <*> read (addr .&. 0xFF00)
+    _    -> word8toWord16 <$> read addr <*> read (addr+1)
 
 write :: Word16 -> Word8 -> Emulator ()
 write addr val
   | addr <= 0x1FFF = writeRAM addr val
   | addr <= 0x2007 = error "PPU write"
   | addr <= 0x3FFF = error "PPU write"
-  | addr <= 0x4017 = error "APU write"
+  | addr <= 0x4017 = writeAPU addr val
   | addr <= 0xFFFF = writeCartridge addr val
 
 setFlag :: Flag -> Bool -> Emulator ()
@@ -130,9 +141,8 @@ push value = do
 pop :: Emulator Word8
 pop = do
   sp <- readReg s
-  let newSp :: Word8 = sp+1
-  writeReg s newSp
-  read (0x100 + fromIntegral newSp)
+  modifyReg s (+1)
+  read ((fromIntegral sp + 1) `setBit` 8)
 
 pushAddress :: Word16 -> Emulator ()
 pushAddress addr = do
@@ -143,18 +153,16 @@ pushAddress addr = do
 popAddress :: Emulator Word16
 popAddress = word8toWord16 <$> pop <*> pop
 
-fetch :: Emulator Word16
-fetch = readReg pc
+fetchByte :: Emulator Word8
+fetchByte = readReg pc >>= read
 
-fetchNext :: Emulator Word16
-fetchNext = fetch <&> (+1)
-
-fetchOpcode :: Emulator Word8
-fetchOpcode = fetch >>= read
+fetch :: Emulator Opcode
+fetch = fetchByte <&> decodeOpcode
 
 
 -- http://obelisk.me.uk/6502/reference.html
 -- https://www.masswerk.at/6502/6502_instruction_set.html#asl
+-- https://forums.nesdev.com/viewtopic.php?f=10&t=10049
 
 
 adc :: Word16 -> Emulator ()
@@ -180,8 +188,8 @@ and addr = do
   setZero accVal
   setNegative accVal
 
-aslGeneral :: Emulator Word8 -> (Word8 -> Emulator ()) -> Emulator ()
-aslGeneral acquire store = do
+asl :: Emulator Word8 -> (Word8 -> Emulator ()) -> Emulator ()
+asl acquire store = do
   val <- acquire
   setFlag Carry (val `testBit` 7)
   let result = val `shiftL` 1
@@ -190,18 +198,18 @@ aslGeneral acquire store = do
   store result
 
 aslA :: Emulator ()
-aslA = aslGeneral (readReg a) (writeReg a)
+aslA = asl (readReg a) (writeReg a)
 
 aslM :: Word16 -> Emulator ()
-aslM addr = aslGeneral (read addr) (write addr)
+aslM addr = asl (read addr) (write addr)
 
 -- if(pred) pc = addr
 jumpWhen :: Word16 -> Bool -> Emulator ()
-jumpWhen addr pred = when pred $ do
-  pc' <- fetch
-  let newPc = pc' + addr
-  cycle (if newPc `onDifferentPage` pc' then 2 else 1)
-  writeReg pc newPc
+jumpWhen relativeAddr pred = when pred $ do
+  pc <- readReg pc
+  let absoluteAddr = pc + relativeAddr
+  cycle (if absoluteAddr `onDifferentPage` pc then 2 else 1)
+  jmp absoluteAddr
 
 bcc :: Word16 -> Emulator ()
 bcc addr = testFlag Carry >>= jumpWhen addr . not
@@ -232,7 +240,7 @@ bpl addr = testFlag Negative >>= jumpWhen addr . not
 brk :: Word16 -> Emulator ()
 brk addr = do
   sei
-  fetchNext >>= pushAddress
+  readReg pc <&> (+1) >>= pushAddress
   php 
   readAddress 0xFFFE >>= writeReg pc
 
@@ -310,11 +318,11 @@ iny :: Emulator ()
 iny = change (1+) (readReg y) (writeReg y)
 
 jmp :: Word16 -> Emulator ()
-jmp addr = writeReg pc addr
+jmp = writeReg pc
 
 jsr :: Word16 -> Emulator ()
 jsr addr = do
-  fetch <&> decrement >>= pushAddress
+  readReg pc <&> decrement >>= pushAddress
   jmp addr 
 
 ld :: (CPU -> IORefU Word8) -> Word16 -> Emulator ()
@@ -333,8 +341,8 @@ ldx = ld x
 ldy :: Word16 -> Emulator ()
 ldy = ld y
 
-lsrGeneral :: Emulator Word8 -> (Word8 -> Emulator ()) -> Emulator ()
-lsrGeneral acquire store = do
+lsr :: Emulator Word8 -> (Word8 -> Emulator ()) -> Emulator ()
+lsr acquire store = do
   a' <- acquire
   setFlag Carry (a' `testBit` 0)
   let result = a' `shiftR` 1
@@ -343,10 +351,10 @@ lsrGeneral acquire store = do
   setNegative result
 
 lsrA :: Emulator ()
-lsrA = lsrGeneral (readReg a) (writeReg a)
+lsrA = lsr (readReg a) (writeReg a)
 
 lsrM :: Word16 -> Emulator ()
-lsrM addr = lsrGeneral (read addr) (write addr)
+lsrM addr = lsr (read addr) (write addr)
 
 nop :: Emulator ()
 nop = pure ()
@@ -364,7 +372,7 @@ pha :: Emulator ()
 pha = readReg a >>= push
 
 php :: Emulator ()
-php = readReg p >>= push
+php = readReg p <&> (`setBit` 4) >>= push
 
 pla :: Emulator ()
 pla = do
@@ -374,35 +382,39 @@ pla = do
   setNegative val
 
 plp :: Emulator ()
-plp = pop >>= writeReg a
+plp = pop <&> (`clearBit` 4) >>= writeReg p
 
-rolGeneral :: Emulator Word8 -> (Word8 -> Emulator ()) -> Emulator ()
-rolGeneral acquire store = do
+rol :: Emulator Word8 -> (Word8 -> Emulator ()) -> Emulator ()
+rol acquire store = do
   val <- acquire
-  let result = val `shiftL` 1
+  c   <- toWord8 <$> testFlag Carry
+  let result = (val `shiftL` 1) .|. c
   setFlag Carry (val `testBit` 7) 
-  c <- toWord8 <$> testFlag Carry
-  store (result .|. c)
+  setNegative result
+  setZero result
+  store result
 
 rolA :: Emulator ()
-rolA = rolGeneral (readReg a) (writeReg a)
+rolA = rol (readReg a) (writeReg a)
 
 rolM :: Word16 -> Emulator ()
-rolM addr = rolGeneral (read addr) (write addr)
+rolM addr = rol (read addr) (write addr)
 
-rorGeneral :: Emulator Word8 -> (Word8 -> Emulator ()) -> Emulator ()
-rorGeneral acquire store = do
+ror :: Emulator Word8 -> (Word8 -> Emulator ()) -> Emulator ()
+ror acquire store = do
   val <- acquire
-  let result = val `shiftR` 1
+  c   <- toWord8 <$> testFlag Carry
+  let result = (val `shiftR` 1) .|. (c `shiftL` 7)
   setFlag Carry (val `testBit` 0)
-  c <- toWord8 <$> testFlag Carry
-  store (result .|. (c `shiftL` 7))
+  setNegative result
+  setZero result
+  store result
 
 rorA :: Emulator ()
-rorA = rorGeneral (readReg a) (writeReg a)
+rorA = ror (readReg a) (writeReg a)
 
 rorM :: Word16 -> Emulator ()
-rorM addr = rolGeneral (read addr) (write addr)
+rorM addr = ror (read addr) (write addr)
 
 rti :: Emulator ()
 rti = do
@@ -416,19 +428,24 @@ rts = do
 
 sbc :: Word16 -> Emulator ()
 sbc addr = do 
-  value <- read addr 
+  value <- read addr
   acc   <- readReg a
   carry <- toWord16 <$> testFlag Carry
   let 
     (result :: Word16) = val16 + acc16 + carry
     acc16 = fromIntegral acc
-    val16 = fromIntegral value
-  setFlag Carry ((result `shiftR` 8) /= 0)
+    val16 = fromIntegral value `xor` 0x00FF
+  setFlag Carry (result .&. 0xFF00 /= 0)
   setZero (fromIntegral $ result .&. 0x00FF)
   setNegative $ fromIntegral result
   setFlag Overflow ((0 /= ) $ (result `xor` acc16) .&. (result `xor` val16) .&. 0x0080)
   writeReg a $ fromIntegral result
 
+sec :: Emulator ()
+sec = setFlag Carry True
+
+sed :: Emulator ()
+sed = setFlag DecimalMode True
 
 sei :: Emulator ()
 sei = setFlag InterruptDisable True
@@ -443,56 +460,60 @@ stx = st x
 sty = st y
 
 transfer a b = readReg a >>= writeReg b
+transferAndSetFlags a b = do
+  transfer a b
+  val <- readReg b
+  setZero val
+  setNegative val 
 
 tax :: Emulator ()
-tax = transfer a x
+tax = transferAndSetFlags a x
 
 tay :: Emulator ()
-tay = transfer a y
+tay = transferAndSetFlags a y
 
 tsx :: Emulator ()
-tsx = transfer s x
+tsx = transferAndSetFlags s x
 
 txa :: Emulator ()
-txa = transfer x a
+txa = transferAndSetFlags x a
 
 txs :: Emulator ()
 txs = transfer x s
 
 tya :: Emulator ()
-tya = transfer y a
+tya = transferAndSetFlags y a
 
 -- Addressing modes
-
-readNext :: Emulator Word8
-readNext = fetchNext >>= read
 
 accumulator :: Emulator ()
 accumulator = pure ()
 
 immediate :: Emulator Word16
-immediate = fetchNext
+immediate = readReg pc <* modifyReg pc (+1)
 
 implied :: Emulator Word16
 implied = pure 0
 
 zeroPage :: Emulator Word16
-zeroPage = (fetchNext >>= read) <&> fromIntegral
+zeroPage = (fetchByte <&> fromIntegral) <* modifyReg pc (+1)
 
 zeroPageX :: Emulator Word16
 zeroPageX = do
-  addr  <- readNext
+  addr  <- fetchByte
+  modifyReg pc (+1)
   xreg  <- readReg x
   return (fromIntegral $ addr + xreg)
 
 zeroPageY :: Emulator Word16
 zeroPageY = do
-  xreg  <- readReg x
-  addr  <- readNext
-  return (fromIntegral $ addr + xreg)
+  y     <- readReg y
+  addr  <- fetchByte
+  modifyReg pc (+1)
+  return (fromIntegral $ addr + y)
 
 absolute :: Emulator Word16
-absolute = fetchNext >>= readAddress
+absolute = (readReg pc >>= readAddress) <* modifyReg pc (+2)
 
 addPenaltyCycles :: Bool -> Penalty -> Emulator ()
 addPenaltyCycles _    None = pure ()
@@ -522,20 +543,25 @@ absoluteYP :: Emulator Word16
 absoluteYP = absoluteGen (readReg y) BoundaryCross
 
 indirect :: Emulator Word16
-indirect = fetchNext >>= readAddressWithBug
+indirect = (readReg pc >>= readAddressWithBug) <* modifyReg pc (+2)
+
+readAddress' :: Word8 -> Emulator Word16
+readAddress' x = word8toWord16 <$> read (fromIntegral $ x .&. 0xFF) <*> read (fromIntegral $ (x+1) .&. 0xFF)
 
 indirectX :: Emulator Word16
 indirectX = do
-  addr <- readNext
-  xreg <- readReg x
-  readAddressWithBug (fromIntegral $ addr + xreg)
+  addr <- fetchByte
+  modifyReg pc (+1)
+  x <- readReg x
+  let abs = addr + x
+  readAddress' abs
 
 indirectYGen :: Penalty -> Emulator Word16
 indirectYGen penalty = do
   yreg  <- readReg y
-  addr  <- readNext <&> fromIntegral >>= readAddressWithBug
-  let
-    result = addr + fromIntegral yreg
+  addr  <- fetchByte >>= readAddress'
+  modifyReg pc (+1)
+  let result = addr + fromIntegral yreg
   addPenaltyCycles (addr `onDifferentPage` result) penalty
   return result
 
@@ -547,172 +573,200 @@ indirectYP = indirectYGen BoundaryCross
 
 relative :: Emulator Word16
 relative = do
-  pc   <- fetch
-  addr <- fetchNext >>= readAddress
-  let 
-    byte = fromIntegral $ addr .&. 0x00FF
-    pageDiff = if byte < 0x80 then 0 else 0x100
-  return $ pc + 2 + byte - pageDiff
+  addr_relative <- fetchByte <&> fromIntegral
+  modifyReg pc (+1)
+  return $ 
+    if addr_relative `testBit` 7
+    then addr_relative .|. 0xFF00
+    else addr_relative
 
 decodeOpcode :: Word8 -> Opcode
 decodeOpcode opcode = case opcode of
-  0x00 -> op (implied >>= brk)      1 7;  0x80 -> op (immediate >> nop)     2 2;
-  0x01 -> op (indirectX >>= ora)    2 6;  0x81 -> op (indirectX >>= sta)    2 6; 
-  0x02 -> op (implied >> kil)       1 0;  0x82 -> op (immediate >> nop)     2 2; 
-  0x03 -> op (indirectX >>= slo)    2 8;  0x83 -> op (indirectX >>= sax)    2 6; 
-  0x04 -> op (zeroPage >>  nop)     2 3;  0x84 -> op (zeroPage >>= sty)     2 3; 
-  0x05 -> op (zeroPage >>= ora)     2 3;  0x85 -> op (zeroPage >>= sta)     2 3; 
-  0x06 -> op (zeroPage >>= aslM)    2 5;  0x86 -> op (zeroPage >>= stx)     2 3;
-  0x07 -> op (zeroPage >>= slo)     2 5;  0x87 -> op (zeroPage >>= sax)     2 3; 
-  0x08 -> op (implied >>  php)      1 3;  0x88 -> op (implied >> dey)       1 2; 
-  0x09 -> op (immediate >>= ora)    2 2;  0x89 -> op (immediate >> nop)     2 2; 
-  0x0A -> op (accumulator >> aslA)  1 2;  0x8A -> op (implied >> txa)       1 2; 
-  0x0B -> op (immediate >>= anc)    2 2;  0x8B -> op (immediate >>= xaa)    2 2; 
-  0x0C -> op (absolute >>  nop)     3 4;  0x8C -> op (absolute >>= sty)     3 4;
-  0x0D -> op (absolute >>= ora)     3 4;  0x8D -> op (absolute >>= sta)     3 4;
-  0x0E -> op (absolute >>= aslM)    3 6;  0x8E -> op (absolute >>= stx)     3 4; 
-  0x0F -> op (absolute >>= slo)     3 6;  0x8F -> op (absolute >>= sax)     3 4;
-  0x10 -> op (relative >>= bpl)     2 2;  0x90 -> op (relative  >>= bcc)    2 2;
-  0x11 -> op (indirectYP >>= ora)   2 5;  0x91 -> op (indirectY >>= sta)    2 6;
-  0x12 -> op (implied >> kil)       1 0;  0x92 -> op (implied   >>= kil)    1 0; 
-  0x13 -> op (indirectY >>= slo)    2 8;  0x93 -> op (indirectY >>= ahx)    2 6;
-  0x14 -> op (zeroPageX >>  nop)    2 4;  0x94 -> op (zeroPageX >>= sty)    2 4; 
-  0x15 -> op (zeroPageX >>= ora)    2 4;  0x95 -> op (zeroPageX >>= sta)    2 4; 
-  0x16 -> op (zeroPageX >>= aslM)   2 6;  0x96 -> op (zeroPageY >>= stx)    2 4; 
-  0x17 -> op (zeroPageX >>= slo)    2 6;  0x97 -> op (zeroPageY >>= sax)    2 4; 
-  0x18 -> op (implied >> clc)       1 2;  0x98 -> op (implied   >> tya)     1 2;
-  0x19 -> op (absoluteYP >>= ora)   3 4;  0x99 -> op (absoluteY >>= sta)    3 5; 
-  0x1A -> op (implied >> nop)       1 2;  0x9A -> op (implied   >> txs)     1 2;
-  0x1B -> op (absoluteY  >>= slo)   3 7;  0x9B -> op (absoluteY >>= tas)    3 5;
-  0x1C -> op (absoluteX  >>  nop)   3 4;  0x9C -> op (absoluteX >>= shy)    3 5; 
-  0x1D -> op (absoluteXP >>= ora)   3 4;  0x9D -> op (absoluteX >>= sta)    3 5; 
-  0x1E -> op (absoluteX >>= aslM)   3 7;  0x9E -> op (absoluteY >>= shx)    3 5;
-  0x1F -> op (absoluteX >>= slo)    3 7;  0x9F -> op (absoluteY >>= ahx)    3 5;
-  0x20 -> op (absolute >>= jsr)     3 6;  0xA0 -> op (immediate >>= ldy)    2 2;
-  0x21 -> op (indirectX >>= and)    2 6;  0xA1 -> op (indirectX >>= lda)    2 6;
-  0x22 -> op (implied >> kil)       1 0;  0xA2 -> op (immediate >>= ldx)    2 2;
-  0x23 -> op (indirectX >>= rla)    2 8;  0xA3 -> op (indirectX >>= lax)    2 6;
-  0x24 -> op (zeroPage >>= bit)     2 3;  0xA4 -> op (zeroPage >>= ldy)     2 3;
-  0x25 -> op (zeroPage >>= and)     2 3;  0xA5 -> op (zeroPage >>= lda)     2 3;
-  0x26 -> op (zeroPage >>= rolM)    2 5;  0xA6 -> op (zeroPage >>= ldx)     2 3;
-  0x27 -> op (zeroPage >>= rla)     2 5;  0xA7 -> op (zeroPage >>= lax)     2 3;
-  0x28 -> op (implied >> plp)       1 4;  0xA8 -> op (implied  >> tay)      1 2;
-  0x29 -> op (immediate >>= and)    2 2;  0xA9 -> op (immediate >>= lda)    2 2;
-  0x2A -> op (accumulator >> rolA)  1 2;  0xAA -> op (implied   >> tax)     1 2;
-  0x2B -> op (immediate >>= anc)    2 2;  0xAB -> op (immediate >>= lax)    2 2;
-  0x2C -> op (absolute >>= bit)     3 4;  0xAC -> op (absolute >>= ldy)     3 4; 
-  0x2D -> op (absolute >>= and)     3 4;  0xAD -> op (absolute >>= lda)     3 4; 
-  0x2E -> op (absolute >>= rolM)    3 6;  0xAE -> op (absolute >>= ldx)     3 4; 
-  0x2F -> op (absolute >>= rla)     3 6;  0xAF -> op (absolute >>= lax)     3 4; 
-  0x30 -> op (relative >>= bmi)     2 2;  0xB0 -> op (relative >>= bcs)     2 2; 
-  0x31 -> op (indirectYP >>= and)   2 5;  0xB1 -> op (indirectYP >>= lda)   2 5;
-  0x32 -> op (implied >> kil)       1 0;  0xB2 -> op (implied >> kil)       1 0; 
-  0x33 -> op (indirectY >>= rla)    2 8;  0xB3 -> op (indirectX >> lax)     2 5;
-  0x34 -> op (zeroPageX >>  nop)    2 4;  0xB4 -> op (zeroPageX >>= ldy)    2 4;
-  0x35 -> op (zeroPageX >>= and)    2 4;  0xB5 -> op (zeroPageX >>= lda)    2 4;
-  0x36 -> op (zeroPageX >>= rolM)   2 6;  0xB6 -> op (zeroPageY >>= ldx)    2 4;
-  0x37 -> op (zeroPageX >>= rla)    2 6;  0xB7 -> op (zeroPageY >>= lax)    2 4;
-  0x38 -> op (implied >> sec)       1 2;  0xB8 -> op (implied >> clv)       1 2;
-  0x39 -> op (absoluteYP >>= and)   3 4;  0xB9 -> op (absoluteYP >>= lda)   3 4;
-  0x3A -> op (implied >> nop)       1 2;  0xBA -> op (implied >> tsx)       1 2;
-  0x3B -> op (absoluteY >>=  rla)   3 7;  0xBB -> op (absoluteY >>= las)    3 4;
-  0x3C -> op (absoluteX >>   nop)   3 4;  0xBC -> op (absoluteXP >>= ldy)   3 4;
-  0x3D -> op (absoluteXP >>= and)   3 4;  0xBD -> op (absoluteXP >>= lda)   3 4;
-  0x3E -> op (absoluteX >>= rolM)   3 7;  0xBE -> op (absoluteYP >>= ldx)   3 4; 
-  0x3F -> op (absoluteX >>= rla)    3 7;  0xBF -> op (absoluteY >>= lax)    3 4; 
-  0x40 -> op (implied    >> rti)    1 6;  0xC0 -> op (immediate >>= cpy)    2 2;
-  0x41 -> op (indirectX  >>= eor)   2 6;  0xC1 -> op (indirectX >>= cmp)    2 6;
-  0x42 -> op (implied    >> kil)    1 0;  0xC2 -> op (immediate >>  nop)    2 2;
-  0x43 -> op (indirectX  >>= sre)   2 8;  0xC3 -> op (indirectX >>= dcp)    2 8;
-  0x44 -> op (zeroPage >>  nop)     2 3;  0xC4 -> op (zeroPage >>= cpy)     2 3;
-  0x45 -> op (zeroPage >>= eor)     2 3;  0xC5 -> op (zeroPage >>= cmp)     2 3;
-  0x46 -> op (zeroPage >>= lsrM)    2 5;  0xC6 -> op (zeroPage >>= dec)     2 5;
-  0x47 -> op (zeroPage >>= sre)     2 5;  0xC7 -> op (zeroPage >>= dcp)     2 5;
-  0x48 -> op (implied >>  pha)      1 3;  0xC8 -> op (implied >> iny)       1 2;
-  0x49 -> op (immediate >>= eor)    2 2;  0xC9 -> op (immediate >>= cmp)    2 2;
-  0x4A -> op (accumulator >> lsrA)  1 2;  0xCA -> op (implied   >> dex)     1 2;
-  0x4B -> op (immediate >>= alr)    2 2;  0xCB -> op (immediate >>= axs)    2 2;
-  0x4C -> op (absolute >>= jmp)     3 3;  0xCC -> op (absolute  >>= cpy)    3 4;
-  0x4D -> op (absolute >>= eor)     3 4;  0xCD -> op (absolute  >>= cmp)    3 4;
-  0x4E -> op (absolute >>= lsrM)    3 6;  0xCE -> op (absolute  >>= dec)    3 6;
-  0x4F -> op (absolute >>= sre)     3 6;  0xCF -> op (absolute  >>= dcp)    3 6; 
-  0x50 -> op (relative >>= bvc)     2 2;  0xD0 -> op (relative  >>= bne)    2 2;
-  0x51 -> op (indirectYP >>= eor)   2 5;  0xD1 -> op (indirectYP >>= cmp)   2 5;
-  0x52 -> op (implied >> kil)       1 0;  0xD2 -> op (implied >>= kil)      1 0; 
-  0x53 -> op (indirectY >> sre)     2 8;  0xD3 -> op (indirectY >>= dcp)    2 8;
-  0x54 -> op (zeroPageX  >>  nop)   2 4;  0xD4 -> op (zeroPageX >>  nop)    2 4;
-  0x55 -> op (zeroPageX  >>= eor)   2 4;  0xD5 -> op (zeroPageX >>= cmp)    2 4; 
-  0x56 -> op (zeroPageX  >>= lsrM)  2 6;  0xD6 -> op (zeroPageX >>= dec)    2 6; 
-  0x57 -> op (zeroPageX  >>= sre)   2 6;  0xD7 -> op (zeroPageX >>= dcp)    2 6;
-  0x58 -> op (implied >> cli)       1 2;  0xD8 -> op (implied >> cld)       1 2; 
-  0x59 -> op (absoluteYP >>= eor)   3 4;  0xD9 -> op (absoluteYP >>= cmp)   3 4;
-  0x5A -> op (implied >> nop)       1 2;  0xDA -> op (implied >> nop)       1 2;
-  0x5B -> op (absoluteY >>= sre)    3 7;  0xDB -> op (absoluteY >>= dcp)    3 7;
-  0x5C -> op (absoluteX >>  nop)    3 4;  0xDC -> op (absoluteX >> nop)     3 4;
-  0x5D -> op (absoluteXP >>= eor)   3 4;  0xDD -> op (absoluteXP >>= cmp)   3 4;
-  0x5E -> op (absoluteX >>= lsrM)   3 7;  0xDE -> op (absoluteX >>= dec)    3 7; 
-  0x5F -> op (absoluteX >>= sre)    3 7;  0xDF -> op (absoluteX >>= dcp)    3 7; 
-  0x60 -> op (implied >> rts)       1 6;  0xE0 -> op (immediate >>= cpx)    2 2;
-  0x61 -> op (indirectX >>= adc)    2 6;  0xE1 -> op (indirectX >>= sbc)    2 6;
-  0x62 -> op (implied >> kil)       1 0;  0xE2 -> op (implied >> nop)       2 2;
-  0x63 -> op (indirectX >>= rra)    2 8;  0xE3 -> op (indirectX >>= isc)    2 8;
-  0x64 -> op (zeroPage >>  nop)     2 3;  0xE4 -> op (zeroPage >>= cpx)     2 3;
-  0x65 -> op (zeroPage >>= adc)     2 3;  0xE5 -> op (zeroPage >>= sbc)     2 3;
-  0x66 -> op (zeroPage >>= rorM)    2 5;  0xE6 -> op (zeroPage >>= inc)     2 5;
-  0x67 -> op (zeroPage >>= rra)     2 5;  0xE7 -> op (zeroPage >>= isc)     2 5;
-  0x68 -> op (implied >> pla)       1 4;  0xE8 -> op (implied >>   inx)     1 2;
-  0x69 -> op (immediate >>= adc)    2 2;  0xE9 -> op (immediate >>= sbc)    2 2;
-  0x6A -> op (accumulator >> rorA)  1 2;  0xEA -> op (implied >> nop)       1 2;
-  0x6B -> op (immediate >>= arr)    2 2;  0xEB -> op (immediate >>= sbc)    2 2;
-  0x6C -> op (indirect >>= jmp)     3 5;  0xEC -> op (absolute >>= cpx)     3 4;
-  0x6D -> op (absolute >>= adc)     3 4;  0xED -> op (absolute >>= sbc)     3 4; 
-  0x6E -> op (absolute >>= rorM)    3 6;  0xEE -> op (absolute >>= inc)     3 6; 
-  0x6F -> op (absolute >>= rra)     3 6;  0xEF -> op (absolute >>= isc)     3 6; 
-  0x70 -> op (relative >>= bvs)     2 2;  0xF0 -> op (relative >>= beq)     2 2;
-  0x71 -> op (indirectYP >>= adc)   2 5;  0xF1 -> op (indirectYP >>= sbc)   2 5;
-  0x72 -> op (implied >> kil)       1 0;  0xF2 -> op (implied >>= kil)      1 0;
-  0x73 -> op (indirectY >>= rra)    2 8;  0xF3 -> op (indirectY >>= isc)    2 8;
-  0x74 -> op (zeroPageX >>  nop)    2 4;  0xF4 -> op (implied >> nop)       2 4;
-  0x75 -> op (zeroPageX >>= adc)    2 4;  0xF5 -> op (zeroPageX >>= sbc)    2 4; 
-  0x76 -> op (zeroPageX >>= rorM)   2 6;  0xF6 -> op (zeroPageX >>= inc)    2 6; 
-  0x77 -> op (zeroPageX >>= rra)    2 6;  0xF7 -> op (zeroPageX >>= isc)    2 6; 
-  0x78 -> op (implied >> sei)       1 2;  0xF8 -> op (implied >>= sed)      1 2; 
-  0x79 -> op (absoluteYP >>= adc)   3 4;  0xF9 -> op (absoluteYP >>= sbc)   3 4; 
-  0x7A -> op (implied >> nop)       1 2;  0xFA -> op (implied >> nop)       1 2;
-  0x7B -> op (absoluteY >>= rra)    3 7;  0xFB -> op (absoluteY >> isc)     3 7;
-  0x7C -> op (absoluteX >>  nop)    3 4;  0xFC -> op (implied >> nop)       3 4;
-  0x7D -> op (absoluteXP >>= adc)   3 4;  0xFD -> op (absoluteXP >>= sbc)   3 4;
-  0x7E -> op (absoluteX >>= rorM)   3 7;  0xFE -> op (absoluteX >>= inc)    3 7;
-  0x7F -> op (absoluteX >>= rra)    3 7;  0xFF -> op (absoluteX >>= isc)    3 7;
+  0x00 -> op (implied >>= brk)      7;  0x80 -> op (immediate >> nop)     2;
+  0x01 -> op (indirectX >>= ora)    6;  0x81 -> op (indirectX >>= sta)    6; 
+  0x02 -> op (implied >> kil)       0;  0x82 -> op (immediate >> nop)     2; 
+  0x03 -> op (indirectX >>= slo)   8;  0x83 -> op (indirectX >>= sax)    6; 
+  0x04 -> op (zeroPage >>  nop)     3;  0x84 -> op (zeroPage >>= sty)     3; 
+  0x05 -> op (zeroPage >>= ora)     3;  0x85 -> op (zeroPage >>= sta)     3; 
+  0x06 -> op (zeroPage >>= aslM)    5;  0x86 -> op (zeroPage >>= stx)     3;
+  0x07 -> op (zeroPage >>= slo)     5;  0x87 -> op (zeroPage >>= sax)     3; 
+  0x08 -> op (implied >>  php)      3;  0x88 -> op (implied >> dey)       2; 
+  0x09 -> op (immediate >>= ora)    2;  0x89 -> op (immediate >> nop)     2; 
+  0x0A -> op (accumulator >> aslA)  2;  0x8A -> op (implied >> txa)       2; 
+  0x0B -> op (immediate >>= anc)    2;  0x8B -> op (immediate >>= xaa)    2; 
+  0x0C -> op (absolute >>  nop)     4;  0x8C -> op (absolute >>= sty)     4;
+  0x0D -> op (absolute >>= ora)     4;  0x8D -> op (absolute >>= sta)     4;
+  0x0E -> op (absolute >>= aslM)    6;  0x8E -> op (absolute >>= stx)     4; 
+  0x0F -> op (absolute >>= slo)    6;  0x8F -> op (absolute >>= sax)     4;
+  0x10 -> op (relative >>= bpl)     2;  0x90 -> op (relative  >>= bcc)    2;
+  0x11 -> op (indirectYP >>= ora)   5;  0x91 -> op (indirectY >>= sta)    6;
+  0x12 -> op (implied >> kil)       0;  0x92 -> op (implied   >>= kil)    0; 
+  0x13 -> op (indirectY >>= slo)    8;  0x93 -> op (indirectY >>= ahx)    6;
+  0x14 -> op (zeroPageX >>  nop)    4;  0x94 -> op (zeroPageX >>= sty)    4; 
+  0x15 -> op (zeroPageX >>= ora)    4;  0x95 -> op (zeroPageX >>= sta)    4; 
+  0x16 -> op (zeroPageX >>= aslM)   6;  0x96 -> op (zeroPageY >>= stx)    4; 
+  0x17 -> op (zeroPageX >>= slo)    6;  0x97 -> op (zeroPageY >>= sax)    4; 
+  0x18 -> op (implied >> clc)       2;  0x98 -> op (implied   >> tya)     2;
+  0x19 -> op (absoluteYP >>= ora)   4;  0x99 -> op (absoluteY >>= sta)    5; 
+  0x1A -> op (implied >> nop)       2;  0x9A -> op (implied   >> txs)     2;
+  0x1B -> op (absoluteY  >>= slo)   7;  0x9B -> op (absoluteY >>= tas)    5;
+  0x1C -> op (absoluteXP >>  nop)   4;  0x9C -> op (absoluteX >>= shy)    5; 
+  0x1D -> op (absoluteXP >>= ora)   4;  0x9D -> op (absoluteX >>= sta)    5; 
+  0x1E -> op (absoluteX >>= aslM)   7;  0x9E -> op (absoluteY >>= shx)    5;
+  0x1F -> op (absoluteX >>= slo)   7;  0x9F -> op (absoluteY >>= ahx)    5;
+  0x20 -> op (absolute >>= jsr)     6;  0xA0 -> op (immediate >>= ldy)    2;
+  0x21 -> op (indirectX >>= and)    6;  0xA1 -> op (indirectX >>= lda)    6;
+  0x22 -> op (implied >> kil)       0;  0xA2 -> op (immediate >>= ldx)    2;
+  0x23 -> op (indirectX >>= rla)    8;  0xA3 -> op (indirectX >>= lax)    6;
+  0x24 -> op (zeroPage >>= bit)     3;  0xA4 -> op (zeroPage >>= ldy)     3;
+  0x25 -> op (zeroPage >>= and)     3;  0xA5 -> op (zeroPage >>= lda)     3;
+  0x26 -> op (zeroPage >>= rolM)    5;  0xA6 -> op (zeroPage >>= ldx)     3;
+  0x27 -> op (zeroPage >>= rla)     5;  0xA7 -> op (zeroPage >>= lax)     3;
+  0x28 -> op (implied >> plp)       4;  0xA8 -> op (implied  >> tay)      2;
+  0x29 -> op (immediate >>= and)    2;  0xA9 -> op (immediate >>= lda)    2;
+  0x2A -> op (accumulator >> rolA)  2;  0xAA -> op (implied   >> tax)     2;
+  0x2B -> op (immediate >>= anc)    2;  0xAB -> op (immediate >>= lax)    2;
+  0x2C -> op (absolute >>= bit)     4;  0xAC -> op (absolute >>= ldy)     4; 
+  0x2D -> op (absolute >>= and)     4;  0xAD -> op (absolute >>= lda)     4; 
+  0x2E -> op (absolute >>= rolM)    6;  0xAE -> op (absolute >>= ldx)     4; 
+  0x2F -> op (absolute >>= rla)     6;  0xAF -> op (absolute >>= lax)     4; 
+  0x30 -> op (relative >>= bmi)     2;  0xB0 -> op (relative >>= bcs)     2; 
+  0x31 -> op (indirectYP >>= and)   5;  0xB1 -> op (indirectYP >>= lda)   5;
+  0x32 -> op (implied >> kil)       0;  0xB2 -> op (implied >> kil)       0; 
+  0x33 -> op (indirectY >>= rla)    8;  0xB3 -> op (indirectYP >>= lax)   5;
+  0x34 -> op (zeroPageX >>  nop)    4;  0xB4 -> op (zeroPageX >>= ldy)    4;
+  0x35 -> op (zeroPageX >>= and)    4;  0xB5 -> op (zeroPageX >>= lda)    4;
+  0x36 -> op (zeroPageX >>= rolM)   6;  0xB6 -> op (zeroPageY >>= ldx)    4;
+  0x37 -> op (zeroPageX >>= rla)    6;  0xB7 -> op (zeroPageY >>= lax)    4;
+  0x38 -> op (implied >> sec)       2;  0xB8 -> op (implied >> clv)       2;
+  0x39 -> op (absoluteYP >>= and)   4;  0xB9 -> op (absoluteYP >>= lda)   4;
+  0x3A -> op (implied >> nop)       2;  0xBA -> op (implied >> tsx)       2;
+  0x3B -> op (absoluteY >>=  rla)   7;  0xBB -> op (absoluteY >>= las)    4;
+  0x3C -> op (absoluteXP >>  nop)   4;  0xBC -> op (absoluteXP >>= ldy)   4;
+  0x3D -> op (absoluteXP >>= and)   4;  0xBD -> op (absoluteXP >>= lda)   4;
+  0x3E -> op (absoluteX >>= rolM)   7;  0xBE -> op (absoluteYP >>= ldx)   4; 
+  0x3F -> op (absoluteX >>= rla)    7;  0xBF -> op (absoluteY >>= lax)    4; 
+  0x40 -> op (implied    >> rti)    6;  0xC0 -> op (immediate >>= cpy)    2;
+  0x41 -> op (indirectX  >>= eor)   6;  0xC1 -> op (indirectX >>= cmp)    6;
+  0x42 -> op (implied    >> kil)    0;  0xC2 -> op (immediate >>  nop)    2;
+  0x43 -> op (indirectX  >>= sre)   8;  0xC3 -> op (indirectX >>= dcp)    8;
+  0x44 -> op (zeroPage >>  nop)     3;  0xC4 -> op (zeroPage >>= cpy)     3;
+  0x45 -> op (zeroPage >>= eor)     3;  0xC5 -> op (zeroPage >>= cmp)     3;
+  0x46 -> op (zeroPage >>= lsrM)    5;  0xC6 -> op (zeroPage >>= dec)     5;
+  0x47 -> op (zeroPage >>= sre)     5;  0xC7 -> op (zeroPage >>= dcp)     5;
+  0x48 -> op (implied >>  pha)      3;  0xC8 -> op (implied >> iny)       2;
+  0x49 -> op (immediate >>= eor)    2;  0xC9 -> op (immediate >>= cmp)    2;
+  0x4A -> op (accumulator >> lsrA)  2;  0xCA -> op (implied   >> dex)     2;
+  0x4B -> op (immediate >>= alr)    2;  0xCB -> op (immediate >>= axs)    2;
+  0x4C -> op (absolute >>= jmp)     3;  0xCC -> op (absolute  >>= cpy)    4;
+  0x4D -> op (absolute >>= eor)     4;  0xCD -> op (absolute  >>= cmp)    4;
+  0x4E -> op (absolute >>= lsrM)    6;  0xCE -> op (absolute  >>= dec)    6;
+  0x4F -> op (absolute >>= sre)     6;  0xCF -> op (absolute  >>= dcp)    6; 
+  0x50 -> op (relative >>= bvc)     2;  0xD0 -> op (relative  >>= bne)    2;
+  0x51 -> op (indirectYP >>= eor)   5;  0xD1 -> op (indirectYP >>= cmp)   5;
+  0x52 -> op (implied >> kil)       0;  0xD2 -> op (implied >>= kil)      0; 
+  0x53 -> op (indirectY >>= sre)    8;  0xD3 -> op (indirectY >>= dcp)    8;
+  0x54 -> op (zeroPageX  >>  nop)   4;  0xD4 -> op (zeroPageX >>  nop)    4;
+  0x55 -> op (zeroPageX  >>= eor)   4;  0xD5 -> op (zeroPageX >>= cmp)    4; 
+  0x56 -> op (zeroPageX  >>= lsrM)  6;  0xD6 -> op (zeroPageX >>= dec)    6; 
+  0x57 -> op (zeroPageX  >>= sre)   6;  0xD7 -> op (zeroPageX >>= dcp)    6;
+  0x58 -> op (implied >> cli)       2;  0xD8 -> op (implied >> cld)       2; 
+  0x59 -> op (absoluteYP >>= eor)   4;  0xD9 -> op (absoluteYP >>= cmp)   4;
+  0x5A -> op (implied >> nop)       2;  0xDA -> op (implied >> nop)       2;
+  0x5B -> op (absoluteY >>= sre)    7;  0xDB -> op (absoluteY >>= dcp)    7;
+  0x5C -> op (absoluteXP >> nop)    4;  0xDC -> op (absoluteXP >> nop)    4;
+  0x5D -> op (absoluteXP >>= eor)   4;  0xDD -> op (absoluteXP >>= cmp)   4;
+  0x5E -> op (absoluteX >>= lsrM)   7;  0xDE -> op (absoluteX >>= dec)    7; 
+  0x5F -> op (absoluteX >>= sre)    7;  0xDF -> op (absoluteX >>= dcp)    7; 
+  0x60 -> op (implied >> rts)       6;  0xE0 -> op (immediate >>= cpx)    2;
+  0x61 -> op (indirectX >>= adc)    6;  0xE1 -> op (indirectX >>= sbc)    6;
+  0x62 -> op (implied >> kil)       0;  0xE2 -> op (implied >> nop)       2;
+  0x63 -> op (indirectX >>= rra)    8;  0xE3 -> op (indirectX >>= isc)    8;
+  0x64 -> op (zeroPage >>  nop)     3;  0xE4 -> op (zeroPage >>= cpx)     3;
+  0x65 -> op (zeroPage >>= adc)     3;  0xE5 -> op (zeroPage >>= sbc)     3;
+  0x66 -> op (zeroPage >>= rorM)    5;  0xE6 -> op (zeroPage >>= inc)     5;
+  0x67 -> op (zeroPage >>= rra)     5;  0xE7 -> op (zeroPage >>= isc)     5;
+  0x68 -> op (implied >> pla)       4;  0xE8 -> op (implied >>   inx)     2;
+  0x69 -> op (immediate >>= adc)    2;  0xE9 -> op (immediate >>= sbc)    2;
+  0x6A -> op (accumulator >> rorA)  2;  0xEA -> op (implied >> nop)       2;
+  0x6B -> op (immediate >>= arr)    2;  0xEB -> op (immediate >>= sbc)    2;
+  0x6C -> op (indirect >>= jmp)     5;  0xEC -> op (absolute >>= cpx)     4;
+  0x6D -> op (absolute >>= adc)     4;  0xED -> op (absolute >>= sbc)     4; 
+  0x6E -> op (absolute >>= rorM)    6;  0xEE -> op (absolute >>= inc)     6; 
+  0x6F -> op (absolute >>= rra)     6;  0xEF -> op (absolute >>= isc)     6; 
+  0x70 -> op (relative >>= bvs)     2;  0xF0 -> op (relative >>= beq)     2;
+  0x71 -> op (indirectYP >>= adc)   5;  0xF1 -> op (indirectYP >>= sbc)   5;
+  0x72 -> op (implied >> kil)       0;  0xF2 -> op (implied >>= kil)      0;
+  0x73 -> op (indirectY >>= rra)    8;  0xF3 -> op (indirectY >>= isc)    8;
+  0x74 -> op (zeroPageX >>  nop)    4;  0xF4 -> op (zeroPageX >> nop)     4;
+  0x75 -> op (zeroPageX >>= adc)    4;  0xF5 -> op (zeroPageX >>= sbc)    4; 
+  0x76 -> op (zeroPageX >>= rorM)   6;  0xF6 -> op (zeroPageX >>= inc)    6; 
+  0x77 -> op (zeroPageX >>= rra)    6;  0xF7 -> op (zeroPageX >>= isc)    6; 
+  0x78 -> op (implied >> sei)       2;  0xF8 -> op (implied >> sed)       2; 
+  0x79 -> op (absoluteYP >>= adc)   4;  0xF9 -> op (absoluteYP >>= sbc)   4; 
+  0x7A -> op (implied >> nop)       2;  0xFA -> op (implied >> nop)       2;
+  0x7B -> op (absoluteY >>= rra)    7;  0xFB -> op (absoluteY >>= isc)    7;
+  0x7C -> op (absoluteXP >> nop)    4;  0xFC -> op (absoluteXP >> nop)    4;
+  0x7D -> op (absoluteXP >>= adc)   4;  0xFD -> op (absoluteXP >>= sbc)   4;
+  0x7E -> op (absoluteX >>= rorM)   7;  0xFE -> op (absoluteX >>= inc)    7;
+  0x7F -> op (absoluteX >>= rra)    7;  0xFF -> op (absoluteX >>= isc)    7;
 
-isc = undefined
-sed = undefined
+isc :: Word16 -> Emulator ()
+isc addr = inc addr >> sbc addr
+
 kil = undefined
-dcp = undefined
-lax = undefined
+
+dcp :: Word16 -> Emulator ()
+dcp addr = dec addr >> cmp addr
+
+lax :: Word16 -> Emulator ()
+lax addr = do
+  byte <- read addr
+  writeReg x byte
+  writeReg a byte
+  setZero byte
+  setNegative byte
+
 las = undefined
 ahx = undefined
 shx = undefined
 shy = undefined
 tas = undefined
-sax = undefined
+
+sax :: Word16 -> Emulator ()
+sax addr = do
+  x <- readReg x
+  a <- readReg a
+  write addr (a .&. x)
+
 xaa = undefined
-rra = undefined
+
+rra :: Word16 -> Emulator ()
+rra addr = rorM addr >> adc addr
+
 arr = undefined
-sre = undefined
+
+sre :: Word16 -> Emulator ()
+sre addr = lsrM addr >> eor addr
+
 alr = undefined
-rla = undefined
+
+rla :: Word16 -> Emulator ()
+rla addr = rolM addr >> and addr
+
 anc = undefined
-slo = undefined
+
+slo :: Word16 -> Emulator ()
+slo addr = aslM addr >> ora addr
+
 axs = undefined
-sec = undefined
 
 nmi :: Emulator ()
 nmi = do
-  fetch >>= pushAddress
+  readReg pc >>= pushAddress
   setFlag BreakCommand False
   setFlag InterruptDisable True
-  php
+  readReg p <&> (`clearBit` 4) >>= push
   readAddress 0xFFFA >>= writeReg pc
   cycle 8
 
@@ -720,10 +774,10 @@ irq :: Emulator ()
 irq = do
   irqEnable <- not <$> testFlag InterruptDisable
   when irqEnable $ do
-    fetch >>= pushAddress
+    readReg pc >>= pushAddress
     setFlag BreakCommand False
     setFlag InterruptDisable True
-    php
+    readReg p <&> (`clearBit` 4) >>= push
     readAddress 0xFFFE >>= writeReg pc
     cycle 7
 
@@ -732,10 +786,7 @@ processInterrupt = do
   readReg intr <&> (toEnum . fromEnum) >>= \case
     NONE -> pure ()
     NMI  -> nmi >> writeReg intr 0
-    IRQ  -> irq >> writeReg intr 0 
-
-decodeNextOpcode :: Emulator Opcode
-decodeNextOpcode = fetchOpcode <&> decodeOpcode
+    IRQ  -> irq >> writeReg intr 0
 
 getSnapshot :: Emulator CpuSnapshot
 getSnapshot = 
@@ -752,8 +803,8 @@ clock :: Emulator ()
 clock = do
   processInterrupt
   setFlag Unused True
-  Opcode instruction length cycles <- decodeNextOpcode
-  modifyReg pc ((+) $ fromIntegral length)
+  Opcode instruction cycles <- fetch
+  modifyReg pc (+1)
   cycle cycles
   instruction -- run the instruction
   setFlag Unused True
