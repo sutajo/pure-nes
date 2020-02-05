@@ -70,57 +70,44 @@ windowContent s = case s of
     Done path ->
       widget Label [#label := (Text.pack path <> " was selected.")]
     Message text -> 
-      container
-      Box
+      container Box
       [#orientation := OrientationVertical, #valign := AlignCenter, #margin := 10 ]
       [
-        BoxChild defaultBoxChildProperties { padding = 15 }
-        $ widget Label [#label := text]
-      , BoxChild defaultBoxChildProperties { padding = 15 } $ widget
-        Button
-        [ #label := "Ok"
-        , on #clicked MessageAck
-        ]
+        BoxChild defaultBoxChildProperties { padding = 15 } $ 
+          widget Label [#label := text]
+      , BoxChild defaultBoxChildProperties { padding = 15 } $ 
+          widget Button [#label := "Ok", on #clicked MessageAck]
       ]
     Emulating ->
-      container
-      Box
+      container Box
       [#orientation := OrientationVertical, #valign := AlignCenter, #margin := 10 ]
       [
-        BoxChild defaultBoxChildProperties { padding = 15 } $ widget
-        Image [ #file := "resources/back.png"]
-      , BoxChild defaultBoxChildProperties { padding = 15 } $ widget
-        Button
-        [ #label := "Return to ROM selection"
-        , on #clicked CloseEmulator
-        ]
+        BoxChild defaultBoxChildProperties { padding = 15 } $ 
+          widget Image [ #file := "resources/back.png"]
+      , BoxChild defaultBoxChildProperties { padding = 15 } $ 
+          widget Button
+          [ 
+            #label := "Return to ROM selection"
+          , on #clicked CloseEmulator
+          ]
       ]
-    Started currentFile -> container
-      Box
+    Started currentFile -> 
+      container Box
       [#orientation := OrientationVertical]
       [ 
-        BoxChild defaultBoxChildProperties { padding = 10, expand = False, fill = False } $ widget 
-          Image 
-          [ #file := "resources/logo2.png"
-          ]
-      , BoxChild defaultBoxChildProperties { padding = 15, expand = True, fill = True }
-        $ widget
-            Label
-            [#label := maybe "Please select the ROM you wish to run." ((Text.append "...") . Text.takeEnd 30 . Text.pack) currentFile]
-      , BoxChild defaultBoxChildProperties { padding = 10 } $ widget
-        FileChooserButton
-        [ onM #selectionChanged
-              (fmap FileSelectionChanged . fileChooserGetFilename)
-        ]
-      , container
-        Box
+        BoxChild defaultBoxChildProperties { padding = 10 } $ 
+          widget Image [#file := "resources/logo2.png"]
+      , BoxChild defaultBoxChildProperties { padding = 15 } $ 
+          widget Label
+          [#label := maybe "Please select the ROM you wish to run." ((Text.append "...") . Text.takeEnd 30 . Text.pack) currentFile]
+      , BoxChild defaultBoxChildProperties { padding = 10 } $ 
+          widget FileChooserButton
+          [ onM #selectionChanged (fmap FileSelectionChanged . fileChooserGetFilename)]
+      , container Box
         [#orientation := OrientationHorizontal, #halign := AlignCenter, #margin := 10 ]
         [
-          BoxChild defaultBoxChildProperties { padding = 15 } $ widget
-          Button
-          [ #label := "Start Emulator"
-          , on #clicked StartEmulator
-          ]
+          BoxChild defaultBoxChildProperties { padding = 15 } $ 
+            widget Button [#label := "Start Emulator", on #clicked StartEmulator]
         ]
       ]
 
@@ -132,18 +119,32 @@ launchEmulator path comms = do
  toSDLWindow' <- atomically $ dupTChan (toSDLWindow comms)
  void . forkOS $ runEmulator path comms { toSDLWindow = toSDLWindow' }
 
+
+
 update :: CommResources -> State -> Event -> Transition State Event
-update _ (Started _) (FileSelectionChanged p) =
-  Transition (Started p) (return Nothing)
+update _ (Started _) (FileSelectionChanged p) 
+  = Transition (Started p) (return Nothing)
+
 update _  _ Closed = Exit
-update comms s@(Started (Just path)) StartEmulator = Transition Emulating (just $ launchEmulator path comms)
-update _ s@(Started Nothing) StartEmulator = Transition (Message "No ROM selected.") noop
+
+update comms s@(Started (Just path)) StartEmulator 
+  = Transition Emulating (just $ launchEmulator path comms)
+
+update _ s@(Started Nothing) StartEmulator
+  = Transition (Message "No ROM selected.") noop
+
 update _ (Message _) MessageAck = Transition (Started Nothing) noop
+
 update comms Emulating CloseEmulator 
   = Transition (Started Nothing) (just . atomically $ writeTChan (toSDLWindow comms) Stop)
+
 update _ Emulating SDLWindowClosed = Transition (Started Nothing) noop
+
 update _ _ (ErrorReport msg) = Transition (Message $ Text.pack msg) noop
-update _ s _      = Transition s noop
+
+update _ s _ = Transition s noop
+
+
 
 main :: IO ()
 main = do

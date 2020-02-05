@@ -12,7 +12,7 @@ tests = testGroup "Pure-Nes Tests" $
   [
     testGroup "CPU" $
     [
-      Nestest.test,
-      InstrTest_v5.test
+      testGroup "Quick test" [Nestest.test],
+      testGroup "Exhaustive tests" [InstrTest_v5.test]
     ]
   ]

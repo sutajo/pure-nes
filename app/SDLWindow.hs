@@ -20,9 +20,6 @@ import           SDL.Input.Joystick
 import           Communication
 import           Nes.Cartridge
 
-data ChildMessage
-  = Trace Int
-
 scale :: Int
 scale = 4
 

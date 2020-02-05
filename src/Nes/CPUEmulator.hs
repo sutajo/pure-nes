@@ -1,12 +1,14 @@
 {-# LANGUAGE ScopedTypeVariables, LambdaCase, RecordWildCards #-}
 
 module Nes.CPUEmulator(
+  reset,
   clock,
-  fetch,
   fetchByte,
   getSnapshot,
   writeReg,
-  readReg
+  readReg,
+  write,
+  read
 )where
 
 import           Prelude hiding (read, cycle, and)
@@ -20,6 +22,7 @@ import           Data.Functor
 import           Nes.EmulatorMonad
 import           Nes.CPU6502
 import qualified Nes.APU as APU
+import qualified Nes.PPU as PPU
 
 data Penalty = None | BoundaryCross deriving (Enum)
 
@@ -37,7 +40,7 @@ toWord16 :: Bool -> Word16
 toWord16 = fromIntegral . fromEnum
 
 word16toWord8 :: Word16 -> (Word8, Word8)
-word16toWord8 word = (fromIntegral ((word `shiftR` 8) .&. 0xFF) , fromIntegral (word .&. 0x00FF))
+word16toWord8 word = (fromIntegral (word `shiftR` 8) , fromIntegral (word .&. 0x00FF))
 
 word8toWord16 :: Word8 -> Word8 -> Word16
 word8toWord16 low high = (fromIntegral high `shiftL` 8) .|. fromIntegral low
@@ -79,11 +82,10 @@ zeropage arg reg = (arg + fromIntegral reg) `rem` 0x100
 
 read :: Word16 -> Emulator Word8
 read addr 
-  | addr <= 0x1FFF = readRAM (addr `rem` 0x800)         -- mirrored
-  | addr <= 0x2007 = error "PPU read"                   -- readPPU addr
-  | addr <= 0x3FFF = error "PPU read"                   -- readPPU (0x2000 + addr `rem` 0x8)  -- mirrored
-  | addr <= 0x4017 = readAPU addr 
-  | addr <= 0xFFFF = readCartridge addr                 -- readCartridge
+  | addr <= 0x1FFF = readRAM (addr `rem` 0x800)
+  | addr <= 0x3FFF = readComponent (PPU.oam . ppu) (0x2000 + addr `rem` 0x8)
+  | addr <= 0x4017 = readAPU addr
+  | addr <= 0xFFFF = readCartridge addr
 
 readAddress :: Word16 -> Emulator Word16
 readAddress addr = word8toWord16 <$> read addr <*> read (addr+1)
@@ -103,9 +105,8 @@ readAddressWithBug addr = do
 
 write :: Word16 -> Word8 -> Emulator ()
 write addr val
-  | addr <= 0x1FFF = writeRAM addr val
-  | addr <= 0x2007 = error "PPU write"
-  | addr <= 0x3FFF = error "PPU write"
+  | addr <= 0x1FFF = writeRAM (addr `rem` 0x800) val
+  | addr <= 0x3FFF = writeComponent (PPU.oam . ppu) (0x2000 + addr `rem` 0x8) val
   | addr <= 0x4017 = writeAPU addr val
   | addr <= 0xFFFF = writeCartridge addr val
 
@@ -241,12 +242,14 @@ bne addr = testFlag Zero >>= jumpWhen addr . not
 bpl :: Word16 -> Emulator ()
 bpl addr = testFlag Negative >>= jumpWhen addr . not
 
-brk :: Word16 -> Emulator ()
-brk addr = do
-  sei
+
+-- http://forums.nesdev.com/viewtopic.php?p=7365#7365
+brk :: Emulator ()
+brk = do
   readReg pc <&> (+1) >>= pushAddress
-  php 
-  readAddress 0xFFFE >>= writeReg pc
+  php
+  sei
+  readAddress 0xFFFE >>= jmp
 
 bvc :: Word16 -> Emulator ()
 bvc addr = testFlag Overflow >>= jumpWhen addr . not
@@ -376,7 +379,7 @@ pha :: Emulator ()
 pha = readReg a >>= push
 
 php :: Emulator ()
-php = readReg p <&> (`setBit` 4) >>= push
+php = readReg p <&> (.|. 0x30) >>= push
 
 pla :: Emulator ()
 pla = do
@@ -586,10 +589,10 @@ relative = do
 
 decodeOpcode :: Word8 -> Opcode
 decodeOpcode opcode = case opcode of
-  0x00 -> op (implied >>= brk)      7;  0x80 -> op (immediate >> nop)     2;
+  0x00 -> op (implied >>  brk)      7;  0x80 -> op (immediate >> nop)     2;
   0x01 -> op (indirectX >>= ora)    6;  0x81 -> op (indirectX >>= sta)    6; 
   0x02 -> op (implied >> kil)       0;  0x82 -> op (immediate >> nop)     2; 
-  0x03 -> op (indirectX >>= slo)   8;  0x83 -> op (indirectX >>= sax)    6; 
+  0x03 -> op (indirectX >>= slo)    8;  0x83 -> op (indirectX >>= sax)    6; 
   0x04 -> op (zeroPage >>  nop)     3;  0x84 -> op (zeroPage >>= sty)     3; 
   0x05 -> op (zeroPage >>= ora)     3;  0x85 -> op (zeroPage >>= sta)     3; 
   0x06 -> op (zeroPage >>= aslM)    5;  0x86 -> op (zeroPage >>= stx)     3;
@@ -601,10 +604,10 @@ decodeOpcode opcode = case opcode of
   0x0C -> op (absolute >>  nop)     4;  0x8C -> op (absolute >>= sty)     4;
   0x0D -> op (absolute >>= ora)     4;  0x8D -> op (absolute >>= sta)     4;
   0x0E -> op (absolute >>= aslM)    6;  0x8E -> op (absolute >>= stx)     4; 
-  0x0F -> op (absolute >>= slo)    6;  0x8F -> op (absolute >>= sax)     4;
+  0x0F -> op (absolute >>= slo)     6;  0x8F -> op (absolute >>= sax)     4;
   0x10 -> op (relative >>= bpl)     2;  0x90 -> op (relative  >>= bcc)    2;
   0x11 -> op (indirectYP >>= ora)   5;  0x91 -> op (indirectY >>= sta)    6;
-  0x12 -> op (implied >> kil)       0;  0x92 -> op (implied   >>= kil)    0; 
+  0x12 -> op (implied >> kil)       0;  0x92 -> op (implied   >>  kil)    0; 
   0x13 -> op (indirectY >>= slo)    8;  0x93 -> op (indirectY >>= ahx)    6;
   0x14 -> op (zeroPageX >>  nop)    4;  0x94 -> op (zeroPageX >>= sty)    4; 
   0x15 -> op (zeroPageX >>= ora)    4;  0x95 -> op (zeroPageX >>= sta)    4; 
@@ -617,7 +620,7 @@ decodeOpcode opcode = case opcode of
   0x1C -> op (absoluteXP >>  nop)   4;  0x9C -> op (absoluteX >>= shy)    5; 
   0x1D -> op (absoluteXP >>= ora)   4;  0x9D -> op (absoluteX >>= sta)    5; 
   0x1E -> op (absoluteX >>= aslM)   7;  0x9E -> op (absoluteY >>= shx)    5;
-  0x1F -> op (absoluteX >>= slo)   7;  0x9F -> op (absoluteY >>= ahx)    5;
+  0x1F -> op (absoluteX >>= slo)    7;  0x9F -> op (absoluteY >>= ahx)    5;
   0x20 -> op (absolute >>= jsr)     6;  0xA0 -> op (immediate >>= ldy)    2;
   0x21 -> op (indirectX >>= and)    6;  0xA1 -> op (indirectX >>= lda)    6;
   0x22 -> op (implied >> kil)       0;  0xA2 -> op (immediate >>= ldx)    2;
@@ -668,7 +671,7 @@ decodeOpcode opcode = case opcode of
   0x4F -> op (absolute >>= sre)     6;  0xCF -> op (absolute  >>= dcp)    6; 
   0x50 -> op (relative >>= bvc)     2;  0xD0 -> op (relative  >>= bne)    2;
   0x51 -> op (indirectYP >>= eor)   5;  0xD1 -> op (indirectYP >>= cmp)   5;
-  0x52 -> op (implied >> kil)       0;  0xD2 -> op (implied >>= kil)      0; 
+  0x52 -> op (implied >> kil)       0;  0xD2 -> op (implied >>  kil)      0; 
   0x53 -> op (indirectY >>= sre)    8;  0xD3 -> op (indirectY >>= dcp)    8;
   0x54 -> op (zeroPageX  >>  nop)   4;  0xD4 -> op (zeroPageX >>  nop)    4;
   0x55 -> op (zeroPageX  >>= eor)   4;  0xD5 -> op (zeroPageX >>= cmp)    4; 
@@ -684,7 +687,7 @@ decodeOpcode opcode = case opcode of
   0x5F -> op (absoluteX >>= sre)    7;  0xDF -> op (absoluteX >>= dcp)    7; 
   0x60 -> op (implied >> rts)       6;  0xE0 -> op (immediate >>= cpx)    2;
   0x61 -> op (indirectX >>= adc)    6;  0xE1 -> op (indirectX >>= sbc)    6;
-  0x62 -> op (implied >> kil)       0;  0xE2 -> op (implied >> nop)       2;
+  0x62 -> op (implied >> kil)       0;  0xE2 -> op (immediate >> nop)     2;
   0x63 -> op (indirectX >>= rra)    8;  0xE3 -> op (indirectX >>= isc)    8;
   0x64 -> op (zeroPage >>  nop)     3;  0xE4 -> op (zeroPage >>= cpx)     3;
   0x65 -> op (zeroPage >>= adc)     3;  0xE5 -> op (zeroPage >>= sbc)     3;
@@ -700,7 +703,7 @@ decodeOpcode opcode = case opcode of
   0x6F -> op (absolute >>= rra)     6;  0xEF -> op (absolute >>= isc)     6; 
   0x70 -> op (relative >>= bvs)     2;  0xF0 -> op (relative >>= beq)     2;
   0x71 -> op (indirectYP >>= adc)   5;  0xF1 -> op (indirectYP >>= sbc)   5;
-  0x72 -> op (implied >> kil)       0;  0xF2 -> op (implied >>= kil)      0;
+  0x72 -> op (implied >> kil)       0;  0xF2 -> op (implied >>  kil)      0;
   0x73 -> op (indirectY >>= rra)    8;  0xF3 -> op (indirectY >>= isc)    8;
   0x74 -> op (zeroPageX >>  nop)    4;  0xF4 -> op (zeroPageX >> nop)     4;
   0x75 -> op (zeroPageX >>= adc)    4;  0xF5 -> op (zeroPageX >>= sbc)    4; 
@@ -718,7 +721,8 @@ decodeOpcode opcode = case opcode of
 isc :: Word16 -> Emulator ()
 isc addr = inc addr >> sbc addr
 
-kil = undefined
+kil :: Emulator ()
+kil = undefined 
 
 dcp :: Word16 -> Emulator ()
 dcp addr = dec addr >> cmp addr
@@ -733,37 +737,77 @@ lax addr = do
 
 las = undefined
 ahx = undefined
-shx = undefined
-shy = undefined
-tas = undefined
+
+-- http://forums.nesdev.com/viewtopic.php?f=3&t=3831&start=30
+sh reg addr = do
+  let (hi, lo) = word16toWord8 addr
+  reg <- readReg reg 
+  let 
+    result     = (fromIntegral (addr `shiftR` 8) + 1) .&. reg
+    targetAddr = word8toWord16 lo result
+  write targetAddr result
+
+shx :: Word16 -> Emulator ()
+shx = sh x
+
+shy :: Word16 -> Emulator ()
+shy = sh y
+
+tas :: Word16 -> Emulator ()
+tas addr = pure ()
 
 sax :: Word16 -> Emulator ()
-sax addr = do
-  x <- readReg x
-  a <- readReg a
-  write addr (a .&. x)
+sax addr = ((.&.) <$> readReg x <*> readReg a) >>= write addr
 
-xaa = undefined
+xaa :: Word16 -> Emulator ()
+xaa addr = pure ()
 
 rra :: Word16 -> Emulator ()
 rra addr = rorM addr >> adc addr
 
-arr = undefined
+arr :: Word16 -> Emulator ()
+arr addr = do
+  and addr
+  rorA
+  a <- readReg a
+  let bit6 = a `testBit` 6
+  setFlag Overflow (bit6 `xor` (a `testBit` 5))
+  setFlag Carry bit6
 
 sre :: Word16 -> Emulator ()
 sre addr = lsrM addr >> eor addr
 
-alr = undefined
+alr :: Word16 -> Emulator ()
+alr addr = do and addr; lsrA
 
 rla :: Word16 -> Emulator ()
 rla addr = rolM addr >> and addr
 
-anc = undefined
+anc :: Word16 -> Emulator ()
+anc addr = do
+  a' <- readReg a
+  v' <- read addr
+  let result = a' .&. v'
+  writeReg a result
+  setZero result
+  setNegative result
+  testFlag Negative >>= setFlag Carry
 
 slo :: Word16 -> Emulator ()
 slo addr = aslM addr >> ora addr
 
-axs = undefined
+axs :: Word16 -> Emulator ()
+axs addr = do
+  a'    <- readReg a
+  x'    <- readReg x
+  byte  <- read addr
+  let 
+    result = a' .&. x'
+    diff = result - byte
+  writeReg x diff
+  setFlag Carry (byte <= result)
+  setZero diff
+  setNegative diff
 
 nmi :: Emulator ()
 nmi = do
@@ -802,6 +846,13 @@ getSnapshot =
   readReg s   <*>
   readReg p   <*>
   readReg cyc
+
+reset :: Emulator ()
+reset = do
+  readAddress 0xFFFC >>= writeReg pc
+  writeReg p 0x34
+  writeReg s 0xFD
+  cycle 8
 
 clock :: Emulator ()
 clock = do

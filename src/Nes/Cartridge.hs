@@ -13,16 +13,18 @@ module Nes.Cartridge (
 import           Prelude hiding (load)
 import qualified Data.Vector.Unboxed         as V
 import qualified Data.Vector.Unboxed.Mutable as VM
+import           Data.Char (toUpper)
 import           Data.Functor
 import           Data.Word
 import           Data.Binary
 import           Data.Binary.Get
 import           Data.Bits
-import           Data.ByteString      as BS hiding (readFile, load, putStrLn) 
+import           Data.ByteString      as BS hiding (readFile, load, putStrLn, map, notElem) 
 import qualified Data.ByteString.Lazy as B (readFile, toStrict)
 import           Control.Monad
 import           Control.Applicative()
 import           Control.Exception
+import           Numeric (showHex)
 
 data INES = INES {
     title         :: ByteString,
@@ -97,10 +99,10 @@ load INES{..} = do
     mapperId = (flags6 `shiftR` 4) .|. ((flags7 `shiftR` 4) `shiftL` 4)
     mirror = if flags6 `testBit` 3 then FourScreen else (toEnum . fromEnum) (flags6 `testBit` 0)
     mapper = defaultMapper
-  when (mapperId /= 0) . fail $ "Mapper type " ++ show mapperId ++ " is currently not supported" 
+  when (mapperId `notElem` [0,1]) . fail $ "Mapper type " ++ show mapperId ++ " is currently not supported" 
   chr_rom <- toVector chr_rom_bs
   prg_rom <- toVector prg_rom_bs
-  prg_ram <- VM.new (fromIntegral prg_ram_size)
+  prg_ram <- VM.new (if prg_ram_size == 0 then 0x2000 else fromIntegral prg_ram_size)
   let cart = Cartridge{..} 
   pure $ attachMapper mapperId cart
 
@@ -120,6 +122,7 @@ attachMapper mappedId cart = cart { mapper = newMapper cart }
   where
     newMapper = case mappedId of
       0 -> nrom
+      1 -> nrom
       _ -> error "Unimplemented mapper type"
 
 
@@ -136,17 +139,16 @@ nrom :: Cartridge -> Mapper
 nrom Cartridge{..} = Mapper{..}
  where 
   prg_ram_size = VM.length prg_ram
-  mirrored  addr = (fromIntegral addr - 0x8000) `rem` 0x4000
-  intact addr = fromIntegral addr - 0x8000
+  mirrored  addr = fromIntegral $ (addr - 0x8000) `rem` 0x4000
+  intact addr = fromIntegral (addr - 0x8000)
   prg_ram_addr addr = (fromIntegral addr - 0x6000) `rem` prg_ram_size
-  guardRam :: IO a -> IO a
-  guardRam op = if prg_ram_size == 0 then error "Tried to access non-existent prg_ram" else op  
+  readWith :: (Word16 -> Int) -> Word16 -> IO Word8
   readWith mode addr
-   | addr < 0x8000 = guardRam $ VM.read prg_ram (prg_ram_addr addr)
-   | addr < 0xFFFF = VM.read prg_rom (mode addr)
+   | addr <= 0x7FFF = VM.read prg_ram (prg_ram_addr addr)
+   | addr <= 0xFFFF = VM.read prg_rom (mode addr)
   write addr val
-   | addr < 0x8000 = guardRam $ VM.write prg_ram (prg_ram_addr addr) val
-   | addr < 0xFFFF = error $ "The program tried to write PRG_ROM at $" ++ show addr 
+   | addr <= 0x7FFF = VM.write prg_ram (prg_ram_addr addr) val
+   | addr <= 0xFFFF = error $ "The program tried to write PRG_ROM at $" ++ map toUpper (showHex addr "")
   read = readWith $
     case VM.length prg_rom of
       0x4000 ->  mirrored

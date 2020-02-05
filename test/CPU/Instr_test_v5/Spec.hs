@@ -16,7 +16,7 @@ import           System.Directory
 import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Nes.EmulatorMonad
-import           Nes.CPU6502
+import           Nes.CPU6502 hiding (intr)
 import           Nes.CPUEmulator
 import           Nes.Cartridge hiding (readCartridge)
 
@@ -26,13 +26,17 @@ v5 = "roms/tests/cpu/instr_test-v5/"
 misc :: FilePath
 misc = "roms/tests/cpu/instr_misc/rom_singles/"
 
+intr :: FilePath
+intr = "roms/tests/cpu/cpu_interrupts_v2/rom_singles/"
+
 -- Read null terminated string
 readNullTerminatedString :: Word16 -> Emulator String
 readNullTerminatedString addr = do
   addrRef <- liftIO $ newIORef addr
+  let readByte = liftIO (readIORef addrRef) >>= read
   untilM 
-    (do addr <- liftIO $ readIORef addrRef; read addr <* liftIO (modifyIORef addrRef (+1)))
-      ((liftIO (readIORef addrRef) >>= read) <&> (== 0)) <&> (map (toEnum.fromEnum))
+    (do readByte <* liftIO (modifyIORef' addrRef (+1)))
+      (readByte <&> (== 0)) <&> (map (toEnum.fromEnum))
 
 runTest :: FilePath -> String -> Assertion
 runTest path romName = do
@@ -74,5 +78,10 @@ test =
     [
       testCase "Abs X wrap"  $ runTest misc "01-abs_x_wrap.nes",
       testCase "Branch wrap" $ runTest misc "02-branch_wrap.nes"
+    ],
+
+    testGroup "Interrupts" $ 
+    [
+      testCase "Cli latency" $ runTest intr "1-cli_latency.nes"
     ]
   ]

@@ -14,7 +14,7 @@ import           Nes.APU       as APU
 type RAM = IOUArray Word16 Word8
 
 allocateRAM :: IO RAM
-allocateRAM = newArray (0, 0x1FFF) 0
+allocateRAM = newArray (0, 0x07FF) 0
 
 data Nes =  Nes {
     cpu         ::  CPU,
