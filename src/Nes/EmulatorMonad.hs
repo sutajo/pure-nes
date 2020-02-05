@@ -3,6 +3,7 @@
 module Nes.EmulatorMonad where
 
 import           Control.Monad.Reader
+import           Control.Monad.Fail
 import           Data.Array.IO
 import           Data.Functor ((<&>))
 import           Data.Word (Word8, Word16)
@@ -36,7 +37,7 @@ powerUpNes cart =
 
 newtype Emulator a = Emulator { 
     unEmulator :: ReaderT Nes IO a 
-} deriving (Functor, Applicative, Monad, MonadIO, MonadReader Nes)
+} deriving (Functor, Applicative, Monad, MonadIO, MonadReader Nes, MonadFail)
 
 
 runEmulator :: Nes -> Emulator a -> IO a

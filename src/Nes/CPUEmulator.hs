@@ -83,7 +83,7 @@ zeropage arg reg = (arg + fromIntegral reg) `rem` 0x100
 read :: Word16 -> Emulator Word8
 read addr 
   | addr <= 0x1FFF = readRAM (addr `rem` 0x800)
-  | addr <= 0x3FFF = readComponent (PPU.oam . ppu) (0x2000 + addr `rem` 0x8)
+  | addr <= 0x3FFF = readComponent (PPU.registers . ppu) ((addr - 0x2000) `rem` 0x8)
   | addr <= 0x4017 = readAPU addr
   | addr <= 0xFFFF = readCartridge addr
 
@@ -106,7 +106,7 @@ readAddressWithBug addr = do
 write :: Word16 -> Word8 -> Emulator ()
 write addr val
   | addr <= 0x1FFF = writeRAM (addr `rem` 0x800) val
-  | addr <= 0x3FFF = writeComponent (PPU.oam . ppu) (0x2000 + addr `rem` 0x8) val
+  | addr <= 0x3FFF = writeComponent (PPU.registers . ppu) ((addr - 0x2000) `rem` 0x8) val
   | addr <= 0x4017 = writeAPU addr val
   | addr <= 0xFFFF = writeCartridge addr val
 

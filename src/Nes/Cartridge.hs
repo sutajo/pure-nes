@@ -2,7 +2,7 @@
 
 module Nes.Cartridge (
   Cartridge,
-  loadFrom,
+  loadCartridge,
   readCartridge,
   writeCartridge
 ) where
@@ -10,7 +10,7 @@ module Nes.Cartridge (
 -- INES format: https://wiki.nesdev.com/w/index.php/INES
 -- https://formats.kaitai.io/ines/index.html 
 
-import           Prelude hiding (load)
+import           Prelude hiding (load, read)
 import qualified Data.Vector.Unboxed         as V
 import qualified Data.Vector.Unboxed.Mutable as VM
 import           Data.Char (toUpper)
@@ -107,8 +107,8 @@ load INES{..} = do
   pure $ attachMapper mapperId cart
 
 
-loadFrom :: FilePath -> IO Cartridge
-loadFrom path = tryLoadingINES path >>= load
+loadCartridge :: FilePath -> IO Cartridge
+loadCartridge path = tryLoadingINES path >>= load
 
 data Mapper = Mapper {
     read    :: Word16 -> IO Word8
@@ -122,16 +122,15 @@ attachMapper mappedId cart = cart { mapper = newMapper cart }
   where
     newMapper = case mappedId of
       0 -> nrom
-      1 -> nrom
       _ -> error "Unimplemented mapper type"
 
 
 readCartridge :: Cartridge -> Word16 -> IO Word8
-readCartridge c@Cartridge{ mapper = Mapper r _ } addr = r addr
+readCartridge cart = read (mapper cart)
     
 
 writeCartridge :: Cartridge -> Word16 -> Word8 -> IO ()
-writeCartridge c@Cartridge{ mapper = Mapper _ w } addr val = w addr val
+writeCartridge cart = write (mapper cart)
 
 
 -- aka mapper0

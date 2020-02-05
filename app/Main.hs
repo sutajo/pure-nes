@@ -24,12 +24,14 @@ import           GI.Gtk                         ( Box(..)
                                                 , fileFilterNew
                                                 , MenuBar(..)
                                                 , MenuItem(..)
+                                                , Grid(..)
                                                 )
 import qualified GI.Gtk                        as Gtk
 import qualified GI.GObject                    as GI
 import           GI.Gtk.Enums
 import           GI.Gtk.Declarative
 import           GI.Gtk.Objects.Image(Image(..))
+import           GI.Gtk.Declarative.Container.Grid
 import           GI.Gtk.Declarative.App.Simple as DAS
 import           Communication
 import           Pipes
@@ -83,7 +85,7 @@ windowContent s = case s of
       [#orientation := OrientationVertical, #valign := AlignCenter, #margin := 10 ]
       [
         BoxChild defaultBoxChildProperties { padding = 15 } $ 
-          widget Image [ #file := "resources/back.png"]
+          widget Image [ #file := "resources/GUI/back.png"]
       , BoxChild defaultBoxChildProperties { padding = 15 } $ 
           widget Button
           [ 
@@ -96,7 +98,7 @@ windowContent s = case s of
       [#orientation := OrientationVertical]
       [ 
         BoxChild defaultBoxChildProperties { padding = 10 } $ 
-          widget Image [#file := "resources/logo2.png"]
+          widget Image [#file := "resources/GUI/logo2.png"]
       , BoxChild defaultBoxChildProperties { padding = 15 } $ 
           widget Label
           [#label := maybe "Please select the ROM you wish to run." ((Text.append "...") . Text.takeEnd 30 . Text.pack) currentFile]
@@ -117,7 +119,7 @@ just x = do x; noop
 launchEmulator :: FilePath -> CommResources -> IO ()
 launchEmulator path comms = do
  toSDLWindow' <- atomically $ dupTChan (toSDLWindow comms)
- void . forkOS $ runEmulator path comms { toSDLWindow = toSDLWindow' }
+ void . forkOS $ runEmulatorWindow path comms { toSDLWindow = toSDLWindow' }
 
 
 

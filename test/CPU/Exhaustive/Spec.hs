@@ -1,0 +1,101 @@
+{-# LANGUAGE OverloadedStrings #-}
+
+module CPU.Exhaustive.Spec (
+    tests
+) where
+
+import           Control.Monad
+import           Control.Monad.IO.Class
+import           Control.Monad.Loops
+import qualified Data.ByteString.Char8 as BS
+import           Data.Functor
+import           Data.Word
+import           Data.IORef
+import           Prelude hiding (read)
+import           System.Directory
+import           Test.Tasty
+import           Test.Tasty.HUnit
+import           Nes.EmulatorMonad
+import           Nes.CPU6502 hiding (intr)
+import           Nes.CPUEmulator
+import           Nes.Cartridge hiding (readCartridge)
+
+instr_v5 :: FilePath
+instr_v5 = "roms/tests/cpu/instr_test-v5/"
+
+misc :: FilePath
+misc = "roms/tests/cpu/instr_misc/rom_singles/"
+
+intr :: FilePath
+intr = "roms/tests/cpu/cpu_interrupts_v2/rom_singles/"
+
+instr_time = "roms/tests/cpu/instr_timing/"
+
+-- Read null terminated string
+readNullTerminatedString :: Word16 -> Emulator String
+readNullTerminatedString addr = map (toEnum.fromEnum) <$> unfoldrM go addr
+  where
+    go addr = do
+      byte <- read addr
+      pure $ case byte of
+        0x0 -> Nothing
+        _   -> Just (byte, addr + 1)
+      
+
+runTest :: FilePath -> String -> Assertion
+runTest path romName = do
+  nes        <- loadCartridge (path ++ romName) >>= powerUpNes
+  runEmulator nes $ do
+    reset
+    write 0x6000 0x80
+    untilM_ clock (read 0x6000 <&> (<0x80))
+    sanityNumbers <- forM [0x6001..0x6003] read
+    liftIO $ zipWithM_ (@?=) sanityNumbers [0xDE, 0xB0, 0x61] -- make sure test results are valid
+    returnCode <- read 0x6000
+    msg  <- readNullTerminatedString 0x6004
+    liftIO $ assertEqual (msg ++ "\nTest exitcode indicates failure.") 0 returnCode
+
+tests :: [TestTree]
+tests =
+  [
+    testGroup "InstrTest_v5" $ 
+    [
+      testCase "Basics"     $ runTest instr_v5 "rom_singles/01-basics.nes",
+      testCase "Implied"    $ runTest instr_v5 "rom_singles/02-implied.nes",
+      testCase "Immediate"  $ runTest instr_v5 "rom_singles/03-immediate.nes",
+      testCase "ZeroPage"   $ runTest instr_v5 "rom_singles/04-zero_page.nes",
+      testCase "ZeroPageXY" $ runTest instr_v5 "rom_singles/05-zp_xy.nes",
+      testCase "Absolute"   $ runTest instr_v5 "rom_singles/06-absolute.nes",
+      testCase "AbsoluteXY" $ runTest instr_v5 "rom_singles/07-abs_xy.nes",
+      testCase "IndX"       $ runTest instr_v5 "rom_singles/08-ind_x.nes",
+      testCase "IndY"       $ runTest instr_v5 "rom_singles/09-ind_y.nes",
+      testCase "Branch"     $ runTest instr_v5 "rom_singles/10-branches.nes",
+      testCase "Stack"      $ runTest instr_v5 "rom_singles/11-stack.nes",
+      testCase "JMP-JSR"    $ runTest instr_v5 "rom_singles/12-jmp_jsr.nes",
+      testCase "RTS"        $ runTest instr_v5 "rom_singles/13-rts.nes",
+      testCase "RTI"        $ runTest instr_v5 "rom_singles/14-rti.nes",
+      testCase "BRK"        $ runTest instr_v5 "rom_singles/15-brk.nes",
+      testCase "Special"    $ runTest instr_v5 "rom_singles/16-special.nes"
+    ],
+
+    testGroup "Instr_Misc" $
+    [
+      testCase "Abs X wrap"  $ runTest misc "01-abs_x_wrap.nes",
+      testCase "Branch wrap" $ runTest misc "02-branch_wrap.nes"
+    ]
+
+    {-
+
+    TODO: run these tests after implementing the APU
+
+    testGroup "Instr_Timing" $
+    [
+      testCase "Branch" $ runTest instr_time "rom_singles/2-branch_timing.nes"
+    ],
+    
+    testGroup "Interrupts" $ 
+    [
+      testCase "Cli latency" $ runTest intr "1-cli_latency.nes"
+    ]
+    -}
+  ]

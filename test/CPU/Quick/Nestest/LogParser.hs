@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, RecordWildCards #-}
 
-module CPU.Nestest.LogParser (
+module CPU.Quick.Nestest.LogParser (
   logParser,
   snapshotParser
 ) where

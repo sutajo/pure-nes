@@ -1,4 +1,4 @@
-module CPU.Nestest.Spec (
+module CPU.Quick.Nestest.Spec (
   test
 ) where
 
@@ -10,7 +10,7 @@ import           Data.Either
 import           Data.Word
 import           Test.Tasty
 import           Test.Tasty.HUnit
-import           CPU.Nestest.LogParser
+import           CPU.Quick.Nestest.LogParser
 import           Nes.EmulatorMonad
 import           Nes.CPU6502
 import           Nes.CPUEmulator
@@ -34,7 +34,7 @@ test :: TestTree
 test = testCase "Nestest" $ do
   contents <- BS.readFile "roms/tests/cpu/nestest/nestest.log"
   let referenceSnaps = fromRight (error "Failed to parse test log") $ A.parseOnly (logParser <* A.endOfInput) contents
-  cart     <- loadFrom "roms/tests/cpu/nestest/nestest.nes"
+  cart     <- loadCartridge "roms/tests/cpu/nestest/nestest.nes"
   nes      <- powerUpNes cart
   runEmulator nes $ do
     writeReg pc 0xC000
