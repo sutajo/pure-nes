@@ -31,12 +31,14 @@ intr = "roms/tests/cpu/cpu_interrupts_v2/rom_singles/"
 
 -- Read null terminated string
 readNullTerminatedString :: Word16 -> Emulator String
-readNullTerminatedString addr = do
-  addrRef <- liftIO $ newIORef addr
-  let readByte = liftIO (readIORef addrRef) >>= read
-  untilM 
-    (do readByte <* liftIO (modifyIORef' addrRef (+1)))
-      (readByte <&> (== 0)) <&> (map (toEnum.fromEnum))
+readNullTerminatedString addr = map (toEnum.fromEnum) <$> unfoldrM go addr
+  where
+    go addr = do
+      byte <- read addr
+      pure $ case byte of
+        0x0 -> Nothing
+        _   -> Just (byte, addr + 1)
+      
 
 runTest :: FilePath -> String -> Assertion
 runTest path romName = do
