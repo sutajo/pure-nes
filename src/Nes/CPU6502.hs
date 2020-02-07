@@ -21,7 +21,7 @@ data CPU = CPU {
   s     ::  IORefU Word8,  -- stack pointer
   p     ::  IORefU Word8,  -- status register
   cyc   ::  IORefU Int,    -- elapsed cycles
-  intr  ::  IORefU Word8   -- interrupt register
+  intr  ::  IORefU Word8   -- fictional interrupt register
 }
 
 powerUp :: IO CPU
@@ -37,8 +37,7 @@ powerUp = do
   return CPU{..} 
 
 data Interrupt
-  = NONE
-  | NMI
+  = NMI
   | IRQ
   deriving (Enum)
 

@@ -1,11 +1,14 @@
 module Nes.PPU (
     PPU(..),
+    Pixel,
+    Palette(..),
     powerUp,
     loadPalette
 ) where
 
 import           Data.Array.IO
-import qualified Data.Vector.Unboxed as VU
+import qualified Data.Vector.Unboxed          as VU
+import qualified Data.Vector.Unboxed.Mutable  as VUM
 import qualified Data.Vector.Storable.Mutable as VSM
 import qualified Data.Attoparsec.ByteString.Char8 as A
 import qualified Data.ByteString as B
@@ -26,17 +29,21 @@ loadPalette path = do
         Right bytelist -> pure (B.pack bytelist)
 
 data PPU = PPU {
-    registers :: IOUArray Word16 Word8,
-    palette   :: Palette,
-    screen    :: VSM.IOVector Word8
+    registers      :: IOUArray Word16 Word8,
+    palette        :: Palette,
+    screen         :: VSM.IOVector Word8,
+    nametable      :: VUM.IOVector Word8,
+    paletteIndices :: VUM.IOVector Word8
 }
 
 powerUp :: IO PPU
 powerUp = 
-    PPU                <$> 
-    newArray (0, 7) 0  <*>
-    pure palette2C02   <*>
-    VSM.replicate (256*240*3) 255
+    PPU                             <$> 
+    newArray (0, 7) 0               <*>
+    pure palette2C02                <*>
+    VSM.replicate (256*240*3) 255   <*>
+    VUM.new (4 * 0x400)             <*>
+    VUM.new 0x20
 
 data Registers
     = PPUCTRL

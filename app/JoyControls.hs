@@ -60,7 +60,7 @@ convertHatState hatPos = case hatPos of
   HatRight    -> Controls.Right
   _           -> error "HatState not convertible"
 
-manageButtonEvent :: JoyControlState -> JoyButtonEventData -> IO [UserInput]
+manageButtonEvent :: JoyControlState -> JoyButtonEventData -> IO [Input]
 manageButtonEvent JoyControlState{..} (JoyButtonEventData _ btn state) = do
   let 
     controllerButton = fromMaybe Select (buttonMappings M.!? btn)
@@ -70,7 +70,7 @@ manageButtonEvent JoyControlState{..} (JoyButtonEventData _ btn state) = do
   pure [action controllerButton]
 
 
-manageHatEvent :: JoyControlState -> JoyHatEventData -> IO [UserInput]
+manageHatEvent :: JoyControlState -> JoyHatEventData -> IO [Input]
 manageHatEvent JoyControlState{..} (JoyHatEventData _ _ newState) = execWriterT $ do
   when (newState `elem` [HatUp, HatDown, HatLeft, HatRight, HatCentered]) $ do
     prevHat <- liftIO $ readIORef previousHatState

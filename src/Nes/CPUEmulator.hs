@@ -63,7 +63,7 @@ modifyReg :: Prim a => (CPU -> IORefU a) -> (a -> a) -> Emulator ()
 modifyReg reg f = readReg reg >>= writeReg reg . f
 
 readComponent :: (Nes -> IOUArray Word16 Word8) -> Word16 -> Emulator Word8
-readComponent comp addr = useMemory comp $ (flip readArray addr)
+readComponent comp addr = useMemory comp $ (`readArray` addr)
 
 writeComponent :: (Nes -> IOUArray Word16 Word8) -> Word16 -> Word8 -> Emulator ()
 writeComponent comp addr val = useMemory comp $ (\arr -> writeArray arr addr val)
@@ -85,7 +85,7 @@ read addr
   | addr <= 0x1FFF = readRAM (addr `rem` 0x800)
   | addr <= 0x3FFF = readComponent (PPU.registers . ppu) ((addr - 0x2000) `rem` 0x8)
   | addr <= 0x4017 = readAPU addr
-  | addr <= 0xFFFF = readCartridge addr
+  | addr <= 0xFFFF = cpuReadCartridge addr
 
 readAddress :: Word16 -> Emulator Word16
 readAddress addr = word8toWord16 <$> read addr <*> read (addr+1)
@@ -108,7 +108,16 @@ write addr val
   | addr <= 0x1FFF = writeRAM (addr `rem` 0x800) val
   | addr <= 0x3FFF = writeComponent (PPU.registers . ppu) ((addr - 0x2000) `rem` 0x8) val
   | addr <= 0x4017 = writeAPU addr val
-  | addr <= 0xFFFF = writeCartridge addr val
+  | addr <= 0xFFFF = cpuWriteCartridge addr val
+
+sendInterrupt :: Interrupt -> Emulator ()
+sendInterrupt interrupt = modifyReg intr (`setBit` fromEnum interrupt)
+
+clearInterrupts :: Emulator ()
+clearInterrupts = writeReg intr 0
+
+testInterrupt :: Interrupt -> Word8 -> Bool
+testInterrupt intr reg = reg `testBit` fromEnum  intr
 
 setFlag :: Flag -> Bool -> Emulator ()
 setFlag flag cond = modifyReg p (setFlag' flag cond)
@@ -146,8 +155,9 @@ push value = do
 pop :: Emulator Word8
 pop = do
   sp <- readReg s
-  modifyReg s (+1)
-  read ((fromIntegral sp + 1) `setBit` 8)
+  let sp' = sp+1
+  writeReg s sp'
+  read (fromIntegral sp' `setBit` 8)
 
 pushAddress :: Word16 -> Emulator ()
 pushAddress addr = do
@@ -499,8 +509,8 @@ accumulator = pure ()
 immediate :: Emulator Word16
 immediate = readReg pc <* modifyReg pc (+1)
 
-implied :: Emulator Word16
-implied = pure 0
+implied :: Emulator ()
+implied = pure ()
 
 zeroPage :: Emulator Word16
 zeroPage = (fetchByte <&> fromIntegral) <* modifyReg pc (+1)
@@ -831,10 +841,10 @@ irq = do
 
 
 processInterrupt = do
-  readReg intr <&> (toEnum . fromEnum) >>= \case
-    NONE -> pure ()
-    NMI  -> nmi >> writeReg intr 0
-    IRQ  -> irq >> writeReg intr 0
+  reg <- readReg intr
+  when (testInterrupt NMI reg) $ nmi
+  when (testInterrupt IRQ reg) $ irq
+  clearInterrupts
 
 getSnapshot :: Emulator CpuSnapshot
 getSnapshot = 

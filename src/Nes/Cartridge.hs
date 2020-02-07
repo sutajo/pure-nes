@@ -3,14 +3,16 @@
 module Nes.Cartridge (
   Cartridge,
   loadCartridge,
-  readCartridge,
-  writeCartridge
+  cpuReadCartridge,
+  cpuWriteCartridge,
+  ppuReadCartridge,
+  ppuWriteCartridge
 ) where
 
 -- INES format: https://wiki.nesdev.com/w/index.php/INES
 -- https://formats.kaitai.io/ines/index.html 
 
-import           Prelude hiding (load, read)
+import           Prelude hiding (load, cpuRead)
 import qualified Data.Vector.Unboxed         as V
 import qualified Data.Vector.Unboxed.Mutable as VM
 import           Data.Char (toUpper)
@@ -98,7 +100,7 @@ load INES{..} = do
   let 
     mapperId = (flags6 `shiftR` 4) .|. ((flags7 `shiftR` 4) `shiftL` 4)
     mirror = if flags6 `testBit` 3 then FourScreen else (toEnum . fromEnum) (flags6 `testBit` 0)
-    mapper = defaultMapper
+    mapper = dummyMapper
   when (mapperId `notElem` [0,1]) . fail $ "Mapper type " ++ show mapperId ++ " is currently not supported" 
   chr_rom <- toVector chr_rom_bs
   prg_rom <- toVector prg_rom_bs
@@ -111,11 +113,14 @@ loadCartridge :: FilePath -> IO Cartridge
 loadCartridge path = tryLoadingINES path >>= load
 
 data Mapper = Mapper {
-    read    :: Word16 -> IO Word8
- ,  write   :: Word16 -> Word8 -> IO ()
+    cpuRead    :: Word16 -> IO Word8
+ ,  cpuWrite   :: Word16 -> Word8 -> IO ()
+ ,  ppuRead    :: Word16 -> IO Word8
+ ,  ppuWrite   :: Word16 -> Word8 -> IO ()
 }
 
-defaultMapper = Mapper (const (pure 0)) (\_ _ -> pure ())
+dummyMapper = Mapper dummyRead dummyWrite dummyRead dummyWrite
+ where dummyRead = const (pure 0); dummyWrite _ _ = pure ()
 
 attachMapper :: Word8 -> Cartridge -> Cartridge
 attachMapper mappedId cart = cart { mapper = newMapper cart }
@@ -125,13 +130,15 @@ attachMapper mappedId cart = cart { mapper = newMapper cart }
       _ -> error "Unimplemented mapper type"
 
 
-readCartridge :: Cartridge -> Word16 -> IO Word8
-readCartridge cart = read (mapper cart)
+cpuReadCartridge :: Cartridge -> Word16 -> IO Word8
+cpuReadCartridge cart = cpuRead (mapper cart)
     
 
-writeCartridge :: Cartridge -> Word16 -> Word8 -> IO ()
-writeCartridge cart = write (mapper cart)
+cpuWriteCartridge :: Cartridge -> Word16 -> Word8 -> IO ()
+cpuWriteCartridge cart = cpuWrite (mapper cart)
 
+ppuReadCartridge cart = ppuRead (mapper cart)
+ppuWriteCartridge cart = ppuWrite (mapper cart)
 
 -- aka mapper0
 nrom :: Cartridge -> Mapper
@@ -143,12 +150,15 @@ nrom Cartridge{..} = Mapper{..}
   prg_ram_addr addr = (fromIntegral addr - 0x6000) `rem` prg_ram_size
   readWith :: (Word16 -> Int) -> Word16 -> IO Word8
   readWith mode addr
-   | addr <= 0x7FFF = VM.read prg_ram (prg_ram_addr addr)
-   | addr <= 0xFFFF = VM.read prg_rom (mode addr)
-  write addr val
-   | addr <= 0x7FFF = VM.write prg_ram (prg_ram_addr addr) val
-   | addr <= 0xFFFF = error $ "The program tried to write PRG_ROM at $" ++ map toUpper (showHex addr "")
-  read = readWith $
+    | addr <= 0x7FFF = VM.read prg_ram (prg_ram_addr addr)
+    | addr <= 0xFFFF = VM.read prg_rom (mode addr)
+  cpuWrite addr val
+    | addr <= 0x7FFF = VM.write prg_ram (prg_ram_addr addr) val
+    | addr <= 0xFFFF = error $ "The program tried to cpuWrite PRG_ROM at $" ++ map toUpper (showHex addr "")
+  cpuRead = readWith $
     case VM.length prg_rom of
       0x4000 ->  mirrored
       0x8000 ->  intact
+  ppuRead :: Word16 -> IO Word8
+  ppuRead = VM.read chr_rom . fromIntegral
+  ppuWrite _ _ = pure ()

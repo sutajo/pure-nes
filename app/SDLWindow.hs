@@ -30,6 +30,7 @@ import           Nes.EmulatorMonad
 import qualified Nes.CPUEmulator as CPU
 import qualified Nes.PPUEmulator as PPU
 import           Nes.Timing
+import           Nes.Controls
 
 scale :: Int
 scale = 4
@@ -40,23 +41,39 @@ width = 256
 height :: Int
 height = 240
 
-data Intent = Quit | KeyPress SDL.Keysym deriving (Eq)
+data Command 
+  = Quit 
+  | GameInput Input 
+  | SwitchEmulationMode -- switches between continous and step-by-step emulation
+  | StepOneFrame
+  | StepClockCycle
+  deriving (Eq)
 
-processEvent :: SDL.EventPayload -> IO [Intent]
-processEvent (SDL.KeyboardEvent (SDL.KeyboardEventData _ _ _ k)) = print (SDL.keysymKeycode k) >> return [KeyPress k]
-processEvent SDL.QuitEvent = return [Quit]
-processEvent _ = pure []
+translateSDLEvent :: SDL.EventPayload -> [Command]
+translateSDLEvent SDL.QuitEvent = [Quit]
+translateSDLEvent (SDL.KeyboardEvent (SDL.KeyboardEventData _ motion _ sym)) =
+  let 
+    action = case motion of
+      Pressed  -> id
+      Released -> const []
+    inputs = case keysymKeycode sym of
+      KeycodeSpace -> [SwitchEmulationMode]
+      KeycodeF     -> [StepOneFrame]
+      KeycodeC     -> [StepClockCycle]
+      _            -> []
+  in action $ inputs
+translateSDLEvent _ = []
 
-processParentMessage :: ParentMessage -> IO [Intent]
-processParentMessage Stop = pure [Quit]
-processParentMessage TraceRequest = print "TraceRequest" >> pure []
+translateParentMessage :: ParentMessage -> [Command]
+translateParentMessage Stop = [Quit]
+translateParentMessage TraceRequest = []
 
 greetings :: IO ()
 greetings = do
   putStrLn "Starting Pure-Nes Emulator."
   putStr "SDL Version: "
   print =<< SDL.version
-  putStr "Detected audio devices:"
+  putStr "Detected audio devices: "
   print =<< SDL.getAudioDeviceNames ForPlayback
 
 bye = putStrLn "Emulator closed successfully."
@@ -66,12 +83,17 @@ data AppResources = AppResources {
   renderer   :: Renderer,
   screen     :: Texture,
   nes        :: Nes,
-  commRes    :: CommResources
+  commRes    :: CommResources,
+  continousMode :: IORef Bool
 }
+
+onlyWhen :: MonadIO m => (a -> Bool) -> IORef a -> m () -> m ()
+onlyWhen f ref m = do
+  cond <- liftIO (f <$> readIORef ref)
+  when cond m
 
 runEmulatorWindow :: FilePath -> CommResources -> IO ()
 runEmulatorWindow romPath comms = do
-  greetings
   bracket (acquireResources romPath comms) releaseResources runApp 
   bye
 
@@ -79,6 +101,7 @@ acquireResources romPath comms = do
   cartridge <- loadCartridge romPath `except` (comms, "Error: Failed to load cartridge.")
   nes       <- powerUpNes cartridge
   SDL.initializeAll
+  greetings
   let windowConfig = SDL.defaultWindow {
     windowInitialSize = V2 (fromIntegral $ width * scale) (fromIntegral $ height * scale)
   }
@@ -88,8 +111,9 @@ acquireResources romPath comms = do
     rendererType          = AcceleratedRenderer,
     rendererTargetTexture = True
   }
-  renderer <- SDL.createRenderer window (-1) rendererConfig
-  screen   <- SDL.createTexture renderer SDL.RGB24 SDL.TextureAccessStreaming (V2 256 240)
+  renderer      <- SDL.createRenderer window (-1) rendererConfig
+  screen        <- SDL.createTexture renderer SDL.RGB24 SDL.TextureAccessStreaming (V2 256 240)
+  continousMode <- newIORef True
   return AppResources{..}
 
 releaseResources AppResources{..} = do
@@ -103,10 +127,10 @@ runApp appResources = runEmulator (nes appResources) $ do
   CPU.reset
   updateWindow appResources `cappedAt` 60
 
-pollIntents AppResources{..} = do
-  sdlIntents <- fmap concat $ mapM (processEvent . SDL.eventPayload) =<< SDL.pollEvents
-  gtkIntents <- fmap concat $ mapM processParentMessage =<< (atomically $ readAllTChan (toSDLWindow commRes))
-  return (gtkIntents ++ sdlIntents)
+pollCommands res@AppResources{..} = do
+  sdlCommands <- (concatMap (translateSDLEvent . eventPayload)) <$> SDL.pollEvents
+  gtkCommands <- (concatMap translateParentMessage) <$> (atomically $ readAllTChan (toSDLWindow commRes))
+  return (gtkCommands ++ sdlCommands)
 
 updateScreen :: AppResources -> VSM.IOVector Word8 -> IO ()
 updateScreen AppResources{..} pixels = do
@@ -117,13 +141,22 @@ updateScreen AppResources{..} pixels = do
   copy renderer screen Nothing Nothing
   present renderer
 
+executeCommand :: AppResources -> Command -> Emulator ()
+executeCommand AppResources{..} command = case command of
+  SwitchEmulationMode -> liftIO $ modifyIORef' continousMode not
+  StepClockCycle      -> 
+    onlyWhen not continousMode $ do
+      CPU.clock >> CPU.getSnapshot >>= liftIO . print
+  _                   -> pure ()
+
 updateWindow :: AppResources -> NominalDiffTime -> Emulator Bool
 updateWindow appResources@AppResources{..} dt = do
-  CPU.getSnapshot >>= liftIO . print
-  CPU.clock
-  intents <- liftIO $ pollIntents appResources
-  pixels  <- PPU.accessScreen
-  liftIO $ updateScreen appResources pixels 
-  return (Quit `elem` intents)
+  commands <- liftIO $ pollCommands appResources
+  mapM_ (executeCommand appResources) commands
+  onlyWhen id continousMode $ do
+    PPU.clock
+    pixels  <- PPU.accessScreen
+    liftIO $ updateScreen appResources pixels 
+  return (Quit `elem` commands)
 
     

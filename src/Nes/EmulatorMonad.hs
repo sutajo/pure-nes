@@ -1,6 +1,16 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Nes.EmulatorMonad where
+module Nes.EmulatorMonad (
+    Nes(..),
+    Emulator,
+    powerUpNes,
+    runEmulator,
+    useMemory,
+    cpuReadCartridge,
+    cpuWriteCartridge,
+    ppuReadCartridge,
+    ppuWriteCartridge
+) where
 
 import           Control.Monad.Reader
 import           Control.Monad.Fail
@@ -46,8 +56,17 @@ runEmulator nes (Emulator emu) = runReaderT emu nes
 useMemory :: (Nes -> b) -> (b -> IO a) -> Emulator a
 useMemory memory action = ask <&> memory >>= liftIO . action
 
-readCartridge :: Word16 -> Emulator Word8
-readCartridge addr = useMemory cartridge $ \cart -> Cart.readCartridge cart addr
+readCartridgeWith accessor addr = useMemory cartridge (`accessor` addr)
+writeCartridgeWith modifier addr val = useMemory cartridge $ \cart -> modifier cart addr val
 
-writeCartridge :: Word16 -> Word8 -> Emulator ()
-writeCartridge addr val = useMemory cartridge $ \cart -> Cart.writeCartridge cart addr val
+cpuReadCartridge :: Word16 -> Emulator Word8
+cpuReadCartridge = readCartridgeWith Cart.cpuReadCartridge 
+
+cpuWriteCartridge :: Word16 -> Word8 -> Emulator ()
+cpuWriteCartridge = writeCartridgeWith Cart.cpuWriteCartridge
+
+ppuReadCartridge :: Word16 -> Emulator Word8
+ppuReadCartridge = readCartridgeWith Cart.ppuReadCartridge
+
+ppuWriteCartridge :: Word16 -> Word8 -> Emulator ()
+ppuWriteCartridge = writeCartridgeWith Cart.ppuWriteCartridge

@@ -1,6 +1,6 @@
  module Nes.Controls (
    Controller(..),
-   UserInput(..),
+   Input(..),
    Button(..)
  ) where
 
@@ -16,11 +16,12 @@ data Button
   |  Right
   |  A
   |  B
-  deriving (Enum)
+  deriving (Enum, Eq)
 
-data UserInput 
+data Input 
   = Press Button
   | Release Button
+  deriving (Eq)
 
 newtype Controller = Controller {
     activeButtons :: Word8
