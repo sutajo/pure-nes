@@ -84,8 +84,6 @@ clock = do
   forM_ [0x3F01,0x3F05..0x3F1F] $ \addr -> write addr 3
   forM_ [0x3F02,0x3F06..0x3F1F] $ \addr -> write addr 23
   forM_ [0x3F03,0x3F07..0x3F1F] $ \addr -> write addr 10
-  screen <- accessScreen
-  (r, g, b) <- getColor 0 3 
   forM_ [0..15] $ \y -> do
     let rowOffset = y * 256
     forM_ [0..15] $ \x -> do
@@ -94,6 +92,9 @@ clock = do
         tile_lsb <- read (offset + row)
         tile_msb <- read (offset + row + 8)
         forM_ [0..7] $ \col -> do
-          let pixel = ((tile_msb `shiftR` (fromIntegral col-1)) .&. 0x2) .|. ((tile_lsb `shiftR` fromIntegral col) .&. 0x1)
+          let 
+            c = fromIntegral col
+            get a i = fromEnum $ a `testBit` i 
+          let pixel = fromIntegral $ ((tile_msb `get` c) `shiftL` 1) .|. (tile_lsb `get` c)
           color <- getColor 0 pixel
           setPixel (fromIntegral(x*8 + (7 - col))) (fromIntegral(y*8 + row)) color
