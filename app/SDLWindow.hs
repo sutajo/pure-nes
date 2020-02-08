@@ -154,6 +154,7 @@ updateWindow appResources@AppResources{..} dt = do
   commands <- liftIO $ pollCommands appResources
   mapM_ (executeCommand appResources) commands
   onlyWhen id continousMode $ do
+    --CPU.clock
     PPU.clock
     pixels  <- PPU.accessScreen
     liftIO $ updateScreen appResources pixels 

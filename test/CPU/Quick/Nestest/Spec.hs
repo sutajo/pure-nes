@@ -19,13 +19,13 @@ import           Nes.Cartridge hiding (readCartridge)
 
 assertMatch :: (Word8, CpuSnapshot, Int) -> (Word8, CpuSnapshot) -> Assertion
 assertMatch (opce, sp1, lineNum) (opca, sp2) = do
-  assertEqual ("roms\\tests\\cpu\\nestest\\nestest.log:" ++ show lineNum ++":\nFailed to match the " ++ show lineNum ++ ". snapshot from the log.") sp1 sp2
+  assertEqual ("roms/tests/cpu/nestest/nestest.log:" ++ show lineNum ++":\nFailed to match the " ++ show lineNum ++ ". snapshot from the log.") sp1 sp2
   assertEqual ("Failed to match the " ++ show lineNum ++ ". opcode from the log.") opce opca 
 
 
 runClock :: (Word8, CpuSnapshot, Int) -> Emulator ()
 runClock expectedSnapshot = do
-  op       <- fetchByte
+  op       <- fetch
   snapshot <- getSnapshot
   liftIO $ assertMatch expectedSnapshot (op, snapshot)
   clock
@@ -37,6 +37,7 @@ test = testCase "Nestest" $ do
   cart     <- loadCartridge "roms/tests/cpu/nestest/nestest.nes"
   nes      <- powerUpNes cart
   runEmulator nes $ do
+    reset
     writeReg pc 0xC000
     writeReg p  0x24
     forM_ referenceSnaps runClock

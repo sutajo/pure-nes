@@ -37,23 +37,9 @@ import           Communication
 import           Pipes
 import           SDLWindow
 
-data State = Started (Maybe FilePath) 
-           | Done FilePath
+data State = Started (Maybe FilePath)
            | Message Text.Text
            | Emulating
-
-menuBar :: Widget Event
-menuBar = 
-  container
-  MenuBar
-  []
-  [ subMenu
-    "File"
-    [
-      menuItem MenuItem [on #activate Closed]
-      $ widget Label [#label := "Kilépés"]
-    ]
-  ]
 
 --view' :: State -> AppView Window Event
 view' s = do
@@ -69,8 +55,6 @@ view' s = do
     $ windowContent s
     
 windowContent s = case s of
-    Done path ->
-      widget Label [#label := (Text.pack path <> " was selected.")]
     Message text -> 
       container Box
       [#orientation := OrientationVertical, #valign := AlignCenter, #margin := 10 ]
@@ -113,38 +97,29 @@ windowContent s = case s of
         ]
       ]
 
-noop = pure Nothing
-just x = do x; noop
-
 launchEmulator :: FilePath -> CommResources -> IO ()
 launchEmulator path comms = do
  toSDLWindow' <- atomically $ dupTChan (toSDLWindow comms)
  void . forkOS $ runEmulatorWindow path comms { toSDLWindow = toSDLWindow' }
 
 
-
 update :: CommResources -> State -> Event -> Transition State Event
 update _ (Started _) (FileSelectionChanged p) 
   = Transition (Started p) (return Nothing)
-
 update _  _ Closed = Exit
-
 update comms s@(Started (Just path)) StartEmulator 
   = Transition Emulating (just $ launchEmulator path comms)
-
 update _ s@(Started Nothing) StartEmulator
   = Transition (Message "No ROM selected.") noop
-
 update _ (Message _) MessageAck = Transition (Started Nothing) noop
-
 update comms Emulating CloseEmulator 
   = Transition (Started Nothing) (just . atomically $ writeTChan (toSDLWindow comms) Stop)
-
 update _ Emulating SDLWindowClosed = Transition (Started Nothing) noop
-
 update _ _ (ErrorReport msg) = Transition (Message $ Text.pack msg) noop
-
 update _ s _ = Transition s noop
+
+noop = pure Nothing
+just x = do x; noop
 
 
 

@@ -12,16 +12,17 @@ module Nes.Cartridge (
 -- INES format: https://wiki.nesdev.com/w/index.php/INES
 -- https://formats.kaitai.io/ines/index.html 
 
-import           Prelude hiding (load, cpuRead)
+import           Prelude hiding (assembleCartridge, cpuRead)
 import qualified Data.Vector.Unboxed         as V
 import qualified Data.Vector.Unboxed.Mutable as VM
 import           Data.Char (toUpper)
+import qualified Data.Map                    as M
 import           Data.Functor
 import           Data.Word
 import           Data.Binary
 import           Data.Binary.Get
 import           Data.Bits
-import           Data.ByteString      as BS hiding (readFile, load, putStrLn, map, notElem) 
+import           Data.ByteString      as BS hiding (readFile, assembleCartridge, putStrLn, map, notElem) 
 import qualified Data.ByteString.Lazy as B (readFile, toStrict)
 import           Control.Monad
 import           Control.Applicative()
@@ -95,22 +96,6 @@ data Cartridge = Cartridge {
 toVector :: ByteString -> IO (VM.IOVector Word8)
 toVector bs = V.unsafeThaw $ V.fromList (BS.unpack bs)
 
-load :: INES -> IO Cartridge
-load INES{..} = do
-  let 
-    mapperId = (flags6 `shiftR` 4) .|. ((flags7 `shiftR` 4) `shiftL` 4)
-    mirror = if flags6 `testBit` 3 then FourScreen else (toEnum . fromEnum) (flags6 `testBit` 0)
-    mapper = dummyMapper
-  when (mapperId `notElem` [0,1]) . fail $ "Mapper type " ++ show mapperId ++ " is currently not supported" 
-  chr_rom <- toVector chr_rom_bs
-  prg_rom <- toVector prg_rom_bs
-  prg_ram <- VM.new (if prg_ram_size == 0 then 0x2000 else fromIntegral prg_ram_size)
-  let cart = Cartridge{..} 
-  pure $ attachMapper mapperId cart
-
-
-loadCartridge :: FilePath -> IO Cartridge
-loadCartridge path = tryLoadingINES path >>= load
 
 data Mapper = Mapper {
     cpuRead    :: Word16 -> IO Word8
@@ -119,15 +104,31 @@ data Mapper = Mapper {
  ,  ppuWrite   :: Word16 -> Word8 -> IO ()
 }
 
+mappersById :: M.Map Word8 (Cartridge -> Mapper)
+mappersById = M.fromList [
+    (0, nrom)
+  ]
+
 dummyMapper = Mapper dummyRead dummyWrite dummyRead dummyWrite
  where dummyRead = const (pure 0); dummyWrite _ _ = pure ()
 
-attachMapper :: Word8 -> Cartridge -> Cartridge
-attachMapper mappedId cart = cart { mapper = newMapper cart }
-  where
-    newMapper = case mappedId of
-      0 -> nrom
-      _ -> error "Unimplemented mapper type"
+assembleCartridge :: INES -> IO Cartridge
+assembleCartridge INES{..} = do
+  let 
+    mapperId = (flags6 `shiftR` 4) .|. (flags7 .&. 0xF0)
+    mirror = if flags6 `testBit` 3 then FourScreen else (toEnum . fromEnum) (flags6 `testBit` 0)
+  when (mapperId `notElem` [0,1]) . fail $ "Mapper type " ++ show mapperId ++ " is currently not supported" 
+  chr_rom <- toVector chr_rom_bs
+  prg_rom <- toVector prg_rom_bs
+  prg_ram <- VM.new (if prg_ram_size == 0 then 0x2000 else fromIntegral prg_ram_size)
+  let 
+    cart = Cartridge{..}
+    mapper = dummyMapper
+  pure cart { mapper = (mappersById M.! mapperId) cart }
+
+
+loadCartridge :: FilePath -> IO Cartridge
+loadCartridge path = tryLoadingINES path >>= assembleCartridge
 
 
 cpuReadCartridge :: Cartridge -> Word16 -> IO Word8

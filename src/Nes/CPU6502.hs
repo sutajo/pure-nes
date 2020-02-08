@@ -32,9 +32,9 @@ powerUp = do
   y <- newIORefU 0
   s <- newIORefU 0xFD
   pc <- newIORefU 0
-  cyc  <- newIORefU 7 -- https://forums.nesdev.com/viewtopic.php?f=3&t=14231
+  cyc  <- newIORefU 0
   intr <- newIORefU 0
-  return CPU{..} 
+  return CPU{..}
 
 data Interrupt
   = NMI

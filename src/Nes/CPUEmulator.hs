@@ -1,9 +1,9 @@
-{-# LANGUAGE ScopedTypeVariables, LambdaCase, RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables, LambdaCase, RecordWildCards, TemplateHaskell, DeriveLift #-}
 
 module Nes.CPUEmulator(
   reset,
   clock,
-  fetchByte,
+  fetch,
   getSnapshot,
   writeReg,
   readReg,
@@ -19,19 +19,23 @@ import           Data.Primitive(Prim)
 import           Data.Word
 import           Data.Bits hiding (bit)
 import           Data.Functor
+import           Language.Haskell.TH()
+import           Language.Haskell.TH.Syntax
 import           Nes.EmulatorMonad
 import           Nes.CPU6502
 import qualified Nes.APU as APU
 import qualified Nes.PPU as PPU
 
-data Penalty = None | BoundaryCross deriving (Enum)
+data Penalty = None | BoundaryCross deriving (Enum, Lift)
 
-data Opcode = Opcode {
+type Opcode = Word8
+
+data DecodedOpcode = DecodedOpcode {
   instruction   :: Emulator (),
   cycles        :: !Int
 }
 
-op = Opcode
+op = DecodedOpcode
 
 toWord8 :: Bool -> Word8
 toWord8 = fromIntegral . fromEnum
@@ -45,12 +49,12 @@ word16toWord8 word = (fromIntegral (word `shiftR` 8) , fromIntegral (word .&. 0x
 word8toWord16 :: Word8 -> Word8 -> Word16
 word8toWord16 low high = (fromIntegral high `shiftL` 8) .|. fromIntegral low
 
--- 0x0100 - 0x01FF
--- [  <--GROW--- ]
+-- 0x0100     0x01FF
+-- [  <--GROWTH--- ]
 stackBase :: Word16
 stackBase = 0x0100
 
-useCpu :: Prim a =>  (IORefU a -> IO b) -> (CPU -> IORefU a) -> Emulator b
+useCpu :: (b -> IO a) -> (CPU -> b) -> Emulator a
 useCpu action field = useMemory (field . cpu) action
 
 readReg :: Prim a => (CPU -> IORefU a) -> Emulator a
@@ -168,11 +172,8 @@ pushAddress addr = do
 popAddress :: Emulator Word16
 popAddress = word8toWord16 <$> pop <*> pop
 
-fetchByte :: Emulator Word8
-fetchByte = readReg pc >>= read
-
 fetch :: Emulator Opcode
-fetch = fetchByte <&> decodeOpcode
+fetch = readReg pc >>= read
 
 
 -- http://obelisk.me.uk/6502/reference.html
@@ -227,7 +228,7 @@ jumpWhen relativeAddr pred = when pred $ do
   jmp absoluteAddr
 
 bcc :: Word16 -> Emulator ()
-bcc addr = testFlag Carry >>= jumpWhen addr . not
+bcc addr = testFlag Carry <&> not >>= jumpWhen addr
 
 bcs :: Word16 -> Emulator ()
 bcs addr = testFlag Carry >>= jumpWhen addr
@@ -247,10 +248,10 @@ bmi :: Word16 -> Emulator ()
 bmi addr = testFlag Negative >>= jumpWhen addr
 
 bne :: Word16 -> Emulator ()
-bne addr = testFlag Zero >>= jumpWhen addr . not
+bne addr = testFlag Zero <&> not >>= jumpWhen addr
 
 bpl :: Word16 -> Emulator ()
-bpl addr = testFlag Negative >>= jumpWhen addr . not
+bpl addr = testFlag Negative <&> not >>= jumpWhen addr
 
 
 -- http://forums.nesdev.com/viewtopic.php?p=7365#7365
@@ -513,11 +514,11 @@ implied :: Emulator ()
 implied = pure ()
 
 zeroPage :: Emulator Word16
-zeroPage = (fetchByte <&> fromIntegral) <* modifyReg pc (+1)
+zeroPage = (fetch <&> fromIntegral) <* modifyReg pc (+1)
 
 zeroPageX :: Emulator Word16
 zeroPageX = do
-  addr  <- fetchByte
+  addr  <- fetch
   modifyReg pc (+1)
   xreg  <- readReg x
   return (fromIntegral $ addr + xreg)
@@ -525,7 +526,7 @@ zeroPageX = do
 zeroPageY :: Emulator Word16
 zeroPageY = do
   y     <- readReg y
-  addr  <- fetchByte
+  addr  <- fetch
   modifyReg pc (+1)
   return (fromIntegral $ addr + y)
 
@@ -567,7 +568,7 @@ readAddress' x = word8toWord16 <$> read (fromIntegral $ x .&. 0xFF) <*> read (fr
 
 indirectX :: Emulator Word16
 indirectX = do
-  addr <- fetchByte
+  addr <- fetch
   modifyReg pc (+1)
   x <- readReg x
   let abs = addr + x
@@ -576,7 +577,7 @@ indirectX = do
 indirectYGen :: Penalty -> Emulator Word16
 indirectYGen penalty = do
   yreg  <- readReg y
-  addr  <- fetchByte >>= readAddress'
+  addr  <- fetch >>= readAddress'
   modifyReg pc (+1)
   let result = addr + fromIntegral yreg
   addPenaltyCycles (addr `onDifferentPage` result) penalty
@@ -590,14 +591,14 @@ indirectYP = indirectYGen BoundaryCross
 
 relative :: Emulator Word16
 relative = do
-  addr_relative <- fetchByte <&> fromIntegral
+  addr_relative <- fetch <&> fromIntegral
   modifyReg pc (+1)
   return $ 
     if addr_relative `testBit` 7
     then addr_relative .|. 0xFF00
     else addr_relative
 
-decodeOpcode :: Word8 -> Opcode
+decodeOpcode :: Opcode -> DecodedOpcode
 decodeOpcode opcode = case opcode of
   0x00 -> op (implied >>  brk)      7;  0x80 -> op (immediate >> nop)     2;
   0x01 -> op (indirectX >>= ora)    6;  0x81 -> op (indirectX >>= sta)    6; 
@@ -788,7 +789,7 @@ sre :: Word16 -> Emulator ()
 sre addr = lsrM addr >> eor addr
 
 alr :: Word16 -> Emulator ()
-alr addr = do and addr; lsrA
+alr addr = and addr >> lsrA
 
 rla :: Word16 -> Emulator ()
 rla addr = rolM addr >> and addr
@@ -857,20 +858,27 @@ getSnapshot =
   readReg p   <*>
   readReg cyc
 
+-- https://forums.nesdev.com/viewtopic.php?f=3&t=14231
 reset :: Emulator ()
 reset = do
   readAddress 0xFFFC >>= writeReg pc
   writeReg p 0x34
   writeReg s 0xFD
-  cycle 8
+  cycle 7
 
 clock :: Emulator ()
 clock = do
   processInterrupt
   setFlag Unused True
-  Opcode instruction cycles <- fetch
+
+  DecodedOpcode 
+    instruction 
+      cycles <- do
+        fetch <&> decodeOpcode
+
   modifyReg pc (+1)
   cycle cycles
+  
   instruction -- run the instruction
   setFlag Unused True
 

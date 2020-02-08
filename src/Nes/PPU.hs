@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
 module Nes.PPU (
     PPU(..),
     Pixel,

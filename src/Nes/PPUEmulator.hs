@@ -80,6 +80,8 @@ setPixel x y (r,g,b) = do
 
 clock :: Emulator ()
 clock = do
+  screen <- accessScreen
+  liftIO $ VSM.set screen 0
   forM_ [0x3F00,0x3F04..0x3F1F] $ \addr -> write addr 0
   forM_ [0x3F01,0x3F05..0x3F1F] $ \addr -> write addr 3
   forM_ [0x3F02,0x3F06..0x3F1F] $ \addr -> write addr 23
@@ -98,3 +100,17 @@ clock = do
           let pixel = fromIntegral $ ((tile_msb `get` c) `shiftL` 1) .|. (tile_lsb `get` c)
           color <- getColor 0 pixel
           setPixel (fromIntegral(x*8 + (7 - col))) (fromIntegral(y*8 + row)) color
+  forM_ [0..15] $ \y -> do
+    let rowOffset = y * 256
+    forM_ [0..15] $ \x -> do
+      let offset = 0x1000 + rowOffset + x*16
+      forM_ [0..7] $ \row -> do
+        tile_lsb <- read (offset + row)
+        tile_msb <- read (offset + row + 8)
+        forM_ [0..7] $ \col -> do
+          let 
+            c = fromIntegral col
+            get a i = fromEnum $ a `testBit` i 
+          let pixel = fromIntegral $ ((tile_msb `get` c) `shiftL` 1) .|. (tile_lsb `get` c)
+          color <- getColor 0 pixel
+          setPixel (128 + fromIntegral(x*8 + (7 - col))) (fromIntegral(y*8 + row)) color

@@ -43,11 +43,22 @@ library
   ghc-options:       
       -fno-warn-name-shadowing
       -fwarn-unused-imports
-      ---fllvm
-      ---optlc -O3
-      ---O2
-      ---funbox-strict-fields
-      ---fllvm-pass-vectors-in-regs
+      -fllvm
+      -optlc -O3
+      -O2
+      -funbox-strict-fields
+      -fllvm-pass-vectors-in-regs
+      -foptimal-applicative-do
+      -fexpose-all-unfoldings
+      -flate-specialise
+      -fmax-simplifier-iterations=10
+      -foptimal-applicative-do
+      -fspecialise-aggressively
+      -fstatic-argument-transformation
+      -fstg-cse
+      -funfolding-keeness-factor=3.0
+      -funfolding-creation-threshold=1000
+      -funfolding-use-threshold=100
   build-depends:
        base >=4.7 && <5
      , monad-loops
@@ -62,7 +73,8 @@ library
      , vector
      , attoparsec
      , sdl2
-  --default-extensions: Strict
+     , template-haskell
+  default-extensions: ApplicativeDo
   default-language: Haskell2010
 
 executable pure-nes
@@ -116,7 +128,7 @@ test-suite pure-nes-test
       CPU.Exhaustive.Spec
   hs-source-dirs:
       test
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -O2
   build-depends:
       base >=4.7 && <5
     , pure-nes
