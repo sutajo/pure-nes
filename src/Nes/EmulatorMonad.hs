@@ -10,14 +10,19 @@ module Nes.EmulatorMonad (
     cpuWriteCartridge,
     ppuReadCartridge,
     ppuWriteCartridge,
-    getNametableMirroring
+    getNametableMirroring,
+    sendInterrupt,
+    useCpu
 ) where
 
 import           Control.Monad.Reader
 import           Control.Monad.Fail
 import           Data.Array.IO
 import           Data.Word (Word8, Word16)
+import           Data.IORef.Unboxed
+import           Data.Primitive(Prim)
 import           Data.Functor
+import           Data.Bits
 import           Nes.CPU6502   as CPU
 import           Nes.PPU       as PPU
 import qualified Nes.Cartridge as Cart
@@ -75,3 +80,10 @@ ppuWriteCartridge = writeCartridgeWith Cart.ppuWriteCartridge
 
 getNametableMirroring :: Emulator (Word16 -> Word16)
 getNametableMirroring = ask <&> (mirrorNametableAddress . ppu)
+
+useCpu :: (b -> IO a) -> (CPU -> b) -> Emulator a
+useCpu action field = useMemory (field . cpu) action
+
+-- Sends an interrupt to the CPU
+sendInterrupt :: Interrupt -> Emulator ()
+sendInterrupt interrupt = useCpu (`modifyIORefU` (`setBit` fromEnum interrupt)) intr

@@ -57,9 +57,6 @@ word8toWord16 low high = (fromIntegral high `shiftL` 8) .|. fromIntegral low
 stackBase :: Word16
 stackBase = 0x0100
 
-useCpu :: (b -> IO a) -> (CPU -> b) -> Emulator a
-useCpu action field = useMemory (field . cpu) action
-
 readReg :: Prim a => (CPU -> IORefU a) -> Emulator a
 readReg = useCpu readIORefU
 
@@ -101,7 +98,7 @@ readNullTerminatedString addr = map (toEnum.fromEnum) <$> unfoldrM go addr
       byte <- read addr
       pure $ case byte of
         0x0 -> Nothing
-        _   -> Just (byte, addr + 1)
+        ___ -> Just (byte, addr + 1)
 
 readAddress :: Word16 -> Emulator Word16
 readAddress addr = word8toWord16 <$> read addr <*> read (addr+1)
@@ -116,7 +113,7 @@ readAddressWithBug addr = do
     read (
       case lo of
         0xFF -> addr .&. 0xFF00
-        _    -> addr  +  1
+        ____ -> addr  +  1
     )
 
 write :: Word16 -> Word8 -> Emulator ()
@@ -125,9 +122,6 @@ write addr val
   | addr <= 0x3FFF = PPUE.cpuWriteRegister (0x2000 + addr `rem` 0x8) val
   | addr <= 0x4017 = writeAPU addr val
   | addr <= 0xFFFF = cpuWriteCartridge addr val
-
-sendInterrupt :: Interrupt -> Emulator ()
-sendInterrupt interrupt = modifyReg intr (`setBit` fromEnum interrupt)
 
 clearInterrupts :: Emulator ()
 clearInterrupts = writeReg intr 0
@@ -465,11 +459,12 @@ sbc addr = do
     (result :: Word16) = val16 + acc16 + carry
     acc16 = fromIntegral acc
     val16 = fromIntegral value `xor` 0x00FF
+    res8 = fromIntegral result
   setFlag Carry (result .&. 0xFF00 /= 0)
-  setZero (fromIntegral $ result .&. 0x00FF)
-  setNegative $ fromIntegral result
+  setZero res8
+  setNegative res8
   setFlag Overflow ((0 /= ) $ (result `xor` acc16) .&. (result `xor` val16) .&. 0x0080)
-  writeReg a $ fromIntegral result
+  writeReg a res8
 
 sec :: Emulator ()
 sec = setFlag Carry True
@@ -546,8 +541,8 @@ absolute :: Emulator Word16
 absolute = (readReg pc >>= readAddress) <* modifyReg pc (+2)
 
 addPenaltyCycles :: Bool -> Penalty -> Emulator ()
-addPenaltyCycles _    None = pure ()
-addPenaltyCycles False _   = pure ()
+addPenaltyCycles _____ None = pure ()
+addPenaltyCycles False ____ = pure ()
 addPenaltyCycles True BoundaryCross = cycle 1
 
 absoluteGen :: Emulator Word8 -> Penalty -> Emulator Word16

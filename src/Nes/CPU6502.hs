@@ -11,19 +11,20 @@ module Nes.CPU6502 (
 
 import Data.Word  (Word8, Word16)
 import Data.IORef.Unboxed (IORefU, newIORefU)
+import Text.Printf
 
 type Register = IORefU Word8
 
 -- http://obelisk.me.uk/6502/reference.html
 data CPU = CPU {
-  a     ::  Register,  -- accumulator
-  x     ::  Register,  -- index
-  y     ::  Register,  -- index
+  a     ::  Register,      -- accumulator
+  x     ::  Register,      -- index
+  y     ::  Register,      -- index
   pc    ::  IORefU Word16, -- program counter
-  s     ::  Register,  -- stack pointer
-  p     ::  Register,  -- status register
+  s     ::  Register,      -- stack pointer
+  p     ::  Register,      -- status register
   cyc   ::  IORefU Int,    -- elapsed cycles
-  intr  ::  Register   -- fictional interrupt register
+  intr  ::  Register       -- fictional interrupt register
 }
 
 powerUp :: IO CPU
@@ -75,4 +76,7 @@ data CpuSnapshot = CpuSnapshot {
   s'     ::  Word8, 
   p'     ::  Word8, 
   cyc'   ::  Int
-} deriving (Eq, Show)
+} deriving (Eq)
+
+instance Show CpuSnapshot where
+  show CpuSnapshot{..} = printf "Cpu { a = 0x%X, x = 0x%X, y = 0x%X, pc = 0x%X, s = 0x%X, p = 0x%X, cycles = %d }" a' x' y' pc' s' p' cyc'

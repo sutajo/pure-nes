@@ -146,7 +146,10 @@ updateScreen AppResources{..} pixels = do
 
 executeCommand :: AppResources -> Command -> Emulator ()
 executeCommand appResources@AppResources{..} command = case command of
-  SwitchEmulationMode -> liftIO $ modifyIORef' continousMode not
+  SwitchEmulationMode -> liftIO $ do
+      modifyIORef' continousMode not
+      continous <- readIORef continousMode 
+      putStrLn ("Switched to " ++ (if continous then "continous" else "step-by-step") ++ " mode.")
   StepClockCycle      -> 
     onlyWhen not continousMode $ do
       clocks >> CPU.getSnapshot >>= liftIO . print
