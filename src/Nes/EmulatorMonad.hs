@@ -9,14 +9,15 @@ module Nes.EmulatorMonad (
     cpuReadCartridge,
     cpuWriteCartridge,
     ppuReadCartridge,
-    ppuWriteCartridge
+    ppuWriteCartridge,
+    getNametableMirroring
 ) where
 
 import           Control.Monad.Reader
 import           Control.Monad.Fail
 import           Data.Array.IO
-import           Data.Functor ((<&>))
 import           Data.Word (Word8, Word16)
+import           Data.Functor
 import           Nes.CPU6502   as CPU
 import           Nes.PPU       as PPU
 import qualified Nes.Cartridge as Cart
@@ -40,7 +41,7 @@ powerUpNes cart =
     Nes         <$>
     CPU.powerUp <*>
     allocateRAM <*>
-    PPU.powerUp <*>
+    PPU.powerUp (Cart.mirror cart) <*>
     APU.powerUp <*>
     pure cart
 
@@ -54,7 +55,8 @@ runEmulator :: Nes -> Emulator a -> IO a
 runEmulator nes (Emulator emu) = runReaderT emu nes
 
 useMemory :: (Nes -> b) -> (b -> IO a) -> Emulator a
-useMemory memory action = ask <&> memory >>= liftIO . action
+useMemory memory action = ask >>= liftIO . action . memory
+{-# INLINE useMemory #-}
 
 readCartridgeWith accessor addr = useMemory cartridge (`accessor` addr)
 writeCartridgeWith modifier addr val = useMemory cartridge $ \cart -> modifier cart addr val
@@ -70,3 +72,6 @@ ppuReadCartridge = readCartridgeWith Cart.ppuReadCartridge
 
 ppuWriteCartridge :: Word16 -> Word8 -> Emulator ()
 ppuWriteCartridge = writeCartridgeWith Cart.ppuWriteCartridge
+
+getNametableMirroring :: Emulator (Word16 -> Word16)
+getNametableMirroring = ask <&> (mirrorNametableAddress . ppu)

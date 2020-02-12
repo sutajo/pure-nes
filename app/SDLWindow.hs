@@ -12,18 +12,20 @@ import           Control.Concurrent.STM.TChan
 import           Control.Monad.Loops
 import           Control.Exception
 import qualified Data.Vector.Storable.Mutable as VSM
+import           Data.Char
 import           Data.Word
 import           Data.Int
 import           Data.IORef
 import           Data.StateVar
 import           Data.Time
 import qualified Data.Text as T
+import           Numeric
 import           System.Exit
 import           SDL
 import           SDL.Audio
 import qualified SDL.Image as Img
 import           SDL.Input.Joystick
-import           Foreign
+import           Foreign hiding (void)
 import           Communication
 import           Nes.Cartridge
 import           Nes.EmulatorMonad
@@ -31,6 +33,7 @@ import qualified Nes.CPUEmulator as CPU
 import qualified Nes.PPUEmulator as PPU
 import           Nes.Timing
 import           Nes.Controls
+import           Nes.MasterClock
 
 scale :: Int
 scale = 4
@@ -125,7 +128,7 @@ releaseResources AppResources{..} = do
 
 runApp appResources = runEmulator (nes appResources) $ do
   CPU.reset
-  updateWindow appResources `cappedAt` 60
+  uncapped $ updateWindow appResources
 
 pollCommands res@AppResources{..} = do
   sdlCommands <- (concatMap (translateSDLEvent . eventPayload)) <$> SDL.pollEvents
@@ -142,11 +145,16 @@ updateScreen AppResources{..} pixels = do
   present renderer
 
 executeCommand :: AppResources -> Command -> Emulator ()
-executeCommand AppResources{..} command = case command of
+executeCommand appResources@AppResources{..} command = case command of
   SwitchEmulationMode -> liftIO $ modifyIORef' continousMode not
   StepClockCycle      -> 
     onlyWhen not continousMode $ do
-      CPU.clock >> CPU.getSnapshot >>= liftIO . print
+      clocks >> CPU.getSnapshot >>= liftIO . print
+      opcode <- CPU.fetch
+      liftIO $ putStr "Opcode: 0x" >> putStrLn (map toUpper $ showHex opcode "")
+      liftIO $ putStrLn ""
+      pixels  <- PPU.accessScreen
+      liftIO $ updateScreen appResources pixels 
   _                   -> pure ()
 
 updateWindow :: AppResources -> NominalDiffTime -> Emulator Bool
@@ -154,10 +162,7 @@ updateWindow appResources@AppResources{..} dt = do
   commands <- liftIO $ pollCommands appResources
   mapM_ (executeCommand appResources) commands
   onlyWhen id continousMode $ do
-    --CPU.clock
-    PPU.clock
-    pixels  <- PPU.accessScreen
-    liftIO $ updateScreen appResources pixels 
+    void CPU.clock
   return (Quit `elem` commands)
 
     

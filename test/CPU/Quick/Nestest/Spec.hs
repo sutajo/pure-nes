@@ -28,7 +28,7 @@ runClock expectedSnapshot = do
   op       <- fetch
   snapshot <- getSnapshot
   liftIO $ assertMatch expectedSnapshot (op, snapshot)
-  clock
+  void clock
 
 test :: TestTree
 test = testCase "Nestest" $ do

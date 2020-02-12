@@ -1,4 +1,5 @@
 .stack-work/
 *.bat
 roms/games
+roms/tests/ppu
 *~

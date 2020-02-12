@@ -29,18 +29,8 @@ misc = "roms/tests/cpu/instr_misc/rom_singles/"
 intr :: FilePath
 intr = "roms/tests/cpu/cpu_interrupts_v2/rom_singles/"
 
-instr_time = "roms/tests/cpu/instr_timing/"
-
--- Read null terminated string
-readNullTerminatedString :: Word16 -> Emulator String
-readNullTerminatedString addr = map (toEnum.fromEnum) <$> unfoldrM go addr
-  where
-    go addr = do
-      byte <- read addr
-      pure $ case byte of
-        0x0 -> Nothing
-        _   -> Just (byte, addr + 1)
-      
+instr_time :: FilePath
+instr_time = "roms/tests/cpu/instr_timing/"      
 
 runTest :: FilePath -> String -> Assertion
 runTest path romName = do
@@ -58,7 +48,7 @@ runTest path romName = do
 tests :: [TestTree]
 tests =
   [
-    testGroup "InstrTest_v5" $ 
+    testGroup "InstrTest_v5"
     [
       testCase "Basics"     $ runTest instr_v5 "rom_singles/01-basics.nes",
       testCase "Implied"    $ runTest instr_v5 "rom_singles/02-implied.nes",
@@ -78,7 +68,7 @@ tests =
       testCase "Special"    $ runTest instr_v5 "rom_singles/16-special.nes"
     ],
 
-    testGroup "Instr_Misc" $
+    testGroup "Instr_Misc"
     [
       testCase "Abs X wrap"  $ runTest misc "01-abs_x_wrap.nes",
       testCase "Branch wrap" $ runTest misc "02-branch_wrap.nes"

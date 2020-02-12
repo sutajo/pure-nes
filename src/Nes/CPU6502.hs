@@ -12,16 +12,18 @@ module Nes.CPU6502 (
 import Data.Word  (Word8, Word16)
 import Data.IORef.Unboxed (IORefU, newIORefU)
 
+type Register = IORefU Word8
+
 -- http://obelisk.me.uk/6502/reference.html
 data CPU = CPU {
-  a     ::  IORefU Word8,  -- accumulator
-  x     ::  IORefU Word8,  -- index
-  y     ::  IORefU Word8,  -- index
+  a     ::  Register,  -- accumulator
+  x     ::  Register,  -- index
+  y     ::  Register,  -- index
   pc    ::  IORefU Word16, -- program counter
-  s     ::  IORefU Word8,  -- stack pointer
-  p     ::  IORefU Word8,  -- status register
+  s     ::  Register,  -- stack pointer
+  p     ::  Register,  -- status register
   cyc   ::  IORefU Int,    -- elapsed cycles
-  intr  ::  IORefU Word8   -- fictional interrupt register
+  intr  ::  Register   -- fictional interrupt register
 }
 
 powerUp :: IO CPU

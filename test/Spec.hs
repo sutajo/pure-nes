@@ -1,18 +1,25 @@
 import Test.Tasty
 import Test.Tasty.HUnit
 import qualified CPU.Quick.Nestest.Spec as Nestest
-import qualified CPU.Exhaustive.Spec    as Exhaustive 
+import qualified CPU.Exhaustive.Spec    as CPU.Exhaustive
+import qualified PPU.Exhaustive.Spec    as PPU.Exhaustive
 
 
 main :: IO ()
 main = defaultMain tests
 
 tests :: TestTree
-tests = testGroup "Pure-Nes Tests" $
+tests = 
+  testGroup "Pure-Nes Tests" $
   [
     testGroup "CPU" $
     [
       testGroup "Quick tests"      [Nestest.test],
-      testGroup "Exhaustive tests" Exhaustive.tests
+      testGroup "Exhaustive tests" CPU.Exhaustive.tests
+    ],
+
+    testGroup "PPU" $ 
+    [
+      testGroup "Exhaustive tests" PPU.Exhaustive.tests
     ]
   ]

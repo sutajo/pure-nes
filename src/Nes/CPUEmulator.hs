@@ -8,11 +8,13 @@ module Nes.CPUEmulator(
   writeReg,
   readReg,
   write,
-  read
+  read,
+  readNullTerminatedString
 )where
 
 import           Prelude hiding (read, cycle, and)
 import           Control.Monad.Reader
+import           Control.Monad.Loops
 import           Data.IORef.Unboxed
 import           Data.Array.IO
 import           Data.Primitive(Prim)
@@ -25,13 +27,14 @@ import           Nes.EmulatorMonad
 import           Nes.CPU6502
 import qualified Nes.APU as APU
 import qualified Nes.PPU as PPU
+import           Nes.PPUEmulator as PPUE hiding (clock)
 
 data Penalty = None | BoundaryCross deriving (Enum, Lift)
 
 type Opcode = Word8
 
 data DecodedOpcode = DecodedOpcode {
-  instruction   :: Emulator (),
+  instruction   :: !(Emulator ()),
   cycles        :: !Int
 }
 
@@ -87,9 +90,18 @@ zeropage arg reg = (arg + fromIntegral reg) `rem` 0x100
 read :: Word16 -> Emulator Word8
 read addr 
   | addr <= 0x1FFF = readRAM (addr `rem` 0x800)
-  | addr <= 0x3FFF = readComponent (PPU.registers . ppu) ((addr - 0x2000) `rem` 0x8)
+  | addr <= 0x3FFF = PPUE.cpuReadRegister (0x2000 + addr `rem` 0x8)
   | addr <= 0x4017 = readAPU addr
   | addr <= 0xFFFF = cpuReadCartridge addr
+
+readNullTerminatedString :: Word16 -> Emulator String
+readNullTerminatedString addr = map (toEnum.fromEnum) <$> unfoldrM go addr
+  where
+    go addr = do
+      byte <- read addr
+      pure $ case byte of
+        0x0 -> Nothing
+        _   -> Just (byte, addr + 1)
 
 readAddress :: Word16 -> Emulator Word16
 readAddress addr = word8toWord16 <$> read addr <*> read (addr+1)
@@ -110,7 +122,7 @@ readAddressWithBug addr = do
 write :: Word16 -> Word8 -> Emulator ()
 write addr val
   | addr <= 0x1FFF = writeRAM (addr `rem` 0x800) val
-  | addr <= 0x3FFF = writeComponent (PPU.registers . ppu) ((addr - 0x2000) `rem` 0x8) val
+  | addr <= 0x3FFF = PPUE.cpuWriteRegister (0x2000 + addr `rem` 0x8) val
   | addr <= 0x4017 = writeAPU addr val
   | addr <= 0xFFFF = cpuWriteCartridge addr val
 
@@ -682,20 +694,20 @@ decodeOpcode opcode = case opcode of
   0x4F -> op (absolute >>= sre)     6;  0xCF -> op (absolute  >>= dcp)    6; 
   0x50 -> op (relative >>= bvc)     2;  0xD0 -> op (relative  >>= bne)    2;
   0x51 -> op (indirectYP >>= eor)   5;  0xD1 -> op (indirectYP >>= cmp)   5;
-  0x52 -> op (implied >> kil)       0;  0xD2 -> op (implied >>  kil)      0; 
+  0x52 -> op (implied >> kil)       0;  0xD2 -> op (implied >>  kil)      0;
   0x53 -> op (indirectY >>= sre)    8;  0xD3 -> op (indirectY >>= dcp)    8;
   0x54 -> op (zeroPageX  >>  nop)   4;  0xD4 -> op (zeroPageX >>  nop)    4;
-  0x55 -> op (zeroPageX  >>= eor)   4;  0xD5 -> op (zeroPageX >>= cmp)    4; 
-  0x56 -> op (zeroPageX  >>= lsrM)  6;  0xD6 -> op (zeroPageX >>= dec)    6; 
+  0x55 -> op (zeroPageX  >>= eor)   4;  0xD5 -> op (zeroPageX >>= cmp)    4;
+  0x56 -> op (zeroPageX  >>= lsrM)  6;  0xD6 -> op (zeroPageX >>= dec)    6;
   0x57 -> op (zeroPageX  >>= sre)   6;  0xD7 -> op (zeroPageX >>= dcp)    6;
-  0x58 -> op (implied >> cli)       2;  0xD8 -> op (implied >> cld)       2; 
+  0x58 -> op (implied >> cli)       2;  0xD8 -> op (implied >> cld)       2;
   0x59 -> op (absoluteYP >>= eor)   4;  0xD9 -> op (absoluteYP >>= cmp)   4;
   0x5A -> op (implied >> nop)       2;  0xDA -> op (implied >> nop)       2;
   0x5B -> op (absoluteY >>= sre)    7;  0xDB -> op (absoluteY >>= dcp)    7;
   0x5C -> op (absoluteXP >> nop)    4;  0xDC -> op (absoluteXP >> nop)    4;
   0x5D -> op (absoluteXP >>= eor)   4;  0xDD -> op (absoluteXP >>= cmp)   4;
-  0x5E -> op (absoluteX >>= lsrM)   7;  0xDE -> op (absoluteX >>= dec)    7; 
-  0x5F -> op (absoluteX >>= sre)    7;  0xDF -> op (absoluteX >>= dcp)    7; 
+  0x5E -> op (absoluteX >>= lsrM)   7;  0xDE -> op (absoluteX >>= dec)    7;
+  0x5F -> op (absoluteX >>= sre)    7;  0xDF -> op (absoluteX >>= dcp)    7;
   0x60 -> op (implied >> rts)       6;  0xE0 -> op (immediate >>= cpx)    2;
   0x61 -> op (indirectX >>= adc)    6;  0xE1 -> op (indirectX >>= sbc)    6;
   0x62 -> op (implied >> kil)       0;  0xE2 -> op (immediate >> nop)     2;
@@ -710,18 +722,18 @@ decodeOpcode opcode = case opcode of
   0x6B -> op (immediate >>= arr)    2;  0xEB -> op (immediate >>= sbc)    2;
   0x6C -> op (indirect >>= jmp)     5;  0xEC -> op (absolute >>= cpx)     4;
   0x6D -> op (absolute >>= adc)     4;  0xED -> op (absolute >>= sbc)     4; 
-  0x6E -> op (absolute >>= rorM)    6;  0xEE -> op (absolute >>= inc)     6; 
-  0x6F -> op (absolute >>= rra)     6;  0xEF -> op (absolute >>= isc)     6; 
+  0x6E -> op (absolute >>= rorM)    6;  0xEE -> op (absolute >>= inc)     6;
+  0x6F -> op (absolute >>= rra)     6;  0xEF -> op (absolute >>= isc)     6;
   0x70 -> op (relative >>= bvs)     2;  0xF0 -> op (relative >>= beq)     2;
   0x71 -> op (indirectYP >>= adc)   5;  0xF1 -> op (indirectYP >>= sbc)   5;
   0x72 -> op (implied >> kil)       0;  0xF2 -> op (implied >>  kil)      0;
   0x73 -> op (indirectY >>= rra)    8;  0xF3 -> op (indirectY >>= isc)    8;
   0x74 -> op (zeroPageX >>  nop)    4;  0xF4 -> op (zeroPageX >> nop)     4;
   0x75 -> op (zeroPageX >>= adc)    4;  0xF5 -> op (zeroPageX >>= sbc)    4; 
-  0x76 -> op (zeroPageX >>= rorM)   6;  0xF6 -> op (zeroPageX >>= inc)    6; 
-  0x77 -> op (zeroPageX >>= rra)    6;  0xF7 -> op (zeroPageX >>= isc)    6; 
-  0x78 -> op (implied >> sei)       2;  0xF8 -> op (implied >> sed)       2; 
-  0x79 -> op (absoluteYP >>= adc)   4;  0xF9 -> op (absoluteYP >>= sbc)   4; 
+  0x76 -> op (zeroPageX >>= rorM)   6;  0xF6 -> op (zeroPageX >>= inc)    6;
+  0x77 -> op (zeroPageX >>= rra)    6;  0xF7 -> op (zeroPageX >>= isc)    6;
+  0x78 -> op (implied >> sei)       2;  0xF8 -> op (implied >> sed)       2;
+  0x79 -> op (absoluteYP >>= adc)   4;  0xF9 -> op (absoluteYP >>= sbc)   4;
   0x7A -> op (implied >> nop)       2;  0xFA -> op (implied >> nop)       2;
   0x7B -> op (absoluteY >>= rra)    7;  0xFB -> op (absoluteY >>= isc)    7;
   0x7C -> op (absoluteXP >> nop)    4;  0xFC -> op (absoluteXP >> nop)    4;
@@ -866,7 +878,7 @@ reset = do
   writeReg s 0xFD
   cycle 7
 
-clock :: Emulator ()
+clock :: Emulator Int
 clock = do
   processInterrupt
   setFlag Unused True
@@ -879,8 +891,10 @@ clock = do
   modifyReg pc (+1)
   cycle cycles
   
-  instruction -- run the instruction
+  instruction           -- run the instruction
   setFlag Unused True
+
+  return cycles         -- returns how many master clock cycles it took to perform the instruction
 
 
 

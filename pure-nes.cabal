@@ -36,6 +36,7 @@ library
       Nes.PPUEmulator
       Nes.EmulatorMonad
       Nes.Controls
+      Nes.MasterClock
   other-modules:
       Paths_pure_nes
   hs-source-dirs:
@@ -43,22 +44,18 @@ library
   ghc-options:       
       -fno-warn-name-shadowing
       -fwarn-unused-imports
-      -fllvm
-      -optlc -O3
-      -O2
-      -funbox-strict-fields
-      -fllvm-pass-vectors-in-regs
-      -foptimal-applicative-do
-      -fexpose-all-unfoldings
-      -flate-specialise
-      -fmax-simplifier-iterations=10
-      -foptimal-applicative-do
-      -fspecialise-aggressively
-      -fstatic-argument-transformation
-      -fstg-cse
-      -funfolding-keeness-factor=3.0
-      -funfolding-creation-threshold=1000
-      -funfolding-use-threshold=100
+      --fllvm
+      --optlc -O3
+      --O2
+      --funbox-strict-fields
+      --fllvm-pass-vectors-in-regs
+      --foptimal-applicative-do
+      --fexpose-all-unfoldings
+      --flate-specialise
+      --fcross-module-specialise
+      --fspecialise-aggressively
+      --fstatic-argument-transformation
+      --fstg-cse
   build-depends:
        base >=4.7 && <5
      , monad-loops
@@ -90,9 +87,9 @@ executable pure-nes
       -threaded 
       -rtsopts 
       -with-rtsopts=-N 
-      -O2
       -funbox-strict-fields
-      -- -fllvm
+      ---O2
+      ---fllvm
       -dynamic
   build-depends:
       base >=4.7 && <5
@@ -126,9 +123,10 @@ test-suite pure-nes-test
       CPU.Quick.Nestest.Spec
       CPU.Quick.Nestest.LogParser
       CPU.Exhaustive.Spec
+      PPU.Exhaustive.Spec
   hs-source-dirs:
       test
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N -O2
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
     , pure-nes
