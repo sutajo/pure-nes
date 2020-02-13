@@ -29,6 +29,7 @@ import           Foreign hiding (void)
 import           Communication
 import           Nes.Cartridge
 import           Nes.EmulatorMonad
+import           Nes.CPU6502
 import qualified Nes.CPUEmulator as CPU
 import qualified Nes.PPUEmulator as PPU
 import           Nes.Timing
@@ -155,6 +156,11 @@ executeCommand appResources@AppResources{..} command = case command of
       clocks >> CPU.getSnapshot >>= liftIO . print
       opcode <- CPU.fetch
       liftIO $ putStr "Opcode: 0x" >> putStrLn (map toUpper $ showHex opcode "")
+      CPU.modifyReg pc (+1)
+      CPU.fetch >>= liftIO . print
+      CPU.modifyReg pc (+1)
+      CPU.fetch >>= liftIO . print
+      CPU.modifyReg pc (\x -> x - 2)
       liftIO $ putStrLn ""
       pixels  <- PPU.accessScreen
       liftIO $ updateScreen appResources pixels 

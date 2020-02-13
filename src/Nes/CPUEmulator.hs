@@ -7,6 +7,7 @@ module Nes.CPUEmulator(
   getSnapshot,
   writeReg,
   readReg,
+  modifyReg,
   write,
   read,
   readNullTerminatedString
@@ -305,7 +306,7 @@ cpy :: Word16 -> Emulator ()
 cpy addr = cmpWords  (readReg y) (read addr)
 
 change :: (Word8 -> Word8) -> Emulator Word8 -> (Word8 -> Emulator ()) -> Emulator ()
-change f r w  = do
+change f r w = do
   byte  <- r
   let result = f byte
   w result
@@ -315,7 +316,7 @@ change f r w  = do
 decrement x = x-1
 
 dec :: Word16 -> Emulator ()
-dec addr = change decrement (read addr) (write addr)  
+dec addr = change decrement (read addr) (write addr)
 
 dex :: Emulator ()
 dex = change decrement (readReg x) (writeReg x)
