@@ -11,4 +11,4 @@ data APU = APU {
 }
 
 powerUp :: IO APU
-powerUp = APU <$> newArray (0x4000, 0x4017) 0
+powerUp = APU <$> newArray (0x4000, 0x4015) 0

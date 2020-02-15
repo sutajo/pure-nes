@@ -6,13 +6,7 @@ import           Control.Monad
 import           Control.Monad.IO.Class
 import           Control.Concurrent       hiding (yield)
 import           Control.Concurrent.STM
-import           Control.Concurrent.STM.TChan
-import           Control.Concurrent.Chan
-import           Control.Exception
 import qualified Data.Text                     as Text
-import           Data.Int
-import           Data.IORef
-import           Data.Vector                    ( Vector )
 import           GI.Gtk                         ( Box(..)
                                                 , Button(..)
                                                 , FileChooserButton(..)
@@ -20,18 +14,10 @@ import           GI.Gtk                         ( Box(..)
                                                 , Orientation(..)
                                                 , Window(..)
                                                 , fileChooserGetFilename
-                                                , constructFileChooserFilter
-                                                , fileFilterNew
-                                                , MenuBar(..)
-                                                , MenuItem(..)
-                                                , Grid(..)
                                                 )
-import qualified GI.Gtk                        as Gtk
-import qualified GI.GObject                    as GI
 import           GI.Gtk.Enums
 import           GI.Gtk.Declarative
 import           GI.Gtk.Objects.Image(Image(..))
-import           GI.Gtk.Declarative.Container.Grid
 import           GI.Gtk.Declarative.App.Simple as DAS
 import           Communication
 import           Pipes
@@ -41,7 +27,7 @@ data State = Started (Maybe FilePath)
            | Message Text.Text
            | Emulating
 
---view' :: State -> AppView Window Event
+view' :: State -> AppView Window Event
 view' s = do
   let 
     title = case s of

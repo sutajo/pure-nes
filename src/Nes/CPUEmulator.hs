@@ -14,6 +14,7 @@ module Nes.CPUEmulator(
 )where
 
 import           Prelude hiding (read, cycle, and)
+import           Control.Applicative
 import           Control.Monad.Reader
 import           Control.Monad.Loops
 import           Data.IORef.Unboxed
@@ -27,7 +28,6 @@ import           Language.Haskell.TH.Syntax
 import           Nes.EmulatorMonad
 import           Nes.CPU6502
 import qualified Nes.APU as APU
-import qualified Nes.PPU as PPU
 import           Nes.PPUEmulator as PPUE hiding (clock)
 
 data Penalty = None | BoundaryCross deriving (Enum, Lift)
@@ -89,7 +89,8 @@ read :: Word16 -> Emulator Word8
 read addr 
   | addr <= 0x1FFF = readRAM (addr `rem` 0x800)
   | addr <= 0x3FFF = PPUE.cpuReadRegister (0x2000 + addr `rem` 0x8)
-  | addr <= 0x4017 = readAPU addr
+  | addr <= 0x4015 = readAPU addr
+  | addr <= 0x4017 = readController (fromIntegral $ addr - 0x4016)
   | addr <= 0xFFFF = cpuReadCartridge addr
 
 readNullTerminatedString :: Word16 -> Emulator String
@@ -102,15 +103,14 @@ readNullTerminatedString addr = map (toEnum.fromEnum) <$> unfoldrM go addr
         ___ -> Just (byte, addr + 1)
 
 readAddress :: Word16 -> Emulator Word16
-readAddress addr = word8toWord16 <$> read addr <*> read (addr+1)
+readAddress addr = liftA2 word8toWord16 (read addr) (read (addr+1))
 
 readAddressWithBug :: Word16 -> Emulator Word16
 readAddressWithBug addr = do
   lo <- read addr
   hi <- read (addr+1)
   let addr = word8toWord16 lo hi
-  word8toWord16 <$> 
-    read addr   <*> 
+  liftA2 word8toWord16 (read addr) $
     read (
       case lo of
         0xFF -> addr .&. 0xFF00
@@ -121,7 +121,9 @@ write :: Word16 -> Word8 -> Emulator ()
 write addr val
   | addr <= 0x1FFF = writeRAM (addr `rem` 0x800) val
   | addr <= 0x3FFF = PPUE.cpuWriteRegister (0x2000 + addr `rem` 0x8) val
-  | addr <= 0x4017 = writeAPU addr val
+  | addr <= 0x4015 = writeAPU addr val
+  | addr == 0x4016 = forM_ [0..1] (writeController val) -- writing to 0x4016 polls both controllers
+  | addr == 0x4017 = pure ()
   | addr <= 0xFFFF = cpuWriteCartridge addr val
 
 clearInterrupts :: Emulator ()
@@ -177,7 +179,7 @@ pushAddress addr = do
   push low
 
 popAddress :: Emulator Word16
-popAddress = word8toWord16 <$> pop <*> pop
+popAddress = liftA2 word8toWord16 pop pop
 
 fetch :: Emulator Opcode
 fetch = readReg pc >>= read
@@ -572,7 +574,7 @@ indirect :: Emulator Word16
 indirect = (readReg pc >>= readAddressWithBug) <* modifyReg pc (+2)
 
 readAddress' :: Word8 -> Emulator Word16
-readAddress' x = word8toWord16 <$> read (fromIntegral $ x .&. 0xFF) <*> read (fromIntegral $ (x+1) .&. 0xFF)
+readAddress' x = liftA2 word8toWord16 (read (fromIntegral $ x .&. 0xFF)) $ read (fromIntegral $ (x+1) .&. 0xFF)
 
 indirectX :: Emulator Word16
 indirectX = do
@@ -737,72 +739,15 @@ decodeOpcode opcode = case opcode of
   0x7E -> op (absoluteX >>= rorM)   7;  0xFE -> op (absoluteX >>= inc)    7;
   0x7F -> op (absoluteX >>= rra)    7;  0xFF -> op (absoluteX >>= isc)    7;
 
-isc :: Word16 -> Emulator ()
-isc addr = inc addr >> sbc addr
+-- http://www.ffd2.com/fridge/docs/6502-NMOS.extra.opcodes
+-- Unofficial instructions:
 
-kil :: Emulator ()
-kil = undefined 
+andThen = liftA2 (>>)
 
-dcp :: Word16 -> Emulator ()
-dcp addr = dec addr >> cmp addr
+ahx _ = pure ()
 
-lax :: Word16 -> Emulator ()
-lax addr = do
-  byte <- read addr
-  writeReg x byte
-  writeReg a byte
-  setZero byte
-  setNegative byte
-
-las = undefined
-ahx = undefined
-
--- http://forums.nesdev.com/viewtopic.php?f=3&t=3831&start=30
-sh reg addr = do
-  let (hi, lo) = word16toWord8 addr
-  reg <- readReg reg 
-  let 
-    result     = (fromIntegral (addr `shiftR` 8) + 1) .&. reg
-    targetAddr = word8toWord16 lo result
-  write targetAddr result
-
-shx :: Word16 -> Emulator ()
-shx = sh x
-
-shy :: Word16 -> Emulator ()
-shy = sh y
-
-tas :: Word16 -> Emulator ()
-tas addr = pure ()
-
-sax :: Word16 -> Emulator ()
-sax addr = ((.&.) <$> readReg x <*> readReg a) >>= write addr
-
-xaa :: Word16 -> Emulator ()
-xaa addr = pure ()
-
-rra :: Word16 -> Emulator ()
-rra addr = rorM addr >> adc addr
-
-arr :: Word16 -> Emulator ()
-arr addr = do
-  and addr
-  rorA
-  a <- readReg a
-  let bit6 = a `testBit` 6
-  setFlag Overflow (bit6 `xor` (a `testBit` 5))
-  setFlag Carry bit6
-
-sre :: Word16 -> Emulator ()
-sre addr = lsrM addr >> eor addr
-
-alr :: Word16 -> Emulator ()
 alr addr = and addr >> lsrA
 
-rla :: Word16 -> Emulator ()
-rla addr = rolM addr >> and addr
-
-anc :: Word16 -> Emulator ()
 anc addr = do
   a' <- readReg a
   v' <- read addr
@@ -812,10 +757,14 @@ anc addr = do
   setNegative result
   testFlag Negative >>= setFlag Carry
 
-slo :: Word16 -> Emulator ()
-slo addr = aslM addr >> ora addr
+arr addr = do
+  and addr
+  rorA
+  a <- readReg a
+  let bit6 = a `testBit` 6
+  setFlag Overflow (bit6 `xor` (a `testBit` 5))
+  setFlag Carry bit6
 
-axs :: Word16 -> Emulator ()
 axs addr = do
   a'    <- readReg a
   x'    <- readReg x
@@ -828,10 +777,57 @@ axs addr = do
   setZero diff
   setNegative diff
 
+dcp = dec `andThen` cmp
+
+isc = inc `andThen` sbc
+
+kil = error "KIL instruction executed"
+
+las addr = do
+  byte <- read addr
+  sp   <- readReg s
+  let result = byte .&. sp
+  forM_ [a,s,x] $ (`writeReg` result)
+  setZero result
+  setNegative result
+
+lax addr = do
+  byte <- read addr
+  writeReg x byte
+  writeReg a byte
+  setZero byte
+  setNegative byte
+
+rla = rolM `andThen` and
+
+rra = rorM `andThen` adc
+
+sax addr = liftA2 (.&.) (readReg x) (readReg a) >>= write addr
+
+-- http://forums.nesdev.com/viewtopic.php?f=3&t=3831&start=30
+sh reg addr = do
+  let (hi, lo) = word16toWord8 addr
+  reg <- readReg reg 
+  let 
+    result     = (fromIntegral (addr `shiftR` 8) + 1) .&. reg
+    targetAddr = word8toWord16 lo result
+  write targetAddr result
+
+shx = sh x
+
+shy = sh y
+
+slo = aslM `andThen` ora
+
+sre = lsrM `andThen` eor
+
+tas _ = pure ()
+
+xaa _ = pure ()
+
 nmi :: Emulator ()
 nmi = do
   readReg pc >>= pushAddress
-  setFlag BreakCommand False
   setFlag InterruptDisable True
   readReg p <&> (`clearBit` 4) >>= push
   readAddress 0xFFFA >>= writeReg pc
@@ -842,12 +838,10 @@ irq = do
   irqEnable <- not <$> testFlag InterruptDisable
   when irqEnable $ do
     readReg pc >>= pushAddress
-    setFlag BreakCommand False
     setFlag InterruptDisable True
     readReg p <&> (`clearBit` 4) >>= push
     readAddress 0xFFFE >>= writeReg pc
     cycle 7
-
 
 processInterrupt = do
   reg <- readReg intr

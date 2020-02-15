@@ -28,7 +28,6 @@ import           Data.ByteString      as BS hiding (readFile, assembleCartridge,
 import qualified Data.ByteString.Lazy as B (readFile, toStrict)
 import           Control.Monad
 import           Control.Applicative()
-import           Control.Exception
 import           Numeric (showHex)
 
 data INES = INES {
@@ -119,7 +118,7 @@ assembleCartridge INES{..} = do
   let 
     mapperId = (flags6 `shiftR` 4) .|. (flags7 .&. 0xF0)
     mirror = if flags6 `testBit` 3 then FourScreen else (toEnum . fromEnum) (flags6 `testBit` 0)
-  when (mapperId `notElem` [0]) . fail $ "Mapper type " ++ show mapperId ++ " is currently not supported"
+  when (mapperId `M.notMember` mappersById) . fail $ "Mapper type " ++ show mapperId ++ " is currently not supported"
   let hasChrRam = BS.length chr_rom_bs == 0  
   chr_rom <- if hasChrRam then VM.new 0x2000 else toVector chr_rom_bs
   prg_rom <- toVector prg_rom_bs
@@ -133,10 +132,8 @@ assembleCartridge INES{..} = do
 loadCartridge :: FilePath -> IO Cartridge
 loadCartridge path = tryLoadingINES path >>= assembleCartridge
 
-
 cpuReadCartridge :: Cartridge -> Word16 -> IO Word8
 cpuReadCartridge cart = cpuRead (mapper cart)
-    
 
 cpuWriteCartridge :: Cartridge -> Word16 -> Word8 -> IO ()
 cpuWriteCartridge cart = cpuWrite (mapper cart)
@@ -144,7 +141,9 @@ cpuWriteCartridge cart = cpuWrite (mapper cart)
 ppuReadCartridge cart = ppuRead (mapper cart)
 ppuWriteCartridge cart = ppuWrite (mapper cart)
 
--- aka mapper0
+
+-- Mappers
+
 nrom :: Bool -> Cartridge -> Mapper
 nrom hasChrRam Cartridge{..} = Mapper{..}
  where 

@@ -8,23 +8,14 @@ import           Control.Monad
 import           Control.Monad.IO.Class
 import           Control.Concurrent
 import           Control.Concurrent.STM
-import           Control.Concurrent.STM.TChan
-import           Control.Monad.Loops
 import           Control.Exception
 import qualified Data.Vector.Storable.Mutable as VSM
 import           Data.Char
 import           Data.Word
-import           Data.Int
 import           Data.IORef
-import           Data.StateVar
 import           Data.Time
-import qualified Data.Text as T
 import           Numeric
-import           System.Exit
 import           SDL
-import           SDL.Audio
-import qualified SDL.Image as Img
-import           SDL.Input.Joystick
 import           Foreign hiding (void)
 import           Communication
 import           Nes.Cartridge

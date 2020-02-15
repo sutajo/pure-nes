@@ -71,7 +71,7 @@ library
      , attoparsec
      , sdl2
      , template-haskell
-  default-extensions: ApplicativeDo
+  default-extensions: ApplicativeDo, RecordWildCards
   default-language: Haskell2010
 
 executable pure-nes
