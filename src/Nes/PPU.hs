@@ -50,10 +50,17 @@ data PPU = PPU {
     ppuData        :: Register8,
 
     -- Internal registers used exclusively by the PPU
-    emuDataBuffer   :: Register8,  -- contains the value previously written to any of the ppu registers
-    emuVRAMAddr     :: Register16,
-    emuAddressLatch :: Register8,
+    pvtDataBuffer   :: Register8,  -- contains the value previously written to any of the ppu registers
+    pvtVRAMAddr     :: Register16,
+    pvtTempAddr     :: Register16,
+    pvtAddressLatch :: Register8,
+    pvtFineX        :: Register8,
 
+    -- Registers used for emulation
+    emuCycle        :: Register16,
+    emuScanLine     :: Register16,
+
+    -- Mirroring function
     mirrorNametableAddress :: Word16 -> Word16
 }
 
@@ -79,6 +86,10 @@ powerUp mirroring =
     VSM.replicate (256*240*3) 255   <*>
     VUM.new (2 * 0x400)             <*>
     VUM.new 0x20                    <*>
+    newIORefU 0                     <*>
+    newIORefU 0                     <*>
+    newIORefU 0                     <*>
+    newIORefU 0                     <*>
     newIORefU 0                     <*>
     newIORefU 0                     <*>
     newIORefU 0                     <*>

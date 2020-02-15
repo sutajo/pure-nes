@@ -68,24 +68,24 @@ modifyReg reg f = readReg reg >>= writeReg reg . f
 
 advanceVRAMAddress = do
   ppuCtrl <- readReg ppuCtrl
-  modifyReg emuVRAMAddr (+ if ppuCtrl `testBit` 2 then 32 else 1)
+  modifyReg pvtVRAMAddr (+ if ppuCtrl `testBit` 2 then 32 else 1)
 
 --http://wiki.nesdev.com/w/index.php/PPU_registers
 cpuReadRegister :: Word16 -> Emulator Word8
 cpuReadRegister = 
   let
     readStatusReg = do
-      result <- liftA2 (.|.) (readReg ppuStatus <&> (.&. 0xE0)) (readReg emuDataBuffer <&> (.&. 0x1F))
+      result <- liftA2 (.|.) (readReg ppuStatus <&> (.&. 0xE0)) (readReg pvtDataBuffer <&> (.&. 0x1F))
       modifyReg ppuStatus (`clearBit` 7) -- Clear vertical blank flag
-      writeReg emuAddressLatch 0
-      return (result `setBit` 7)
+      writeReg pvtAddressLatch 0
+      return $ result
     readDataReg = do
-      bufferOld <- readReg emuDataBuffer
-      vramAddr  <- readReg emuVRAMAddr
-      read vramAddr >>= writeReg emuDataBuffer
-      bufferNew <- readReg emuDataBuffer
+      bufferOld <- readReg pvtDataBuffer
+      vramAddr  <- readReg pvtVRAMAddr
+      read vramAddr >>= writeReg pvtDataBuffer
+      bufferNew <- readReg pvtDataBuffer
       let result = if vramAddr >= 0x3F00 then bufferNew else bufferOld  -- Palette RAM is not buffered
-      advanceVRAMAddress    
+      advanceVRAMAddress
       return result
   in
   \case
@@ -93,25 +93,44 @@ cpuReadRegister =
   0x2007 -> readDataReg
   ______ -> pure 0
 
+--http://wiki.nesdev.com/w/index.php/PPU_scrolling
+
 cpuWriteRegister :: Word16 -> Word8 -> Emulator ()
-cpuWriteRegister addr val = case addr of
-  0x2000 -> writeReg ppuCtrl val
+cpuWriteRegister addr val = let val16 = fromIntegral val in case addr of
+  0x2000 -> do
+    writeReg ppuCtrl val
+    modifyReg pvtTempAddr $ \reg -> reg .&. 0xF3FF .|. (val16 .&. 3) `shiftL` 10
+
   0x2001 -> writeReg ppuMask val
-  0x2005 -> modifyReg emuAddressLatch complement
+
+  0x2005 -> do
+    latch <- readReg pvtAddressLatch
+    if latch == 0
+    then do 
+      writeReg pvtFineX (val .&. 0x7)
+      modifyReg pvtTempAddr $ \reg -> reg .&. 0x1F .|. val16 `shiftR` 3
+    else do
+      modifyReg pvtTempAddr $ 
+        \reg -> reg .&. 0xC1F .|. (val16 .&. 0x7) `shiftL` 12 .|. (val16 .&. 0xF8) `shiftL` 2
+    modifyReg pvtAddressLatch complement
+
   0x2006 -> do
-    let val16 = fromIntegral val
-    latch <- readReg emuAddressLatch
+    latch <- readReg pvtAddressLatch
     if latch == 0
     then do  -- higher byte is being written
-      modifyReg emuVRAMAddr (\vramAddr -> ((val16 `shiftL` 8) .&. 0x3F00) .|. (vramAddr .&. 0xFF))
-      writeReg emuAddressLatch 1
+      modifyReg pvtTempAddr $ \reg -> reg .&. 0xFF .|. (val16 .&. 0x3F) `shiftL` 8
     else do  -- lower  byte is being written
-      modifyReg emuVRAMAddr (\vramAddr -> (vramAddr .&. 0xFF00) .|. val16)
-      writeReg emuAddressLatch 0
+      tempAddr <- readReg pvtTempAddr
+      let result = (tempAddr .&. 0xFF00) .|. val16
+      writeReg pvtTempAddr result
+      writeReg pvtVRAMAddr result 
+    modifyReg pvtAddressLatch complement
+
   0x2007 -> do
-    emuVRAMAddr <- readReg emuVRAMAddr
-    write emuVRAMAddr val
+    pvtVRAMAddr <- readReg pvtVRAMAddr
+    write pvtVRAMAddr val
     advanceVRAMAddress
+
   ______ -> pure ()
 
 read :: Word16 -> Emulator Word8
