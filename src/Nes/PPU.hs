@@ -59,6 +59,9 @@ data PPU = PPU {
     -- Registers used for emulation
     emuCycle        :: Register16,
     emuScanLine     :: Register16,
+    emuFrameCount   :: IORefU Int,
+    emuNextNT       :: Register8,  -- nametable entry id for next 8 pixels in scanline
+    emuNextAT       :: Register8,  -- attribute table entry id for next 8 pixels in scanline
 
     -- Mirroring function
     mirrorNametableAddress :: Word16 -> Word16
@@ -86,6 +89,9 @@ powerUp mirroring =
     VSM.replicate (256*240*3) 255   <*>
     VUM.new (2 * 0x400)             <*>
     VUM.new 0x20                    <*>
+    newIORefU 0                     <*>
+    newIORefU 0                     <*>
+    newIORefU 0                     <*>
     newIORefU 0                     <*>
     newIORefU 0                     <*>
     newIORefU 0                     <*>

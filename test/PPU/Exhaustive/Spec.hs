@@ -16,10 +16,13 @@ import           Test.Tasty.HUnit
 import           Nes.EmulatorMonad
 import           Nes.CPU6502 hiding (intr)
 import           Nes.CPUEmulator
+import           Nes.MasterClock
 import           Nes.Cartridge hiding (readCartridge)
 
 blargg_ppu_tests :: FilePath
 blargg_ppu_tests = "roms/tests/ppu/blargg_ppu_tests/"
+
+blargg_vbl = "roms/tests/ppu/blargg_vbl/"
 
 runTest :: FilePath -> String -> Assertion
 runTest path romName = do
@@ -27,7 +30,7 @@ runTest path romName = do
   runEmulator nes $ do
     reset
     write 0x6000 0x80
-    untilM_ clock (read 0x6000 <&> (<0x80))
+    untilM_ clocks (read 0x6000 <&> (<0x80))
     sanityNumbers <- forM [0x6001..0x6003] read
     liftIO $ zipWithM_ (@?=) sanityNumbers [0xDE, 0xB0, 0x61] -- make sure test results are valid
     returnCode <- read 0x6000
@@ -37,6 +40,7 @@ runTest path romName = do
 tests :: [TestTree]
 tests =
   [
-    --testCase "Palette RAM"      $ runTest blargg_ppu_tests "palette_ram.nes",
+    --testCase "Palette RAM"      $ runTest blargg_ppu_tests "vbl_clear_time.nes"
+    --testCase "Frame basics" $ runTest blargg_vbl "1.frame_basics.nes"
     --testCase "Powerup Palette"  $ runTest blargg_ppu_tests "power_up_palette.nes"
   ]

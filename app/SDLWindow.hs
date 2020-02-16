@@ -153,6 +153,8 @@ executeCommand appResources@AppResources{..} command = case command of
       CPU.fetch >>= liftIO . print
       CPU.modifyReg pc (\x -> x - 2)
       liftIO $ putStrLn ""
+      PPU.drawPatternTable
+      PPU.drawPalette
       pixels  <- PPU.accessScreen
       liftIO $ updateScreen appResources pixels 
   _                   -> pure ()
@@ -162,7 +164,7 @@ updateWindow appResources@AppResources{..} dt = do
   commands <- liftIO $ pollCommands appResources
   mapM_ (executeCommand appResources) commands
   onlyWhen id continousMode $ do
-    void CPU.clock
+    clocks
   return (Quit `elem` commands)
 
     
