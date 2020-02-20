@@ -1,8 +1,8 @@
 {-# LANGUAGE OverloadedStrings, RecordWildCards #-}
 
 module CPU.Quick.Nestest.LogParser (
-  logParser,
-  snapshotParser
+  PPUState(..),
+  logParser
 ) where
 
 import Control.Applicative
@@ -12,7 +12,12 @@ import qualified Data.ByteString.Char8 as BS
 import Data.Word
 import Nes.CPU6502
 
-snapshotParser :: Parser (Word8, CpuSnapshot)
+data PPUState = PPUState {
+  cycle    :: Word, 
+  scanline :: Word
+} deriving (Eq, Show)
+
+snapshotParser :: Parser (Word8, CpuSnapshot, PPUState)
 snapshotParser = do
   pc'    <- hexadecimal
   count 2  space
@@ -23,13 +28,15 @@ snapshotParser = do
   y'  <- string "Y:"  *> hexadecimal <* space
   p'  <- string "P:"  *> hexadecimal <* space
   s'  <- string "SP:" *> hexadecimal <* space
-  count 12 anyChar
+  string "PPU:"
+  cycle    <- skipSpace *> decimal <* char ','
+  scanline <- skipSpace *> decimal <* space
   cyc' <- string "CYC:" *> decimal <* endOfLine
-  pure (opcode, CpuSnapshot{..})
+  pure (opcode, CpuSnapshot{..}, PPUState{..})
 
-logParser :: Parser [(Word8, CpuSnapshot, Int)]
+logParser :: Parser [(Word8, CpuSnapshot, PPUState, Int)]
 logParser = do
   snaps <- some snapshotParser
-  pure $ zipWith (\(a,b) c -> (a,b,c)) snaps [1..]  
+  pure $ zipWith (\(op,cpu,ppu) ind -> (op,cpu,ppu,ind)) snaps [1..]  
 
 

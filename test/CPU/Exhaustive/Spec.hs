@@ -1,7 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module CPU.Exhaustive.Spec (
-    tests
+    tests,
+    runTestWith
 ) where
 
 import           Control.Monad
@@ -17,7 +18,8 @@ import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Nes.EmulatorMonad
 import           Nes.CPU6502 hiding (intr)
-import           Nes.CPUEmulator
+import           Nes.CPUEmulator as CPU
+import qualified Nes.PPUEmulator as PPU
 import           Nes.Cartridge hiding (readCartridge)
 
 instr_v5 :: FilePath
@@ -32,18 +34,22 @@ intr = "roms/tests/cpu/cpu_interrupts_v2/rom_singles/"
 instr_time :: FilePath
 instr_time = "roms/tests/cpu/instr_timing/"      
 
-runTest :: FilePath -> String -> Assertion
-runTest path romName = do
+runTestWith :: Emulator a -> FilePath -> String -> Assertion
+runTestWith stepper path romName = do
   nes        <- loadCartridge (path ++ romName) >>= powerUpNes
   runEmulator nes $ do
-    reset
+    CPU.reset
+    PPU.reset
     write 0x6000 0x80
-    untilM_ clock (read 0x6000 <&> (<0x80))
+    untilM_ stepper (read 0x6000 <&> (<0x80))
     sanityNumbers <- forM [0x6001..0x6003] read
     liftIO $ zipWithM_ (@?=) sanityNumbers [0xDE, 0xB0, 0x61] -- make sure test results are valid
     returnCode <- read 0x6000
     msg  <- readNullTerminatedString 0x6004
     liftIO $ assertEqual (msg ++ "\nTest exitcode indicates failure.") 0 returnCode
+
+runTest :: FilePath -> String -> Assertion
+runTest = runTestWith clock 
 
 tests :: [TestTree]
 tests =

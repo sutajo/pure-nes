@@ -18,8 +18,5 @@ tests =
       testGroup "Exhaustive tests" CPU.Exhaustive.tests
     ],
 
-    testGroup "PPU" $ 
-    [
-      testGroup "Exhaustive tests" PPU.Exhaustive.tests
-    ]
+    testGroup "PPU" PPU.Exhaustive.tests
   ]

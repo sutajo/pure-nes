@@ -14,21 +14,27 @@ import           CPU.Quick.Nestest.LogParser
 import           Nes.EmulatorMonad
 import           Nes.CPU6502
 import           Nes.CPUEmulator
+import           Nes.PPU
+import qualified Nes.PPUEmulator as PPU
+import           Nes.MasterClock
 import           Nes.Cartridge hiding (readCartridge)
 
 
-assertMatch :: (Word8, CpuSnapshot, Int) -> (Word8, CpuSnapshot) -> Assertion
-assertMatch (opce, sp1, lineNum) (opca, sp2) = do
-  assertEqual ("roms/tests/cpu/nestest/nestest.log:" ++ show lineNum ++":\nFailed to match the " ++ show lineNum ++ ". snapshot from the log.") sp1 sp2
+assertMatch :: (Word8, CpuSnapshot, PPUState, Int) -> (Word8, CpuSnapshot, PPUState) -> Assertion
+assertMatch (opce, spe, ppue, lineNum) (opca, spa, ppua) = do
+  let stateErrorMessage = "roms/tests/cpu/nestest/nestest.log:" ++ show lineNum ++":\nFailed to match the " ++ show lineNum ++ ". snapshot from the log." 
+  assertEqual stateErrorMessage spe spa
+  assertEqual stateErrorMessage ppue ppua
   assertEqual ("Failed to match the " ++ show lineNum ++ ". opcode from the log.") opce opca 
 
-
-runClock :: (Word8, CpuSnapshot, Int) -> Emulator ()
+runClock :: (Word8, CpuSnapshot, PPUState, Int) -> Emulator ()
 runClock expectedSnapshot = do
   op       <- fetch
   snapshot <- getSnapshot
-  liftIO $ assertMatch expectedSnapshot (op, snapshot)
-  void clock
+  cycle    <- PPU.readReg emuCycle
+  scanline <- PPU.readReg emuScanLine
+  liftIO $ assertMatch expectedSnapshot (op, snapshot, PPUState{..})
+  clocks
 
 test :: TestTree
 test = testCase "Nestest" $ do

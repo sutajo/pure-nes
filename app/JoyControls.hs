@@ -5,7 +5,8 @@ module JoyControls (
   JoyControls.init,
   manageButtonEvent,
   manageDeviceEvent,
-  manageHatEvent
+  manageHatEvent,
+  listJoys
 ) where
 
 import           Control.Monad(void)
@@ -15,12 +16,12 @@ import           Control.Monad.Writer.Lazy
 import           Data.Int
 import           Data.IORef
 import           Data.Functor()
-import           Data.Maybe (fromMaybe)
+import           Data.Maybe
 import           Data.Word
 import           Nes.Controls as Controls
-import qualified Data.List as L
-import qualified Data.Vector as V
-import qualified Data.Map as M
+import qualified Data.List    as L
+import qualified Data.Vector  as V
+import qualified Data.Map     as M
 import           SDL.Event
 import           SDL.Input.Joystick
 import           SDL.Input.GameController()
@@ -52,6 +53,13 @@ init mappings =
     newIORef [] <*>
     pure mappings
 
+listJoys :: JoyControlState -> IO ()
+listJoys JoyControlState{..} = do
+  putStr "Available joys:"
+  availableJoysticks >>= print
+  putStr "Opened joysticks:"
+  readIORef connectedJoys >>= print 
+
 convertHatState :: JoyHatPosition -> Button
 convertHatState hatPos = case hatPos of
   HatUp       -> Up
@@ -63,18 +71,18 @@ convertHatState hatPos = case hatPos of
 manageButtonEvent :: JoyControlState -> JoyButtonEventData -> IO [Input]
 manageButtonEvent JoyControlState{..} (JoyButtonEventData _ btn state) = do
   let 
-    controllerButton = fromMaybe Select (buttonMappings M.!? btn)
+    controllerButton = maybeToList (buttonMappings M.!? btn)
     action = case state of
       JoyButtonPressed  -> Press
       JoyButtonReleased -> Release
-  pure [action controllerButton]
+  pure $ map action controllerButton
 
 
 manageHatEvent :: JoyControlState -> JoyHatEventData -> IO [Input]
 manageHatEvent JoyControlState{..} (JoyHatEventData _ _ newState) = execWriterT $ do
   when (newState `elem` [HatUp, HatDown, HatLeft, HatRight, HatCentered]) $ do
     prevHat <- liftIO $ readIORef previousHatState
-    if prevHat `elem` [HatUp, HatDown, HatLeft, HatRight]
+    if prevHat /= HatCentered
     then tell [Release $ convertHatState prevHat]
     else pure ()
     liftIO $ writeIORef previousHatState newState

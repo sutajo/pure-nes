@@ -18,8 +18,9 @@ uncapped m = do
     dt <- liftIO $ readIORef dtRef
     before    <- liftIO $ getPOSIXTime
     stop      <- m dt
-    after     <- liftIO $ getPOSIXTime
-    liftIO $ writeIORef dtRef $! after - before
+    liftIO $ do
+      after   <- getPOSIXTime
+      writeIORef dtRef $! after - before
     return stop
 
 picoToMicro t = round (realToFrac t * 10^6)
@@ -33,13 +34,14 @@ cappedAt activity hz = do
   elapsed <- liftIO $ readIORef elapsedRef
   before  <- liftIO $ getPOSIXTime
   stop <- activity elapsed
-  after   <- liftIO $ getPOSIXTime
-  error   <- liftIO $ readIORef errorRef
-  let
-   realElapsed = after - before
-   sleep_time = target - realElapsed - error
-  liftIO $ threadDelay (picoToMicro sleep_time)
-  afterSleep  <- liftIO $ getPOSIXTime
-  liftIO $ writeIORef elapsedRef $! realElapsed
-  liftIO $ writeIORef errorRef $! (afterSleep - after) - sleep_time
+  liftIO $ do
+    after   <- getPOSIXTime
+    error   <- readIORef errorRef
+    let
+      realElapsed = after - before
+      sleep_time = target - realElapsed - error
+    threadDelay (picoToMicro sleep_time)
+    afterSleep  <- getPOSIXTime
+    writeIORef elapsedRef $! realElapsed
+    writeIORef errorRef $! (afterSleep - after) - sleep_time
   return stop

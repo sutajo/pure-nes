@@ -36,33 +36,42 @@ type Register8  = IORefU Word8
 type Register16 = IORefU Word16
 
 data PPU = PPU {
-    palette        :: Palette,
-    screen         :: VSM.IOVector Word8,
-    nametable      :: VUM.IOVector Word8,
-    paletteIndices :: VUM.IOVector Word8,
+    palette         :: Palette,
+    screen          :: VSM.IOVector Word8,
+    nametable       :: VUM.IOVector Word8,
+    paletteIndices  :: VUM.IOVector Word8,
 
     -- Registers visible to the CPU
-    ppuCtrl        :: Register8,
-    ppuMask        :: Register8,
-    ppuStatus      :: Register8,
-    ppuScroll      :: Register8,
-    ppuAddr        :: Register8,
-    ppuData        :: Register8,
+    ppuCtrl           :: Register8,
+    ppuMask           :: Register8,
+    ppuStatus         :: Register8,
+    ppuScroll         :: Register8,
+    ppuAddr           :: Register8,
+    ppuData           :: Register8,
 
     -- Internal registers used exclusively by the PPU
-    pvtDataBuffer   :: Register8,  -- contains the value previously written to any of the ppu registers
-    pvtVRAMAddr     :: Register16,
-    pvtTempAddr     :: Register16,
-    pvtAddressLatch :: Register8,
-    pvtFineX        :: Register8,
+    pvtDataBuffer     :: Register8,  -- contains the value previously written to any of the ppu registers
+    pvtVRAMAddr       :: Register16,
+    pvtTempAddr       :: Register16,
+    pvtAddressLatch   :: Register8,
+    pvtFineX          :: Register8,
 
     -- Registers used for emulation
-    emuCycle        :: Register16,
-    emuScanLine     :: Register16,
-    emuFrameCount   :: IORefU Int,
-    emuNextNT       :: Register8,  -- nametable entry id for next 8 pixels in scanline
-    emuNextAT       :: Register8,  -- attribute table entry id for next 8 pixels in scanline
-
+    emuCycle          :: IORefU Word,
+    emuScanLine       :: IORefU Word,
+    emuFrameCount     :: IORefU Word,
+    emuClocks         :: IORefU Word,
+    emuLastStatusRead :: IORefU Word,
+    emuNmiPending     :: Register8,
+    emuNmiOccured     :: Register8,
+    emuNextNT         :: Register8,  -- nametable entry id for next 8 pixels in scanline
+    emuNextAT         :: Register8,  -- attribute table entry id for next 8 pixels in scanline
+    emuNextLSB        :: Register8,
+    emuNextMSB        :: Register8,
+    emuPattShifterLo  :: Register16,
+    emuPattShifterHi  :: Register16,
+    emuAttrShifterLo  :: Register16,
+    emuAttrShifterHi  :: Register16,
     -- Mirroring function
     mirrorNametableAddress :: Word16 -> Word16
 }
@@ -75,9 +84,10 @@ data PPU = PPU {
 2800 -> 2400
 2C00 -> 2400
 -}
+
 horizontalMirroring :: Word16 -> Word16
 horizontalMirroring addr = a - ((a .&. 0x800) `shiftR` 1)
-  where a = (addr `rem` (4*0x400)) .&. complement 0x400
+  where a = ((addr-0x2000) `rem` (4*0x400)) .&. complement 0x400
 
 verticalMirroring :: Word16 -> Word16
 verticalMirroring = (`rem` 0x800)
@@ -86,9 +96,19 @@ powerUp :: Mirroring -> IO PPU
 powerUp mirroring = 
     PPU                             <$>
     pure palette2C02                <*>
-    VSM.replicate (256*240*3) 255   <*>
+    VSM.replicate (256*240*3) 0     <*>
     VUM.new (2 * 0x400)             <*>
     VUM.new 0x20                    <*>
+    newIORefU 0                     <*>
+    newIORefU 0                     <*>
+    newIORefU 0                     <*>
+    newIORefU 0                     <*>
+    newIORefU 0                     <*>
+    newIORefU 0                     <*>
+    newIORefU 0                     <*>
+    newIORefU 0                     <*>
+    newIORefU 0                     <*>
+    newIORefU 0                     <*>
     newIORefU 0                     <*>
     newIORefU 0                     <*>
     newIORefU 0                     <*>

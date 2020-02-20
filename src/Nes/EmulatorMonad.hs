@@ -11,10 +11,15 @@ module Nes.EmulatorMonad (
     ppuReadCartridge,
     ppuWriteCartridge,
     getNametableMirroring,
-    sendInterrupt,
+    sendPendingNmi,
+    sendPendingIrq,
+    sendNmi,
+    clearNmi,
+    sendIrq,
     useCpu,
     readController,
-    writeController
+    writeController,
+    processInput
 ) where
 
 import           Control.Monad.Reader
@@ -25,12 +30,11 @@ import           Data.Vector.Mutable (IOVector)
 import qualified Data.Vector.Mutable as VM
 import           Data.IORef.Unboxed
 import           Data.Functor
-import           Data.Bits
 import           Nes.CPU6502   as CPU
 import           Nes.PPU       as PPU
 import qualified Nes.Cartridge as Cart
 import           Nes.APU       as APU
-import           Nes.Controls  as Controls
+import qualified Nes.Controls  as Controls
 
 type RAM = IOUArray Word16 Word8
 
@@ -43,7 +47,7 @@ data Nes =  Nes {
     ppu         ::  PPU,
     apu         ::  APU,
     cartridge   ::  Cart.Cartridge,
-    controllers ::  IOVector Controller
+    controllers ::  IOVector Controls.Controller
 }
 
 powerUpNes :: Cart.Cartridge -> IO Nes
@@ -55,7 +59,6 @@ powerUpNes cart =
     APU.powerUp <*>
     pure cart   <*>
     VM.replicate 2 Controls.powerUp
-
 
 newtype Emulator a = Emulator { 
     unEmulator :: ReaderT Nes IO a 
@@ -90,9 +93,18 @@ getNametableMirroring = ask <&> (mirrorNametableAddress . ppu)
 useCpu :: (b -> IO a) -> (CPU -> b) -> Emulator a
 useCpu action field = useMemory (field . cpu) action
 
--- Sends an interrupt to the CPU
-sendInterrupt :: Interrupt -> Emulator ()
-sendInterrupt interrupt = useCpu (`modifyIORefU` (`setBit` fromEnum interrupt)) intr
+-- Sends an NMI which fires after the specified amount of clock cycles
+sendPendingInterrupt :: (CPU -> Register) -> Word8 -> Emulator ()
+sendPendingInterrupt reg cyc = useCpu (`writeIORefU` cyc) reg
+
+clearInterrupt :: (CPU -> Register) -> Emulator ()
+clearInterrupt reg = useCpu (`writeIORefU` 0) reg
+
+sendPendingNmi = sendPendingInterrupt nmiTimer
+sendNmi  = sendPendingNmi 1
+clearNmi = clearInterrupt nmiTimer
+sendPendingIrq = sendPendingInterrupt irqTimer
+sendIrq = sendPendingIrq 1
 
 readController :: Int -> Emulator Word8
 readController index = 
@@ -108,7 +120,5 @@ modifyController action index =
 
 writeController byte = modifyController (Controls.write byte)
 
-pressController btn = modifyController (Controls.press btn)
-
-releaseController btn = modifyController (Controls.release btn)
+processInput input = modifyController (Controls.processInput input)
     

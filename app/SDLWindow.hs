@@ -9,22 +9,22 @@ import           Control.Monad.IO.Class
 import           Control.Concurrent
 import           Control.Concurrent.STM
 import           Control.Exception
+import qualified Data.Map                     as M
 import qualified Data.Vector.Storable.Mutable as VSM
-import           Data.Char
+import           Data.Maybe
 import           Data.Word
 import           Data.IORef
 import           Data.Time
-import           Numeric
 import           SDL
 import           Foreign hiding (void)
 import           Communication
+import           JoyControls
 import           Nes.Cartridge
 import           Nes.EmulatorMonad
-import           Nes.CPU6502
 import qualified Nes.CPUEmulator as CPU
 import qualified Nes.PPUEmulator as PPU
 import           Nes.Timing
-import           Nes.Controls
+import           Nes.Controls as Controls (Input(..), Button(..))
 import           Nes.MasterClock
 
 scale :: Int
@@ -38,26 +38,43 @@ height = 240
 
 data Command 
   = Quit 
-  | GameInput Input 
+  | PlayerInput Input 
   | SwitchEmulationMode -- switches between continous and step-by-step emulation
+  | JoyButtonCommand JoyButtonEventData
+  | JoyDeviceCommand JoyDeviceEventData
+  | JoyHatCommand JoyHatEventData
   | StepOneFrame
   | StepClockCycle
   deriving (Eq)
 
-translateSDLEvent :: SDL.EventPayload -> [Command]
-translateSDLEvent SDL.QuitEvent = [Quit]
+translateSDLEvent :: SDL.EventPayload -> Maybe Command
+translateSDLEvent SDL.QuitEvent = Just Quit
+translateSDLEvent (JoyHatEvent eventData)    = Just $ JoyHatCommand eventData
+translateSDLEvent (JoyButtonEvent eventData) = Just $ JoyButtonCommand eventData
+translateSDLEvent (JoyDeviceEvent eventData) = Just $ JoyDeviceCommand eventData
 translateSDLEvent (SDL.KeyboardEvent (SDL.KeyboardEventData _ motion _ sym)) =
   let 
-    action = case motion of
-      Pressed  -> id
-      Released -> const []
+    onlyOnPress = case motion of
+      Pressed  -> Just
+      Released -> const Nothing
+    playerInput x = Just . PlayerInput $ case motion of
+      Pressed  -> Press x
+      Released -> Release x
     inputs = case keysymKeycode sym of
-      KeycodeSpace -> [SwitchEmulationMode]
-      KeycodeF     -> [StepOneFrame]
-      KeycodeC     -> [StepClockCycle]
-      _            -> []
-  in action $ inputs
-translateSDLEvent _ = []
+      KeycodeSpace -> onlyOnPress SwitchEmulationMode
+      KeycodeF     -> onlyOnPress StepOneFrame
+      KeycodeC     -> onlyOnPress StepClockCycle
+      KeycodeUp    -> playerInput Up
+      KeycodeDown  -> playerInput Down
+      KeycodeLeft  -> playerInput Controls.Left
+      KeycodeRight -> playerInput Controls.Right
+      Keycode1     -> playerInput A
+      Keycode2     -> playerInput B
+      Keycode3     -> playerInput Select
+      Keycode4     -> playerInput Start
+      _            -> Nothing
+  in inputs
+translateSDLEvent _ = Nothing
 
 translateParentMessage :: ParentMessage -> [Command]
 translateParentMessage Stop = [Quit]
@@ -74,12 +91,13 @@ greetings = do
 bye = putStrLn "Emulator closed successfully."
 
 data AppResources = AppResources {
-  window     :: Window,
-  renderer   :: Renderer,
-  screen     :: Texture,
-  nes        :: Nes,
-  commRes    :: CommResources,
-  continousMode :: IORef Bool
+  window          :: Window,
+  renderer        :: Renderer,
+  screen          :: Texture,
+  nes             :: Nes,
+  commRes         :: CommResources,
+  continousMode   :: IORef Bool,
+  joys            :: IORef JoyControlState
 }
 
 onlyWhen :: MonadIO m => (a -> Bool) -> IORef a -> m () -> m ()
@@ -109,6 +127,8 @@ acquireResources romPath comms = do
   renderer      <- SDL.createRenderer window (-1) rendererConfig
   screen        <- SDL.createTexture renderer SDL.RGB24 SDL.TextureAccessStreaming (V2 256 240)
   continousMode <- newIORef True
+  let buttonMappings = M.fromList [(0, Select), (1, Start), (2, A), (3, B)]
+  joys          <- JoyControls.init buttonMappings >>= newIORef
   return AppResources{..}
 
 releaseResources AppResources{..} = do
@@ -120,15 +140,16 @@ releaseResources AppResources{..} = do
 
 runApp appResources = runEmulator (nes appResources) $ do
   CPU.reset
+  PPU.reset
   uncapped $ updateWindow appResources
 
 pollCommands res@AppResources{..} = do
-  sdlCommands <- (concatMap (translateSDLEvent . eventPayload)) <$> SDL.pollEvents
+  sdlCommands <- (catMaybes . map (translateSDLEvent . eventPayload)) <$> SDL.pollEvents
   gtkCommands <- (concatMap translateParentMessage) <$> (atomically $ readAllTChan (toSDLWindow commRes))
   return (gtkCommands ++ sdlCommands)
 
-updateScreen :: AppResources -> VSM.IOVector Word8 -> IO ()
-updateScreen AppResources{..} pixels = do
+updateScreen :: AppResources -> VSM.IOVector Word8 -> Emulator ()
+updateScreen AppResources{..} pixels = liftIO $ do
   (texPtr, _) <- SDL.lockTexture screen Nothing
   VSM.unsafeWith pixels $ \ptr ->  do
       copyBytes (castPtr texPtr) ptr (VSM.length pixels)
@@ -137,34 +158,35 @@ updateScreen AppResources{..} pixels = do
   present renderer
 
 executeCommand :: AppResources -> Command -> Emulator ()
-executeCommand appResources@AppResources{..} command = case command of
-  SwitchEmulationMode -> liftIO $ do
-      modifyIORef' continousMode not
-      continous <- readIORef continousMode 
-      putStrLn ("Switched to " ++ (if continous then "continous" else "step-by-step") ++ " mode.")
-  StepClockCycle      -> 
-    onlyWhen not continousMode $ do
-      clocks >> CPU.getSnapshot >>= liftIO . print
-      opcode <- CPU.fetch
-      liftIO $ putStr "Opcode: 0x" >> putStrLn (map toUpper $ showHex opcode "")
-      CPU.modifyReg pc (+1)
-      CPU.fetch >>= liftIO . print
-      CPU.modifyReg pc (+1)
-      CPU.fetch >>= liftIO . print
-      CPU.modifyReg pc (\x -> x - 2)
-      liftIO $ putStrLn ""
-      PPU.drawPatternTable
-      PPU.drawPalette
-      pixels  <- PPU.accessScreen
-      liftIO $ updateScreen appResources pixels 
-  _                   -> pure ()
+executeCommand appResources@AppResources{..} command = do
+  joys <- liftIO $ readIORef joys
+  case command of
+    JoyButtonCommand eventData -> liftIO (manageButtonEvent joys eventData) >>= mapM_ (`processInput` 0)
+    JoyHatCommand eventData    -> liftIO (manageHatEvent    joys eventData) >>= mapM_ (`processInput` 0)
+    JoyDeviceCommand eventData -> liftIO (manageDeviceEvent joys eventData)
+    PlayerInput input   -> processInput input 0
+    SwitchEmulationMode -> liftIO $ do
+        modifyIORef' continousMode not
+        continous <- readIORef continousMode 
+        putStrLn ("Switched to " ++ (if continous then "continous" else "step-by-step") ++ " mode.")
+    StepClockCycle      -> 
+      onlyWhen not continousMode $ do
+        emulateFrame
+        PPU.drawBackground
+        PPU.drawPatternTable
+        PPU.drawPalette
+        pixels  <- PPU.accessScreen
+        updateScreen appResources pixels
+    _ -> pure ()
 
 updateWindow :: AppResources -> NominalDiffTime -> Emulator Bool
 updateWindow appResources@AppResources{..} dt = do
   commands <- liftIO $ pollCommands appResources
   mapM_ (executeCommand appResources) commands
   onlyWhen id continousMode $ do
-    clocks
+    emulateFrame
+    PPU.drawBackground
+    PPU.accessScreen >>= updateScreen appResources 
   return (Quit `elem` commands)
 
     

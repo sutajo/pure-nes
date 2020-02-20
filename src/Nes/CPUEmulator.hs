@@ -8,9 +8,10 @@ module Nes.CPUEmulator(
   writeReg,
   readReg,
   modifyReg,
-  write,
   read,
-  readNullTerminatedString
+  write,
+  readNullTerminatedString,
+  processInterrupt
 )where
 
 import           Prelude hiding (read, cycle, and)
@@ -28,7 +29,7 @@ import           Language.Haskell.TH.Syntax
 import           Nes.EmulatorMonad
 import           Nes.CPU6502
 import qualified Nes.APU as APU
-import           Nes.PPUEmulator as PPUE hiding (clock)
+import qualified Nes.PPUEmulator as PPUE hiding (clock)
 
 data Penalty = None | BoundaryCross deriving (Enum, Lift)
 
@@ -125,12 +126,6 @@ write addr val
   | addr == 0x4016 = forM_ [0..1] (writeController val) -- writing to 0x4016 polls both controllers
   | addr == 0x4017 = pure ()
   | addr <= 0xFFFF = cpuWriteCartridge addr val
-
-clearInterrupts :: Emulator ()
-clearInterrupts = writeReg intr 0
-
-testInterrupt :: Interrupt -> Word8 -> Bool
-testInterrupt intr reg = reg `testBit` fromEnum  intr
 
 setFlag :: Flag -> Bool -> Emulator ()
 setFlag flag cond = modifyReg p (setFlag' flag cond)
@@ -843,11 +838,15 @@ irq = do
     readAddress 0xFFFE >>= writeReg pc
     cycle 7
 
+processInterruptTimer timer intr = do
+  remainingClocks <- readReg timer
+  when (remainingClocks == 1) intr
+  when (remainingClocks > 0) $ timer `modifyReg` decrement
+
 processInterrupt = do
-  reg <- readReg intr
-  when (testInterrupt NMI reg) $ nmi
-  when (testInterrupt IRQ reg) $ irq
-  clearInterrupts
+  processInterruptTimer nmiTimer nmi
+  processInterruptTimer irqTimer irq
+  setFlag Unused True
 
 getSnapshot :: Emulator CpuSnapshot
 getSnapshot = 
@@ -870,21 +869,20 @@ reset = do
 
 clock :: Emulator Int
 clock = do
-  processInterrupt
-  setFlag Unused True
-
   DecodedOpcode 
     instruction 
       cycles <- do
         fetch <&> decodeOpcode
 
-  modifyReg pc (+1)
+  cyclesBefore <- readReg cyc
   cycle cycles
-  
-  instruction           -- run the instruction
+
+  modifyReg pc (+1)
+  instruction          -- run the instruction
   setFlag Unused True
 
-  return cycles         -- returns how many master clock cycles it took to perform the instruction
+  cyclesAfter  <- readReg cyc
+  return (cyclesAfter - cyclesBefore)
 
 
 
