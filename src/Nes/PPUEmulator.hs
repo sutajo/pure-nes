@@ -11,9 +11,7 @@ module Nes.PPUEmulator (
   drawBackground,
   getFrameCount,
   read,
-  write,
   readReg,
-  writeReg
 ) where
 
 import           Control.Applicative
@@ -61,7 +59,7 @@ writePPUComponent :: Enum addr => (PPU -> VUM.IOVector Word8) -> addr -> Word8 -
 writePPUComponent component addr val = usePPU (\ind -> VUM.write ind (fromEnum addr) val) component
 
 usePaletteIndices usage addr
- | 0x10 <= addr && addr <= 0x1C && addr `rem` 4 == 0 = usage (addr - 0x10)
+ | 0x10 <= addr && addr <= 0x1C && addr .&. 0b11 == 0 = usage (addr - 0x10)
  | otherwise = usage addr
   
 readPaletteIndices  = usePaletteIndices (readPPUComponent  paletteIndices)
@@ -97,11 +95,12 @@ testFlag reg = readReg reg <&> (>0)
 setFlag :: (PPU -> Register8) -> Bool -> Emulator ()
 setFlag reg val = reg .= (toEnum.fromEnum $ val)
 
+increment :: (Prim a, Num a) => (PPU -> IORefU a) -> Emulator ()
 increment = (`modifyReg` (+1))
 
 advanceVRAMAddress = do
   ppuCtrl <- readReg ppuCtrl
-  pvtVRAMAddr $= (+ if ppuCtrl `testBit` 2 then 32 else 1)
+  pvtVRamAddr $= (+ if ppuCtrl `testBit` 2 then 32 else 1)
 
 getFrameCount = readReg emuFrameCount
 
@@ -111,7 +110,7 @@ clearVblAfterStatusRead = do
   transfer emuClocks emuLastStatusRead
 
 cpuReadRegister :: Word16 -> Emulator Word8
-cpuReadRegister = 
+cpuReadRegister addr = 
   let
     readStatusReg = do
       result <- liftA2 (.|.) (readReg ppuStatus <&> (.&. 0xE0)) (readReg pvtDataBuffer <&> (.&. 0x1F))
@@ -119,7 +118,7 @@ cpuReadRegister =
       pvtAddressLatch .= 0
       return result
     readDataReg = do
-      vramAddr  <- readReg pvtVRAMAddr
+      vramAddr  <- readReg pvtVRamAddr
       let paletteRead = vramAddr >= 0x3F00
       result <- if paletteRead
         then do
@@ -129,10 +128,10 @@ cpuReadRegister =
           (readReg pvtDataBuffer) <* (read vramAddr >>= writeReg pvtDataBuffer)
       advanceVRAMAddress
       return result
-  in \case
-  0x2002 -> readStatusReg
-  0x2007 -> readDataReg
-  ______ -> pure 0
+  in case addr of
+    0x2002 -> readStatusReg
+    0x2007 -> readDataReg
+    ______ -> pure 0
 
 cpuWriteRegister :: Word16 -> Word8 -> Emulator ()
 cpuWriteRegister addr val = let val16 = fromIntegral val in case addr of
@@ -146,36 +145,36 @@ cpuWriteRegister addr val = let val16 = fromIntegral val in case addr of
       sendPendingNmi 2
     ppuCtrl .= val
     setFlag emuNmiOccured nmiOuput
-    pvtTempAddr $= \reg -> reg .&. 0xF3FF .|. (val16 .&. 3) `shiftL` 10
+    pvtTempAddr $= \reg -> (reg .&. 0x73FF) .|. ((val16 .&. 3) `shiftL` 10)
 
   0x2001 -> ppuMask .= val
 
   0x2005 -> do
     latch <- readReg pvtAddressLatch
-    if latch == 0
-    then do 
-      pvtFineX    .=  val .&. 0x7
-      pvtTempAddr $= \reg -> reg .&. 0x1F .|. val16 `shiftR` 3
-    else do
-      pvtTempAddr $= 
-        \reg -> reg .&. 0xC1F .|. (val16 .&. 0x7) `shiftL` 12 .|. (val16 .&. 0xF8) `shiftL` 2
+    case latch of
+      0 -> do 
+        pvtFineX    .=  val .&. 0x7
+        pvtTempAddr $= \reg -> reg .&. 0x7FE0 .|. val16 `shiftR` 3
+      _ -> do
+        pvtTempAddr $= 
+          \reg -> reg .&. 0xC1F .|. (val16 .&. 0x7) `shiftL` 12 .|. val16 `shiftR` 3
     pvtAddressLatch $= complement
 
   0x2006 -> do
     latch <- readReg pvtAddressLatch
-    if latch == 0
-    then do  -- higher byte is being written
-      pvtTempAddr $= \reg -> reg .&. 0xFF .|. (val16 .&. 0x3F) `shiftL` 8
-    else do  -- lower  byte is being written
-      tempAddr <- readReg pvtTempAddr
-      let result = (tempAddr .&. 0xFF00) .|. val16
-      pvtTempAddr .= result
-      pvtVRAMAddr .= result 
+    case latch of 
+      0 -> do  -- higher byte is being written
+        pvtTempAddr $= \reg -> reg .&. 0xFF .|. (val16 .&. 0x3F) `shiftL` 8
+      _ -> do  -- lower  byte is being written
+        tempAddr <- readReg pvtTempAddr
+        let result = (tempAddr .&. 0xFF00) .|. val16
+        pvtTempAddr .= result
+        pvtVRamAddr .= result 
     pvtAddressLatch $= complement
 
   0x2007 -> do
-    pvtVRAMAddr <- readReg pvtVRAMAddr
-    write pvtVRAMAddr val
+    pvtVRamAddr <- readReg pvtVRamAddr
+    write pvtVRamAddr val
     advanceVRAMAddress
 
   ______ -> pure ()
@@ -186,7 +185,7 @@ read addr
   | addr <= 0x3EFF = do
     mirror <- getNametableMirroring
     readNametable (mirror addr)
-  | addr <= 0x3FFF = readPaletteIndices ((addr - 0x3F00) `rem` 0x20)
+  | addr <= 0x3FFF = readPaletteIndices ((addr - 0x3F00) .&. 0x1F)
 
 write :: Word16 -> Word8 -> Emulator ()
 write addr val
@@ -194,7 +193,7 @@ write addr val
   | addr <= 0x3EFF = do
     mirror <- getNametableMirroring
     writeNametable (mirror addr) val
-  | addr <= 0x3FFF = writePaletteIndices ((addr - 0x3F00) `rem` 0x20) val
+  | addr <= 0x3FFF = writePaletteIndices ((addr - 0x3F00) .&. 0x1F) val
 
 getColor :: Word8 -> Word8 -> Emulator Pixel
 getColor palette pixel = do
@@ -215,8 +214,6 @@ drawBackground = do
   ctrl <- readReg ppuCtrl
   let baseNametableAddr = (fromIntegral ctrl .&. 0b11) * 0x400
   let basePattAddr = (fromIntegral ctrl `shiftR` 4 .&. 0b1) * 0x1000
-  screen <- accessScreen
-  liftIO $ VSM.set screen 0
   forM_ [0..29] $ \coarsey -> do
     forM_ [0..31] $ \coarsex -> do
       val      <- read (0x2000 + baseNametableAddr + coarsey * 32 + coarsex)
@@ -229,10 +226,13 @@ drawBackground = do
           tile_msb <- read (basePattAddr+pattOffset+row+8)
           let 
             c = fromIntegral col
-            get a i = fromEnum $ a `testBit` i 
+            get a i = fromEnum $ a `testBit` i
             pixel = fromIntegral $ ((tile_msb `get` c) `shiftL` 1) .|. (tile_lsb `get` c)
+            x = fromIntegral (coarsex*8 + (7 - col))
+            y = fromIntegral (coarsey*8 + row)
           color <- getColor attr pixel
-          setPixel (fromIntegral(coarsex*8 + (7 - col))) (fromIntegral(coarsey*8 + row)) color
+          liftIO $ putStrLn $ show (x,y) ++ " -> " ++ show (coarsex, coarsey, col, row, val, pixel, attr)
+          setPixel x y color
 
 drawPatternTable = do
   screen <- accessScreen
@@ -268,32 +268,38 @@ drawBackgroundPixel :: Emulator ()
 drawBackgroundPixel = do
   mask <- readReg ppuMask
   when (mask `testBit` 3) $ do
-    shiftMask <- readReg pvtFineX <&> (fromIntegral)
+    shiftMask <- readReg pvtFineX <&> (\reg -> 0x8000 `shiftR` (fromIntegral reg))
     pixelLo   <- readReg emuPattShifterLo <&> (.&. shiftMask)
     pixelHi   <- readReg emuPattShifterHi <&> (.&. shiftMask)
     paletteLo <- readReg emuAttrShifterLo <&> (.&. shiftMask)
     paletteHi <- readReg emuAttrShifterHi <&> (.&. shiftMask)
-    let pixel = fromIntegral $ pixelHi `shiftR` 14 .|. pixelLo `shiftR` 15
-    let palette = fromIntegral $ paletteHi `shiftR` 14 .|. paletteLo `shiftR` 15
-    cycle    <- readReg emuCycle <&> fromIntegral
-    scanLine <- readReg emuScanLine <&> fromIntegral
+    let getBit index byte = fromEnum $ byte `testBit` index
+    let getFirstBit16 = getBit 15 
+    let pixel   = fromIntegral $ getFirstBit16 pixelHi   `shiftL` 1 .|. getFirstBit16 pixelLo
+    let palette = fromIntegral $ getFirstBit16 paletteHi `shiftL` 1 .|. getFirstBit16 paletteLo
+    cycle    <- readReg emuCycle
+    scanLine <- readReg emuScanLine
+    vramAddr <- readReg pvtVRamAddr
+    --liftIO $ putStrLn (show (cycle, scanLine) ++ " -> " ++ show (vramAddr .&. 0x1F, (vramAddr `shiftR` 5) .&. 0x1F))
     getColor palette pixel >>= setPixel (cycle - 1) scanLine
+
 
 drawPixel :: Emulator ()
 drawPixel = do
   drawBackgroundPixel
+
 
 updateShiftregisters :: Emulator ()
 updateShiftregisters = do
   at  <- readReg emuNextAT        
   lsb <- readReg emuNextLSB       
   msb <- readReg emuNextMSB
-  let updatePatt byte lo = byte .|. fromIntegral lo
-  let updateAttr byte lo = byte .|. (if lo /= 0 then 0xFF else 0x00)
-  emuPattShifterLo $= (`updatePatt` lsb)
-  emuPattShifterHi $= (`updatePatt` msb)
-  emuAttrShifterLo $= (`updateAttr` (at .&. 0b01))
-  emuAttrShifterHi $= (`updateAttr` (at .&. 0b10))
+  let updatePatt lo shifter = shifter .|. fromIntegral lo
+  let updateAttr lo shifter = shifter .|. (if lo /= 0 then 0xFF else 0x00)
+  emuPattShifterLo $= (updatePatt lsb)
+  emuPattShifterHi $= (updatePatt msb)
+  emuAttrShifterLo $= (updateAttr (at .&. 0b01))
+  emuAttrShifterHi $= (updateAttr (at .&. 0b10))
 
 shiftRegisters :: Emulator ()
 shiftRegisters = do
@@ -306,21 +312,29 @@ shiftRegisters = do
       emuAttrShifterHi
     ] $ (`modifyReg` (`shiftL` 1))
 
-scanLine :: Word -> Emulator ()
-scanLine = \case
+scanLine :: Int -> Emulator ()
+scanLine step = case step of
   0 -> do
     updateShiftregisters
-    v <- readReg pvtVRAMAddr
+    v <- readReg pvtVRamAddr
     read (0x2000 .|. v .&. 0xFFF) >>= writeReg emuNextNT
   2 -> do
-    v <- readReg pvtVRAMAddr
-    writeReg emuNextAT =<< read (0x2C30 .|. (v .&. 0x0C00) .|. ((v `shiftR` 4) .&. 0x38) .|. ((v `shiftR` 2) .&. 0x7))
+    v <- readReg pvtVRamAddr
+    let coarseX = v .&. 0x1F
+    let coarseY = (v `shiftR` 5) .&. 0x1F
+    attributeGroup <- read (0x2C30 .|. (v .&. 0x0C00) .|. ((v .&. 0x380) `shiftR` 4) .|. ((v .&. 0x1C) `shiftR` 2))
+    emuNextAT .= ((attributeGroup `shiftR` fromIntegral ((coarseY .&. 2) `shiftL` 1 .|. (coarseX .&. 2))) .&. 0b11)
   4 -> do
-    patternOffset <- readReg ppuCtrl   <&> ((`shiftL` 9) . (0b1000 .&.) . fromIntegral)
-    nt            <- readReg emuNextNT <&> fromIntegral
-    v             <- readReg pvtVRAMAddr
-    let addr = patternOffset + nt `shiftL` 4 + v `shiftR` 12
+    patternOffset <- readReg ppuCtrl   <&> \ctrl -> if ctrl `testBit` 4 then 0x1000 else 0
+    ntId          <- readReg emuNextNT <&> fromIntegral
+    v             <- readReg pvtVRamAddr
+    let addr = patternOffset + ntId `shiftL` 4 + ((v `shiftR` 12) .&. 0b111)
     read addr     >>= writeReg emuNextLSB
+  6 -> do
+    patternOffset <- readReg ppuCtrl   <&> \ctrl -> if ctrl `testBit` 4 then 0x1000 else 0
+    ntId          <- readReg emuNextNT <&> fromIntegral
+    v             <- readReg pvtVRamAddr
+    let addr = patternOffset + ntId `shiftL` 4 + ((v `shiftR` 12) .&. 0b111)
     read (addr+8) >>= writeReg emuNextMSB
   7 -> incrementHorizontal
   _ -> pure ()
@@ -331,8 +345,8 @@ isRenderingEnabled = readReg ppuMask <&> (\mask -> mask .&. 0b00011000 /= 0)
 whenRendering = whenM isRenderingEnabled
 
 transferTempWithMask mask = do
-  t <- readReg pvtTempAddr <&> (.&. complement mask)
-  modifyReg pvtVRAMAddr $ ((t .|.) . (mask .&.))
+  t <- readReg pvtTempAddr <&> (.&. mask)
+  pvtVRamAddr $= \reg -> (reg .&. complement mask) .|. t
 
 verticalMask = 0b111101111100000
 
@@ -346,46 +360,43 @@ transferHorizontal = whenRendering $ do
 
 incrementHorizontal :: Emulator ()
 incrementHorizontal = whenRendering $ do
-  coarseXwraps <- readReg pvtVRAMAddr <&> ((31 ==) . (0x1F .&.))
-  modifyReg pvtVRAMAddr $ 
+  coarseXwraps <- readReg pvtVRamAddr <&> ((31 ==) . (0x1F .&.))
+  pvtVRamAddr $=
     if coarseXwraps
-    then (\v -> (v .&. complement 0x001F) `xor` 0x0400)
+    then (\v -> (v .&. 0x7FE0) `xor` 0x400)
     else (+1)
 
 incrementVertical :: Emulator ()
 incrementVertical = whenRendering $ do
-  fineYwraps <- readReg pvtVRAMAddr <&> ((0x7000 /=) . (0x7000 .&.))
-  modifyReg pvtVRAMAddr $ 
-    if fineYwraps
-    then (+0x1000)
-    else \v -> 
-      let
-        v' = v .&. complement 0x7000
-        y' = (v' .&. 0x3E0) `shiftR` 5
-        (v'', y'') = case y' of 
-          29 -> (v' `xor` 0x800, 0)
-          31 -> (v',             0)
-          __ -> (v',          y'+1)
-      in (v'' .&. complement 0x3E0) .|. (y'' `shiftL` 5)
-
-
-moveToNextPosition :: Word -> Word -> Emulator ()
-moveToNextPosition cycle scanline = do
-  if cycle == 340 
+  vramAddr <- readReg pvtVRamAddr
+  let canIncrementFineY = vramAddr .&. 0x7000 /= 0x7000
+  if canIncrementFineY
   then do
-    emuCycle .= 0
-    if scanline == 261
-    then do
-      frameCount <- readReg emuFrameCount
-      let oddFrame = frameCount `rem` 2 == 1
-      rendering <- isRenderingEnabled
-      when (rendering && oddFrame) $ writeReg emuCycle 1
-      emuScanLine .= 0
-      increment emuFrameCount
-    else
-      increment emuScanLine
-  else 
-    increment emuCycle
+    pvtVRamAddr $= (+0x1000)
+  else do
+    pvtVRamAddr $= (.&. 0x8FFF)
+    let coarseY = (vramAddr .&. 0x3E0) `shiftR` 5
+    case coarseY of
+      29 -> (pvtVRamAddr $= (\addr -> (addr .&. 0xFC1F) `xor` 0x800))
+      31 -> (pvtVRamAddr $= (.&. 0xFC1F))
+      __ -> (pvtVRamAddr $= (+0x20))
+
+
+moveToNextPosition :: Int -> Int -> Emulator ()
+moveToNextPosition cycle scanline = do
+  case cycle of
+    340 -> do
+      emuCycle .= 0
+      case scanline of
+        261 -> do
+          frameCount <- readReg emuFrameCount
+          let oddFrame = frameCount `testBit` 0
+          rendering  <- isRenderingEnabled
+          when (rendering && oddFrame) $ writeReg emuCycle 1 -- skip first cycle on odd frame
+          emuScanLine .= 0
+          increment emuFrameCount
+        ___ -> increment emuScanLine
+    ___ -> increment emuCycle
 
 
 enterVerticalBlank :: Emulator ()
@@ -420,19 +431,19 @@ clock = do
   let
     any = const True; is = (==)
     between a b = liftA2 (&&) (a<=) (<=b)
-    step = (cycle - 1) `rem` 8
+    step = (cycle - 1) .&. 0x7
     vBlank = between 240 260
     drawPixelIfVisible = when (between 1 256 cycle && between 0 239 scanline) drawPixel
-    executeCycle = scanLine step >> drawPixelIfVisible >> shiftRegisters
+    executeCycle = when (between 2 258 cycle && between 321 338 cycle) shiftRegisters >> scanLine step >> drawPixelIfVisible
     phases = [
         --               cyc           scanl
-        (               is 1,         is 261,  exitVerticalBlank                   ),
-        (               is 0,            any,  noop                                ),
-        (             is 256,     not.vBlank,  executeCycle >> incrementVertical   ),
-        (             is 257,     not.vBlank,  transferHorizontal                  ),
-        (               is 1,         is 241,  enterVerticalBlank                  ),
-        (not.between 258 320,     not.vBlank,  executeCycle                        ),
-        (    between 280 304,         is 261,  transferVertical                    )
+        (               is 0,            any,  noop                                        ),
+        (             is 256,     not.vBlank,  executeCycle >> incrementVertical           ),
+        (             is 257,     not.vBlank,  updateShiftregisters >> transferHorizontal  ),
+        (               is 1,         is 241,  enterVerticalBlank                          ),
+        (               is 1,         is 261,  exitVerticalBlank                           ),
+        (not.between 258 320,     not.vBlank,  executeCycle                                ),
+        (    between 280 304,         is 261,  transferVertical                            )
       ]
 
   runPhase cycle scanline $ phases

@@ -44,17 +44,17 @@ library
   ghc-options:       
       -fno-warn-name-shadowing
       -fwarn-unused-imports
-      -O2
-      -fllvm
-      -optlc -O3
-      -funbox-strict-fields
-      -foptimal-applicative-do
-      -fexpose-all-unfoldings
-      -flate-specialise
-      -fcross-module-specialise
-      -fspecialise-aggressively
-      -fstatic-argument-transformation
-      -fstg-cse
+      --O2
+      --fllvm
+      --optlc -O3
+      --funbox-strict-fields
+      --foptimal-applicative-do
+      --fexpose-all-unfoldings
+      --flate-specialise
+      --fcross-module-specialise
+      --fspecialise-aggressively
+      --fstatic-argument-transformation
+      --fstg-cse
   build-depends:
        base >=4.7 && <5
      , monad-loops

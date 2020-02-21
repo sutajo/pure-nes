@@ -42,8 +42,8 @@ runTestWith stepper path romName = do
     PPU.reset
     write 0x6000 0x80
     untilM_ stepper (read 0x6000 <&> (<0x80))
-    sanityNumbers <- forM [0x6001..0x6003] read
-    liftIO $ zipWithM_ (@?=) sanityNumbers [0xDE, 0xB0, 0x61] -- make sure test results are valid
+    sanityCheck <- forM [0x6001..0x6003] read
+    liftIO $ zipWithM_ (@?=) sanityCheck [0xDE, 0xB0, 0x61] -- make sure the test results are valid
     returnCode <- read 0x6000
     msg  <- readNullTerminatedString 0x6004
     liftIO $ assertEqual (msg ++ "\nTest exitcode indicates failure.") 0 returnCode

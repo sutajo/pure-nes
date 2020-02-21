@@ -3,7 +3,6 @@
 module Nes.CPU6502 (
   CPU(..),
   Flag(..),
-  Instruction(..),
   CpuSnapshot(..),
   Register,
   powerUp
@@ -51,19 +50,6 @@ data Flag
   | Overflow
   | Negative 
   deriving (Enum)
-
--- Official instructions
-data Instruction
- = ADC | AND | ASL | BCC | BCS | BEQ | BIT
- | BMI | BNE | BPL | BRK | BVC | BVS | CLC
- | CLD | CLI | CLV | CMP | CPX | CPY | DEC
- | DEX | DEY | EOR | INC | INX | INY | JMP
- | JSR | LDA | LDX | LDY | LSR | NOP | ORA
- | PHA | PHP | PLA | PLP | ROL | ROR | RTI
- | RTS | SBC | SEC | SED | SEI | STA | STX
- | STY | TAX | TAY | TSX | TXA | TXS | TYA
- deriving (Show)
-
 
 data CpuSnapshot = CpuSnapshot {
   a'     ::  Word8, 

@@ -51,14 +51,14 @@ data PPU = PPU {
 
     -- Internal registers used exclusively by the PPU
     pvtDataBuffer     :: Register8,  -- contains the value previously written to any of the ppu registers
-    pvtVRAMAddr       :: Register16,
+    pvtVRamAddr       :: Register16,
     pvtTempAddr       :: Register16,
     pvtAddressLatch   :: Register8,
     pvtFineX          :: Register8,
 
     -- Registers used for emulation
-    emuCycle          :: IORefU Word,
-    emuScanLine       :: IORefU Word,
+    emuCycle          :: IORefU Int,
+    emuScanLine       :: IORefU Int,
     emuFrameCount     :: IORefU Word,
     emuClocks         :: IORefU Word,
     emuLastStatusRead :: IORefU Word,

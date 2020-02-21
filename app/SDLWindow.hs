@@ -141,6 +141,7 @@ releaseResources AppResources{..} = do
 runApp appResources = runEmulator (nes appResources) $ do
   CPU.reset
   PPU.reset
+  emulateFrame
   uncapped $ updateWindow appResources
 
 pollCommands res@AppResources{..} = do
@@ -157,6 +158,15 @@ updateScreen AppResources{..} pixels = liftIO $ do
   copy renderer screen Nothing Nothing
   present renderer
 
+
+stepFrame appResources = do
+  emulateFrame
+  PPU.drawBackground
+  --PPU.drawPatternTable
+  PPU.drawPalette
+  pixels  <- PPU.accessScreen
+  updateScreen appResources pixels
+
 executeCommand :: AppResources -> Command -> Emulator ()
 executeCommand appResources@AppResources{..} command = do
   joys <- liftIO $ readIORef joys
@@ -165,18 +175,17 @@ executeCommand appResources@AppResources{..} command = do
     JoyHatCommand eventData    -> liftIO (manageHatEvent    joys eventData) >>= mapM_ (`processInput` 0)
     JoyDeviceCommand eventData -> liftIO (manageDeviceEvent joys eventData)
     PlayerInput input   -> processInput input 0
-    SwitchEmulationMode -> liftIO $ do
-        modifyIORef' continousMode not
-        continous <- readIORef continousMode 
-        putStrLn ("Switched to " ++ (if continous then "continous" else "step-by-step") ++ " mode.")
-    StepClockCycle      -> 
-      onlyWhen not continousMode $ do
-        emulateFrame
-        PPU.drawBackground
-        PPU.drawPatternTable
-        PPU.drawPalette
+    SwitchEmulationMode -> do
+        stepByStep <- liftIO $ do
+          modifyIORef' continousMode not
+          continous <- readIORef continousMode
+          putStrLn ("Switched to " ++ (if continous then "continous" else "step-by-step") ++ " mode.")
+          return $ not continous
+        --when stepByStep $ stepFrame appResources
         pixels  <- PPU.accessScreen
-        updateScreen appResources pixels
+        liftIO $ VSM.set pixels 0
+    StepClockCycle      -> 
+      onlyWhen not continousMode $ stepFrame appResources
     _ -> pure ()
 
 updateWindow :: AppResources -> NominalDiffTime -> Emulator Bool
@@ -185,7 +194,7 @@ updateWindow appResources@AppResources{..} dt = do
   mapM_ (executeCommand appResources) commands
   onlyWhen id continousMode $ do
     emulateFrame
-    PPU.drawBackground
+    --PPU.drawBackground
     PPU.accessScreen >>= updateScreen appResources 
   return (Quit `elem` commands)
 

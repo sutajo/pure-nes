@@ -13,8 +13,8 @@ import Data.Word
 import Nes.CPU6502
 
 data PPUState = PPUState {
-  cycle    :: Word, 
-  scanline :: Word
+  cycle    :: Int, 
+  scanline :: Int
 } deriving (Eq, Show)
 
 snapshotParser :: Parser (Word8, CpuSnapshot, PPUState)

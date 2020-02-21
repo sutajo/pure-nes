@@ -35,7 +35,7 @@ runTest returnLoc expectedCode path romName = do
   runEmulator nes $ do
     CPU.reset
     PPU.reset
-    replicateM_ 300 emulateFrame
+    replicateM_ 200 emulateFrame
     returnCode <- returnLoc
     liftIO $ expectedCode @=? returnCode
 
@@ -58,11 +58,6 @@ tests =
       testCase "Vbl set time"    $ runVblNmi "02-vbl_set_time.nes",
       testCase "Vbl clear time"  $ runVblNmi "03-vbl_clear_time.nes",
       testCase "Nmi control"     $ runVblNmi "04-nmi_control.nes",
-      --testCase "Nmi timing"      $ runVblNmi "05-nmi_timing.nes",
-      --testCase "Suppression"     $ runVblNmi "06-suppression.nes",
-      --testCase "Nmi on timing"   $ runVblNmi "07-nmi_on_timing.nes",
-      --testCase "Nmi off timing"  $ runVblNmi "08-nmi_off_timing.nes",
       testCase "Even odd frames" $ runVblNmi "09-even_odd_frames.nes"
-      --testCase "Even odd timing" $ runVblNmi "10-even_odd_timing.nes"
     ]
   ]
