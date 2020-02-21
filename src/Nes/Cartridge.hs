@@ -14,7 +14,6 @@ module Nes.Cartridge (
 -- INES format: https://wiki.nesdev.com/w/index.php/INES
 -- https://formats.kaitai.io/ines/index.html 
 
-import           Prelude hiding (assembleCartridge, cpuRead)
 import qualified Data.Vector.Unboxed         as V
 import qualified Data.Vector.Unboxed.Mutable as VM
 import           Data.Char (toUpper)
@@ -24,7 +23,7 @@ import           Data.Word
 import           Data.Binary
 import           Data.Binary.Get
 import           Data.Bits
-import           Data.ByteString      as BS hiding (readFile, assembleCartridge, putStrLn, map, notElem) 
+import           Data.ByteString      as BS hiding (readFile, putStrLn, map, notElem) 
 import qualified Data.ByteString.Lazy as B (readFile, toStrict)
 import           Control.Monad
 import           Control.Applicative()
@@ -56,7 +55,7 @@ iNESloader = do
   [  len_prg_rom , len_chr_rom 
    , flags6      , flags7      
    , len_prg_ram , flags9      
-   , flags10 ] <- header   
+   , _ ] <- header   
   "\NUL\NUL\NUL\NUL\NUL" <- getByteString 5
   let 
     has_trainer = testBit flags6 2
@@ -105,7 +104,7 @@ data Mapper = Mapper {
  ,  ppuWrite   :: Word16 -> Word8 -> IO ()
 }
 
-mappersById :: M.Map Word8 (Bool -> Cartridge -> Mapper)
+mappersById :: M.Map Word8 (Bool -> Cartridge -> IO Mapper)
 mappersById = M.fromList [
     (0, nrom)
   ]
@@ -126,7 +125,8 @@ assembleCartridge INES{..} = do
   let 
     cart = Cartridge{..}
     mapper = dummyMapper
-  pure cart { mapper = (mappersById M.! mapperId) hasChrRam cart }
+  assembledMapper <- (mappersById M.! mapperId) hasChrRam cart
+  pure cart { mapper = assembledMapper }
 
 
 loadCartridge :: FilePath -> IO Cartridge
@@ -144,8 +144,8 @@ ppuWriteCartridge cart = ppuWrite (mapper cart)
 
 -- Mappers
 
-nrom :: Bool -> Cartridge -> Mapper
-nrom hasChrRam Cartridge{..} = Mapper{..}
+nrom :: Bool -> Cartridge -> IO Mapper
+nrom hasChrRam Cartridge{..} = pure Mapper{..}
  where 
   prg_ram_size = VM.length prg_ram
   mirrored  addr = fromIntegral $ (addr - 0x8000) `rem` 0x4000

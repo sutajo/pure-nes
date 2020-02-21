@@ -60,9 +60,8 @@ powerUpNes cart =
     pure cart   <*>
     VM.replicate 2 Controls.powerUp
 
-newtype Emulator a = Emulator { 
-    unEmulator :: ReaderT Nes IO a 
-} deriving (Functor, Applicative, Monad, MonadIO, MonadReader Nes, MonadFail)
+newtype Emulator a = Emulator (ReaderT Nes IO a) 
+  deriving (Functor, Applicative, Monad, MonadIO, MonadReader Nes, MonadFail)
 
 
 runEmulator :: Nes -> Emulator a -> IO a

@@ -49,9 +49,6 @@ processInput input = case input of
   Press   btn -> press btn
   Release btn -> release btn
 
-isPressed :: Button -> Controller -> Bool
-isPressed btn Controller {activeButtons = btns} = btns `testBit` fromEnum btn
-
 powerUp :: Controller
 powerUp =
   let 

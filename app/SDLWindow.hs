@@ -141,7 +141,6 @@ releaseResources AppResources{..} = do
 runApp appResources = runEmulator (nes appResources) $ do
   CPU.reset
   PPU.reset
-  emulateFrame
   uncapped $ updateWindow appResources
 
 pollCommands res@AppResources{..} = do
@@ -181,7 +180,7 @@ executeCommand appResources@AppResources{..} command = do
           continous <- readIORef continousMode
           putStrLn ("Switched to " ++ (if continous then "continous" else "step-by-step") ++ " mode.")
           return $ not continous
-        --when stepByStep $ stepFrame appResources
+        when stepByStep $ stepFrame appResources
         pixels  <- PPU.accessScreen
         liftIO $ VSM.set pixels 0
     StepClockCycle      -> 
