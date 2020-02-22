@@ -568,8 +568,8 @@ absoluteYP = absoluteGen (readReg y) BoundaryCross
 indirect :: Emulator Word16
 indirect = (readReg pc >>= readAddressWithBug) <* modifyReg pc (+2)
 
-readAddress' :: Word8 -> Emulator Word16
-readAddress' x = liftA2 word8toWord16 (read (fromIntegral $ x .&. 0xFF)) $ read (fromIntegral $ (x+1) .&. 0xFF)
+readZeroPageAddress :: Word16 -> Emulator Word16
+readZeroPageAddress x = liftA2 word8toWord16 (read x) $ read ((x+1) .&. 0xFF)
 
 indirectX :: Emulator Word16
 indirectX = do
@@ -577,12 +577,12 @@ indirectX = do
   modifyReg pc (+1)
   x <- readReg x
   let abs = addr + x
-  readAddress' abs
+  readZeroPageAddress $ fromIntegral abs
 
 indirectYGen :: Penalty -> Emulator Word16
 indirectYGen penalty = do
   yreg  <- readReg y
-  addr  <- fetch >>= readAddress'
+  addr  <- fetch >>= readZeroPageAddress . fromIntegral
   modifyReg pc (+1)
   let result = addr + fromIntegral yreg
   addPenaltyCycles (addr `onDifferentPage` result) penalty

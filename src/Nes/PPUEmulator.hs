@@ -104,25 +104,27 @@ advanceVRAMAddress = do
   pvtVRamAddr $= (+ if ppuCtrl `testBit` 2 then 32 else 1)
 
 getFrameCount = readReg emuFrameCount
+getCoarsePosition = readReg pvtVRamAddr <&> (\v -> (v .&. 0x1F, (v `shiftR` 5) .&. 0x1F)) 
 
 clearVblAfterStatusRead :: Emulator ()
 clearVblAfterStatusRead = do
   ppuStatus $= (`clearBit` 7)
   transfer emuClocks emuLastStatusRead
 
+debugging :: Bool
+debugging = False
+
 withInfo :: IO () -> Emulator ()
-withInfo action = pure () {-do
-  pattLo <- readReg emuPattShifterLo  
-  pattHi <- readReg emuPattShifterHi
+withInfo action = when debugging $ do
+  vramAddr <- readReg pvtVRamAddr
   attrLo <- readReg emuAttrShifterLo
   attrHi <- readReg emuAttrShifterHi
   nextAT <- readReg emuNextAT
-  nextNT <- readReg emuNextNT
   cycle    <- readReg emuCycle
   scanLine <- readReg emuScanLine
   liftIO $ do
-    putStr $ show (cycle, scanLine) ++ printf " - NextNT: 0x%X NextAT: %x PattHi: %b PattLo: %b AttrHi: %b AttrLo: %b" nextNT nextAT pattHi pattLo attrHi attrLo ++ " -> "
-    action-}
+    putStr $ show (cycle, scanLine) ++ printf " - V: 0x%X" vramAddr ++ " -> "
+    action
 
 cpuReadRegister :: Word16 -> Emulator Word8
 cpuReadRegister addr = 
@@ -168,12 +170,12 @@ cpuWriteRegister addr val = let val16 = fromIntegral val in case addr of
   0x2005 -> do
     latch <- readReg pvtAddressLatch
     case latch of
-      0 -> do 
+      0 -> do
         pvtFineX    .=  val .&. 0x7
         pvtTempAddr $= \reg -> reg .&. 0x7FE0 .|. val16 `shiftR` 3
       _ -> do
         pvtTempAddr $= 
-          \reg -> reg .&. 0xC1F .|. (val16 .&. 0x7) `shiftL` 12 .|. val16 `shiftR` 3
+          \reg -> reg .&. 0xC1F .|. (val16 .&. 0x7) `shiftL` 12 .|. (val16 `shiftR` 3) `shiftL` 5
     pvtAddressLatch $= complement
 
   0x2006 -> do
@@ -295,8 +297,6 @@ drawBackgroundPixel = do
     let palette = fromIntegral $ getFirstBit16 paletteHi `shiftL` 1 .|. getFirstBit16 paletteLo
     cycle    <- readReg emuCycle
     scanLine <- readReg emuScanLine
-    vramAddr <- readReg pvtVRamAddr
-    withInfo $ putStrLn $ show ((vramAddr .&. 0x1F, (vramAddr `shiftR` 5) .&. 0x1F), pixel, palette)
     getColor palette pixel >>= setPixel (cycle - 1) scanLine
 
 
@@ -320,31 +320,26 @@ updateShiftregisters = do
 
 shiftRegisters :: Emulator ()
 shiftRegisters = do
-  withInfo $ putStrLn "Shifting"
-  do
-    forM_ [
-        emuPattShifterLo,
-        emuPattShifterHi
-      ] $ (`modifyReg` (`shiftL` 1))
-    forM_ [
-        emuAttrShifterLo,
-        emuAttrShifterHi
-      ] $ (`modifyReg` (`shiftL` 1))
+  forM_ [
+      emuPattShifterLo,
+      emuPattShifterHi
+    ] $ (`modifyReg` (`shiftL` 1))
+  forM_ [
+      emuAttrShifterLo,
+      emuAttrShifterHi
+    ] $ (`modifyReg` (`shiftL` 1))
 
 scanLine :: Int -> Emulator ()
 scanLine step = case step of
   0 -> do
     updateShiftregisters
     v <- readReg pvtVRamAddr
-    nt <- read (0x2000 .|. v .&. 0xFFF)
-    writeReg emuNextNT nt
-    withInfo $ putStrLn $ "Read nametable byte: 0x" ++ printf "%x" nt
+    read (0x2000 .|. v .&. 0xFFF) >>= writeReg emuNextNT
   2 -> do
-    v <- readReg pvtVRamAddr
-    let coarseX = v .&. 0x1F
-    let coarseY = (v `shiftR` 5) .&. 0x1F
-    attributeGroup <- read (0x2C30 .|. (v .&. 0x0C00) .|. ((coarseY `shiftR` 2) `shiftL` 3) .|. coarseX `shiftR` 2)
-    let attr = attributeGroup `shiftR` (fromIntegral $ ((coarseY .&. 0b10) `shiftL` 1 + coarseX .&. 0b10))
+    v                  <- readReg pvtVRamAddr
+    (coarseX, coarseY) <- getCoarsePosition
+    attributeGroup <- read (0x23C0 .|. (v .&. 0xC00) .|. (coarseY .&. 0x1C) `shiftL` 1 .|. coarseX `shiftR` 2)
+    let attr = attributeGroup `shiftR` (fromIntegral $ ((coarseY .&. 0b10) `shiftL` 1 .|. coarseX .&. 0b10))
     emuNextAT .= attr .&. 0b11
   4 -> do
     patternOffset <- readReg ppuCtrl   <&> \ctrl -> if ctrl `testBit` 4 then 0x1000 else 0
@@ -377,37 +372,31 @@ transferVertical = whenRendering $ do
   transferTempWithMask verticalMask
 
 transferHorizontal :: Emulator ()
-transferHorizontal = do
-  withInfo $ putStrLn "TransferHorizontal"
-  whenRendering $ do
-    transferTempWithMask (complement verticalMask)
+transferHorizontal = whenRendering $ do
+  transferTempWithMask (complement verticalMask)
 
 incrementHorizontal :: Emulator ()
-incrementHorizontal = do
-  withInfo $ putStrLn "IncrementHori" 
-  whenRendering $ do
-    coarseXwraps <- readReg pvtVRamAddr <&> ((31 ==) . (0x1F .&.))
-    pvtVRamAddr $=
-      if coarseXwraps
-      then (\v -> (v .&. 0x7FE0) `xor` 0x400)
-      else (+1)
+incrementHorizontal = whenRendering $ do
+  coarseXwraps <- readReg pvtVRamAddr <&> (\reg -> (reg .&. 0x1F) == 0x1F)
+  pvtVRamAddr $=
+    if coarseXwraps
+    then (\v -> (v .&. 0x7FE0) `xor` 0x400)
+    else (+1)
 
 incrementVertical :: Emulator ()
-incrementVertical = do
-  withInfo $ putStrLn "IncrementVert"
-  whenRendering $ do
-    vramAddr <- readReg pvtVRamAddr
-    let canIncrementFineY = vramAddr .&. 0x7000 /= 0x7000
-    if canIncrementFineY
-    then do
-      pvtVRamAddr $= (+0x1000)
-    else do
-      pvtVRamAddr $= (.&. 0x8FFF)
-      let coarseY = (vramAddr .&. 0x3E0) `shiftR` 5
-      case coarseY of
-        29 -> (pvtVRamAddr $= (\addr -> (addr .&. 0xFC1F) `xor` 0x800))
-        31 -> (pvtVRamAddr $= (.&. 0xFC1F))
-        __ -> (pvtVRamAddr $= (+0x20))
+incrementVertical = whenRendering $ do
+  vramAddr <- readReg pvtVRamAddr
+  let canIncrementFineY = vramAddr .&. 0x7000 /= 0x7000
+  if canIncrementFineY
+  then do
+    pvtVRamAddr $= (+0x1000)
+  else do
+    pvtVRamAddr $= (.&. 0x8FFF)
+    let coarseY = (vramAddr .&. 0x3E0) `shiftR` 5
+    case coarseY of
+      29 -> (pvtVRamAddr $= (\addr -> (addr .&. 0xFC1F) `xor` 0x800))
+      31 -> (pvtVRamAddr $= (.&. 0xFC1F))
+      __ -> (pvtVRamAddr $= (+0x20))
 
 
 moveToNextPosition :: Int -> Int -> Emulator ()
@@ -448,7 +437,7 @@ exitVerticalBlank = do
 reset :: Emulator ()
 reset = do
   writeReg emuCycle      0
-  writeReg emuScanLine   0
+  writeReg emuScanLine   261
   writeReg emuPattShifterHi 1
 
 
@@ -463,17 +452,23 @@ clock = do
     step = (cycle - 1) .&. 0x7
     vBlank = between 240 260
     drawPixelIfVisible = when (between 1 256 cycle && between 0 239 scanline) drawPixel
-    executeCycle = drawPixelIfVisible >> scanLine step >> when (between 2 258 cycle || between 321 338 cycle) shiftRegisters
+    executeCycle = do
+      when (between 2 258 cycle || between 321 337 cycle) shiftRegisters
+      scanLine step
+      drawPixelIfVisible
     phases = [
         --               cyc           scanl
         (               is 0,            any,  noop                                        ),
         (             is 256,     not.vBlank,  executeCycle >> incrementVertical           ),
-        (             is 257,     not.vBlank,  updateShiftregisters >> transferHorizontal  ),
+        (             is 257,     not.vBlank,  transferHorizontal                          ),
         (               is 1,         is 241,  enterVerticalBlank                          ),
         (               is 1,         is 261,  exitVerticalBlank                           ),
         (not.between 258 320,     not.vBlank,  executeCycle                                ),
         (    between 280 304,         is 261,  transferVertical                            )
       ]
+
+  pos <- getCoarsePosition
+  withInfo $ print pos
 
   runPhase cycle scanline $ phases
   moveToNextPosition cycle scanline

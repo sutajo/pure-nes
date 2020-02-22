@@ -158,14 +158,6 @@ updateScreen AppResources{..} pixels = liftIO $ do
   present renderer
 
 
-stepFrame appResources = do
-  emulateFrame
-  PPU.drawBackground
-  --PPU.drawPatternTable
-  PPU.drawPalette
-  pixels  <- PPU.accessScreen
-  updateScreen appResources pixels
-
 executeCommand :: AppResources -> Command -> Emulator ()
 executeCommand appResources@AppResources{..} command = do
   joys <- liftIO $ readIORef joys
@@ -180,11 +172,20 @@ executeCommand appResources@AppResources{..} command = do
           continous <- readIORef continousMode
           putStrLn ("Switched to " ++ (if continous then "continous" else "step-by-step") ++ " mode.")
           return $ not continous
-        when stepByStep $ stepFrame appResources
         pixels  <- PPU.accessScreen
         liftIO $ VSM.set pixels 0
-    StepClockCycle      -> 
-      onlyWhen not continousMode $ stepFrame appResources
+    StepClockCycle -> 
+      onlyWhen not continousMode $ do
+        clocks
+        PPU.drawPalette
+        pixels  <- PPU.accessScreen
+        updateScreen appResources pixels
+    StepOneFrame ->
+      onlyWhen not continousMode $ do
+        emulateFrame
+        PPU.drawBackground
+        pixels  <- PPU.accessScreen
+        updateScreen appResources pixels
     _ -> pure ()
 
 updateWindow :: AppResources -> NominalDiffTime -> Emulator Bool
@@ -194,7 +195,7 @@ updateWindow appResources@AppResources{..} dt = do
   onlyWhen id continousMode $ do
     emulateFrame
     --PPU.drawBackground
-    PPU.accessScreen >>= updateScreen appResources 
+    PPU.accessScreen >>= updateScreen appResources
   return (Quit `elem` commands)
 
     
