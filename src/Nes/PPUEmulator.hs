@@ -99,6 +99,9 @@ setFlag reg val = reg .= (toEnum.fromEnum $ val)
 increment :: (Prim a, Num a) => (PPU -> IORefU a) -> Emulator ()
 increment = (`modifyReg` (+1))
 
+between :: Ord a => a -> a -> a -> Bool
+between a b = liftA2 (&&) (a<=) (<=b)
+
 advanceVRAMAddress = do
   ppuCtrl <- readReg ppuCtrl
   pvtVRamAddr $= (+ if ppuCtrl `testBit` 2 then 32 else 1)
@@ -322,9 +325,7 @@ shiftRegisters :: Emulator ()
 shiftRegisters = do
   forM_ [
       emuPattShifterLo,
-      emuPattShifterHi
-    ] $ (`modifyReg` (`shiftL` 1))
-  forM_ [
+      emuPattShifterHi,
       emuAttrShifterLo,
       emuAttrShifterHi
     ] $ (`modifyReg` (`shiftL` 1))
@@ -448,7 +449,6 @@ clock = do
 
   let
     any = const True; is = (==)
-    between a b = liftA2 (&&) (a<=) (<=b)
     step = (cycle - 1) .&. 0x7
     vBlank = between 240 260
     drawPixelIfVisible = when (between 1 256 cycle && between 0 239 scanline) drawPixel

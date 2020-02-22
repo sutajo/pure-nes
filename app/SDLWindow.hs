@@ -194,7 +194,6 @@ updateWindow appResources@AppResources{..} dt = do
   mapM_ (executeCommand appResources) commands
   onlyWhen id continousMode $ do
     emulateFrame
-    --PPU.drawBackground
     PPU.accessScreen >>= updateScreen appResources
   return (Quit `elem` commands)
 
