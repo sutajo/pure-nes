@@ -16,6 +16,8 @@ data Event
   | SDLWindowClosed
   | ErrorReport String
   | SwitchMode
+  | SaveButtonPressed
+  | LoadButtonPressed
 
 data ParentMessage 
   = Stop

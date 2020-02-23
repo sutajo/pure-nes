@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedLabels, OverloadedLists, OverloadedStrings, FlexibleContexts, NamedFieldPuns, TemplateHaskell #-}
+{-# LANGUAGE OverloadedLabels, OverloadedLists, OverloadedStrings, FlexibleContexts, NamedFieldPuns, TemplateHaskell, QuasiQuotes #-}
 
 module Main where
 
@@ -6,7 +6,11 @@ import           Control.Monad
 import           Control.Monad.IO.Class
 import           Control.Concurrent       hiding (yield)
 import           Control.Concurrent.STM
+import           Data.Char (toUpper)
 import           Data.Time
+import           Data.List (intercalate)
+import qualified Data.Vector as V
+import           Data.Version
 import           Language.Haskell.TH
 import           Data.Text (Text)
 import qualified Data.Text                     as Text
@@ -16,12 +20,16 @@ import           GI.Gtk                         ( Box(..)
                                                 , Label(..)
                                                 , Orientation(..)
                                                 , Window(..)
+                                                , FileChooserAction(..)
+                                                , FileChooserWidget(..)
                                                 , fileChooserGetFilename
                                                 )
 import           GI.Gtk.Enums
 import           GI.Gtk.Declarative
 import           GI.Gtk.Objects.Image(Image(..))
 import           GI.Gtk.Declarative.App.Simple as DAS
+import           System.Info
+import           Text.RawString.QQ
 import           Communication
 import           Pipes
 import           System.FilePath.Posix
@@ -42,6 +50,7 @@ view' threadCount s = do
       [ #title := title
       , on #deleteEvent (const (True, Closed))
       , #heightRequest := 700
+      , #widthRequest := 400
       ]
     $ windowContent s
   where
@@ -69,17 +78,34 @@ view' threadCount s = do
               ]
           , BoxChild defaultBoxChildProperties { padding = 15 } $ 
               widget Image [ #file := "resources/GUI/save.png"]
-          , BoxChild defaultBoxChildProperties { padding = 15 } $ 
-              widget Button
-              [ 
-                #label := "Save progress"
+          , BoxChild defaultBoxChildProperties $
+              container Box [#orientation := OrientationHorizontal, #valign := AlignCenter, #marginTop := 15, #marginBottom := 15] $
+              [
+                BoxChild defaultBoxChildProperties $
+                  widget Button
+                  [ 
+                    #label := "Save progress",
+                    #marginLeft  := 5,
+                    #marginRight := 10
+                  ]
+              , BoxChild defaultBoxChildProperties $ 
+                widget FileChooserButton
+                [#action := FileChooserActionSelectFolder, #expand := True, #createFolders := True]
               ]
           , BoxChild defaultBoxChildProperties { padding = 15 } $ 
               widget Image [ #file := "resources/GUI/reload.png"]
-          , BoxChild defaultBoxChildProperties { padding = 15 } $ 
-              widget Button
-              [ 
-                #label := "Load progress"
+          , BoxChild defaultBoxChildProperties {fill = True} $
+              container Box [#orientation := OrientationVertical, #valign := AlignCenter, #marginTop := 15, #marginBottom := 15] $
+              [
+                BoxChild defaultBoxChildProperties $
+                  widget Label
+                  [ 
+                    #label := [r|<span size="larger" font_family="cursive">Load progress</span>|],
+                    #useMarkup := True,
+                    #marginBottom := 5
+                  ]
+              , BoxChild defaultBoxChildProperties {fill = True} $ 
+                widget FileChooserButton [#action := FileChooserActionOpen, #expand := True]
               ]
           , BoxChild defaultBoxChildProperties { padding = 15 } $ 
               widget Image [ #file := "resources/GUI/back2.png"]
@@ -95,13 +121,18 @@ view' threadCount s = do
           [#orientation := OrientationVertical, #valign := AlignCenter]
           [ 
             BoxChild defaultBoxChildProperties { padding = 10 } $ 
-              widget Image [#file := "resources/GUI/logo2.png", #marginBottom := 30, #halign := AlignCenter]
+              widget Image [#file := "resources/GUI/logo2.png", #marginTop := 30, #marginBottom := 25, #halign := AlignCenter]
           , BoxChild defaultBoxChildProperties { padding = 15 } $ 
               widget Label
               [#label := maybe "Please select the ROM you wish to run." ((Text.append "...") . Text.takeEnd 30 . Text.pack) currentFile]
           , BoxChild defaultBoxChildProperties { padding = 10 } $ 
               widget FileChooserButton
-              [ onM #selectionChanged (fmap FileSelectionChanged . fileChooserGetFilename)]
+              [ 
+                onM #selectionChanged (fmap FileSelectionChanged . fileChooserGetFilename),
+                #marginLeft  := 20,
+                #marginRight := 20,
+                #title := "Please select the ROM you wish to run."
+              ]
           , container Box
             [#orientation := OrientationHorizontal, #halign := AlignCenter, #margin := 10 ]
             [
@@ -126,13 +157,21 @@ view' threadCount s = do
                 #marginTop := 40,
                 #label := ("Available OS threads: " `Text.append` (Text.pack (show threadCount)))
               ]
-          , BoxChild defaultBoxChildProperties $ 
-              widget Label
-              [
-                #label := Text.append "Compilation date: " $(stringE =<< runIO ((show . utctDay) `fmap` getCurrentTime)),
-                #marginLeft := 90,
-                #marginTop  := 40
-              ]
+          , container Box
+            [#orientation := OrientationVertical, #halign := AlignEnd, #marginRight := 10, #marginTop := 70, #marginBottom := 10 ]
+            [
+              BoxChild defaultBoxChildProperties $ 
+                widget Label
+                [
+                  #label := Text.append "Compiler: " 
+                    (Text.pack $ map toUpper compilerName ++ " " ++ intercalate "." (map show . versionBranch $ compilerVersion))
+                ]
+            , BoxChild defaultBoxChildProperties $ 
+                widget Label
+                [
+                  #label := Text.append "Compilation date: " $(stringE =<< runIO ((show . utctDay) `fmap` getCurrentTime))
+                ]
+            ]
           ]
 
 launchEmulator :: FilePath -> CommResources -> IO ()

@@ -271,7 +271,6 @@ drawBackground = do
             x = fromIntegral (coarsex*8 + (7 - col))
             y = fromIntegral (coarsey*8 + row)
           color <- getColor attr pixel
-          --liftIO $ putStrLn $ show (x,y) ++ " -> " ++ show (coarsex, coarsey, col, row, val, pixel, attr)
           setPixel x y color
 
 drawPatternTable = do
@@ -321,8 +320,10 @@ drawSprites = do
           c = fromIntegral col
           get a i = fromEnum $ a `testBit` i 
           pixel = fromIntegral $ ((tile_msb `get` c) `shiftL` 1) .|. (tile_lsb `get` c)
-        color <- getColor (attr .&. 0b11) pixel
-        when (between 0 239 y && not (attr `testBit` 5)) $ setPixel (fromIntegral $ x + (7 - col)) (fromIntegral $ y + 1 + row) color
+        color <- getColor ((attr .&. 0b11) + 4) pixel
+        let fineX = if attr `testBit` 6 then col else 7-col
+        let fineY = if attr `testBit` 7 then 8-row else 1+row
+        when (between 0 239 y && not (attr `testBit` 5)) $ setPixel (fromIntegral $ x + fineX) (fromIntegral $ y + fineY) color
     
 
 
