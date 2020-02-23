@@ -15,9 +15,11 @@ data Event
   | CloseEmulator
   | SDLWindowClosed
   | ErrorReport String
+  | SwitchMode
 
 data ParentMessage 
   = Stop
+  | Switch
   | TraceRequest
 
 data CommResources = CommResources {

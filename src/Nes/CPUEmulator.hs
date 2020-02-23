@@ -122,6 +122,7 @@ write :: Word16 -> Word8 -> Emulator ()
 write addr val
   | addr <= 0x1FFF = writeRAM (addr `rem` 0x800) val
   | addr <= 0x3FFF = PPUE.cpuWriteRegister (0x2000 + addr `rem` 0x8) val
+  | addr == 0x4014 = oamDma val
   | addr <= 0x4015 = writeAPU addr val
   | addr == 0x4016 = forM_ [0..1] (writeController val) -- writing to 0x4016 polls both controllers
   | addr == 0x4017 = pure ()
@@ -847,6 +848,15 @@ processInterrupt = do
   processInterruptTimer nmiTimer nmi
   processInterruptTimer irqTimer irq
   setFlag Unused True
+
+oamDma :: Word8 -> Emulator ()
+oamDma pageId = do
+  let (baseAddr :: Word16) = fromIntegral pageId `shiftL` 8
+  (oamOffset :: Word16) <- PPUE.getOamAddr <&> fromIntegral
+  let copyByte source dest = read source >>= PPUE.writeOam (fromIntegral dest)
+  zipWithM_ copyByte [baseAddr..baseAddr+0xFF] [oamOffset..oamOffset+0xFF]
+  cycles <- readReg cyc <&> fromIntegral
+  cycle (513 + cycles .&. 0x1)
 
 getSnapshot :: Emulator CpuSnapshot
 getSnapshot = 

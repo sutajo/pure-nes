@@ -29,7 +29,7 @@ import           SDLWindow
 
 data State = Started (Maybe FilePath)
            | Message Text
-           | Emulating Text
+           | Emulating { romName :: Text, running :: Bool }
 
 view' :: Int -> State -> AppView Window Event
 view' threadCount s = do
@@ -55,16 +55,17 @@ view' threadCount s = do
           , BoxChild defaultBoxChildProperties { padding = 15 } $ 
               widget Button [#label := "Ok", on #clicked MessageAck]
           ]
-        Emulating romName ->
+        Emulating romName running ->
           container Box
           [#orientation := OrientationVertical, #valign := AlignCenter, #margin := 10 ]
           [
             BoxChild defaultBoxChildProperties { padding = 15 } $ 
-              widget Image [ #file := "resources/GUI/pause.png"]
+              widget Image [ #file := Text.append "resources/GUI/" (if running then "pause.png" else "play.png")]
           , BoxChild defaultBoxChildProperties { padding = 15 } $ 
               widget Button
               [ 
-                #label := Text.append "Pause " romName
+                #label := Text.append (if running then "Pause " else "Resume ") romName,
+                on #clicked SwitchMode
               ]
           , BoxChild defaultBoxChildProperties { padding = 15 } $ 
               widget Image [ #file := "resources/GUI/save.png"]
@@ -128,8 +129,8 @@ view' threadCount s = do
           , BoxChild defaultBoxChildProperties $ 
               widget Label
               [
-                #label := Text.append "Compiled at " $(stringE =<< runIO ((show . utctDay) `fmap` getCurrentTime)),
-                #marginLeft := 110,
+                #label := Text.append "Compilation date: " $(stringE =<< runIO ((show . utctDay) `fmap` getCurrentTime)),
+                #marginLeft := 90,
                 #marginTop  := 40
               ]
           ]
@@ -143,16 +144,31 @@ launchEmulator path comms = do
 update :: CommResources -> State -> Event -> Transition State Event
 update _ (Started _) (FileSelectionChanged p) 
   = Transition (Started p) (return Nothing)
-update _  _ Closed = Exit
+
+update _  _ Closed 
+  = Exit
+
 update comms s@(Started (Just path)) StartEmulator 
-  = Transition (Emulating . Text.pack . dropExtension . takeFileName $ path) (just $ launchEmulator path comms)
+  = Transition (Emulating (Text.pack . dropExtension . takeFileName $ path) True) (just $ launchEmulator path comms)
+
 update _ s@(Started Nothing) StartEmulator
   = Transition (Message "No ROM selected.") noop
-update _ (Message _) MessageAck = Transition (Started Nothing) noop
-update comms (Emulating _) CloseEmulator 
+
+update _ (Message _) MessageAck 
+  = Transition (Started Nothing) noop
+
+update comms (Emulating _ _) CloseEmulator 
   = Transition (Started Nothing) (just . atomically $ writeTChan (toSDLWindow comms) Stop)
-update _ (Emulating _) SDLWindowClosed = Transition (Started Nothing) noop
-update _ _ (ErrorReport msg) = Transition (Message $ Text.pack msg) noop
+
+update CommResources{..} (Emulating rom running) SwitchMode
+  = Transition (Emulating rom (not running)) (just . atomically $ writeTChan toSDLWindow Communication.Switch)
+
+update _ (Emulating _ _) SDLWindowClosed 
+  = Transition (Started Nothing) noop
+
+update _ _ (ErrorReport msg) 
+  = Transition (Message $ Text.pack msg) noop
+
 update _ s _ = Transition s noop
 
 noop = pure Nothing

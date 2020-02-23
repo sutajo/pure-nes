@@ -9,9 +9,12 @@ module Nes.PPUEmulator (
   drawPatternTable,
   drawPalette,
   drawBackground,
+  drawSprites,
   getFrameCount,
   read,
   readReg,
+  getOamAddr,
+  writeOam
 ) where
 
 import           Control.Applicative
@@ -68,6 +71,14 @@ writePaletteIndices = usePaletteIndices (writePPUComponent paletteIndices)
 
 readNametable       = readPPUComponent  nametable
 writeNametable      = writePPUComponent nametable
+
+readOam :: Word8 -> Emulator Word8
+readOam  = readPPUComponent oam
+
+writeOam :: Word8 -> Word8 -> Emulator ()
+writeOam = writePPUComponent oam
+
+getOamAddr = readReg ppuOamAddr
 
 readReg :: Prim a => (PPU -> IORefU a) -> Emulator a
 readReg = usePPU readIORefU
@@ -137,6 +148,7 @@ cpuReadRegister addr =
       clearVblAfterStatusRead
       pvtAddressLatch .= 0
       return result
+    readOamData = readReg ppuOamAddr >>= readOam
     readDataReg = do
       vramAddr  <- readReg pvtVRamAddr
       let paletteRead = vramAddr >= 0x3F00
@@ -150,6 +162,7 @@ cpuReadRegister addr =
       return result
   in case addr of
     0x2002 -> readStatusReg
+    0x2004 -> readOamData
     0x2007 -> readDataReg
     ______ -> pure 0
 
@@ -169,6 +182,12 @@ cpuWriteRegister addr val = let val16 = fromIntegral val in case addr of
     pvtTempAddr $= \reg -> (reg .&. 0x73FF) .|. ((val16 .&. 3) `shiftL` 10)
 
   0x2001 -> ppuMask .= val
+
+  0x2003 -> ppuOamAddr .= val
+
+  0x2004 -> do
+    readReg ppuOamAddr >>= (`writeOam` val)
+    increment ppuOamAddr
 
   0x2005 -> do
     latch <- readReg pvtAddressLatch
@@ -270,7 +289,7 @@ drawPatternTable = do
             let 
               c = fromIntegral col
               get a i = fromEnum $ a `testBit` i 
-            let pixel = fromIntegral $ ((tile_msb `get` c) `shiftL` 1) .|. (tile_lsb `get` c)
+              pixel = fromIntegral $ ((tile_msb `get` c) `shiftL` 1) .|. (tile_lsb `get` c)
             color <- getColor 0 pixel
             setPixel (fromIntegral patterntab * 128 + fromIntegral(x*8 + (7 - col))) (58 + fromIntegral(y*8 + row)) color
 
@@ -283,6 +302,28 @@ drawPalette = do
         forM_ [0..4] $ \j -> do
           color <- getColor (fromIntegral palette) (fromIntegral pixel)
           setPixel (palette * 25 + pixel*5 + i) (234 + j) color
+
+drawSprites = do
+  ctrl <- readReg ppuCtrl
+  let basePattAddr = if ctrl `testBit` 3 then 0x1000 else 0x0
+  forM_ [0x0,0x4..0xFC] $ \i -> do
+    y         <- readOam i
+    tileIndex <- readOam (i+1)
+    let pattOffset = fromIntegral tileIndex*16
+    attr      <- readOam (i+2)
+    x         <- readOam (i+3)
+    forM_ [0..7] $ \row -> do
+      forM_ [0..7] $ \col -> do
+        let (row16 :: Word16) = fromIntegral row
+        tile_lsb <- read (basePattAddr+pattOffset+row16)
+        tile_msb <- read (basePattAddr+pattOffset+row16+8)
+        let 
+          c = fromIntegral col
+          get a i = fromEnum $ a `testBit` i 
+          pixel = fromIntegral $ ((tile_msb `get` c) `shiftL` 1) .|. (tile_lsb `get` c)
+        color <- getColor (attr .&. 0b11) pixel
+        when (between 0 239 y) $ setPixel (fromIntegral $ x + (7 - col)) (fromIntegral $ y + row) color
+    
 
 
 drawBackgroundPixel :: Emulator ()
@@ -452,6 +493,7 @@ clock = do
     step = (cycle - 1) .&. 0x7
     vBlank = between 240 260
     drawPixelIfVisible = when (between 1 256 cycle && between 0 239 scanline) drawPixel
+    resetOamAddr = ppuOamAddr .= 0
     executeCycle = do
       when (between 2 258 cycle || between 321 337 cycle) shiftRegisters
       scanLine step
@@ -460,15 +502,15 @@ clock = do
         --               cyc           scanl
         (               is 0,            any,  noop                                        ),
         (             is 256,     not.vBlank,  executeCycle >> incrementVertical           ),
-        (             is 257,     not.vBlank,  transferHorizontal                          ),
+        (             is 257,     not.vBlank,  transferHorizontal >> resetOamAddr          ),
         (               is 1,         is 241,  enterVerticalBlank                          ),
         (               is 1,         is 261,  exitVerticalBlank                           ),
         (not.between 258 320,     not.vBlank,  executeCycle                                ),
-        (    between 280 304,         is 261,  transferVertical                            )
+        (    between 280 304,         is 261,  transferVertical >> resetOamAddr            ),
+        (    between 258 320,     not.vBlank,  resetOamAddr                                )
       ]
 
   pos <- getCoarsePosition
-  withInfo $ print pos
 
   runPhase cycle scanline $ phases
   moveToNextPosition cycle scanline

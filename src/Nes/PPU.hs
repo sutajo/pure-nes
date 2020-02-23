@@ -40,17 +40,20 @@ data PPU = PPU {
     screen          :: VSM.IOVector Word8,
     nametable       :: VUM.IOVector Word8,
     paletteIndices  :: VUM.IOVector Word8,
+    oam             :: VUM.IOVector Word8,
 
     -- Registers visible to the CPU
     ppuCtrl           :: Register8,
     ppuMask           :: Register8,
     ppuStatus         :: Register8,
+    ppuOamAddr        :: Register8,
+    ppuOamData        :: Register8,
     ppuScroll         :: Register8,
     ppuAddr           :: Register8,
     ppuData           :: Register8,
 
     -- Internal registers used exclusively by the PPU
-    pvtDataBuffer     :: Register8,  -- contains the value previously written to any of the ppu registers
+    pvtDataBuffer     :: Register8,
     pvtVRamAddr       :: Register16,
     pvtTempAddr       :: Register16,
     pvtAddressLatch   :: Register8,
@@ -64,8 +67,8 @@ data PPU = PPU {
     emuLastStatusRead :: IORefU Word,
     emuNmiPending     :: Register8,
     emuNmiOccured     :: Register8,
-    emuNextNT         :: Register8,  -- nametable entry id for next 8 pixels in scanline
-    emuNextAT         :: Register8,  -- attribute table entry id for next 8 pixels in scanline
+    emuNextNT         :: Register8,
+    emuNextAT         :: Register8,
     emuNextLSB        :: Register8,
     emuNextMSB        :: Register8,
     emuPattShifterLo  :: Register16,
@@ -99,6 +102,9 @@ powerUp mirroring =
     VSM.replicate (256*240*3) 0     <*>
     VUM.new (2 * 0x400)             <*>
     VUM.new 0x20                    <*>
+    VUM.new 256                     <*>
+    newIORefU 0                     <*>
+    newIORefU 0                     <*>
     newIORefU 0                     <*>
     newIORefU 0                     <*>
     newIORefU 0                     <*>

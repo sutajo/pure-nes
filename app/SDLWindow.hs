@@ -17,7 +17,7 @@ import           Data.IORef
 import           Data.Time
 import           SDL
 import           Foreign hiding (void)
-import           Communication
+import           Communication as Comms
 import           JoyControls
 import           Nes.Cartridge
 import           Nes.EmulatorMonad
@@ -78,6 +78,7 @@ translateSDLEvent _ = Nothing
 
 translateParentMessage :: ParentMessage -> [Command]
 translateParentMessage Stop = [Quit]
+translateParentMessage Comms.Switch = [SwitchEmulationMode]
 translateParentMessage TraceRequest = []
 
 greetings :: IO ()
@@ -141,7 +142,7 @@ releaseResources AppResources{..} = do
 runApp appResources = runEmulator (nes appResources) $ do
   CPU.reset
   PPU.reset
-  uncapped $ updateWindow appResources
+  updateWindow appResources `cappedAt` 60
 
 pollCommands res@AppResources{..} = do
   sdlCommands <- (catMaybes . map (translateSDLEvent . eventPayload)) <$> SDL.pollEvents
@@ -194,6 +195,7 @@ updateWindow appResources@AppResources{..} dt = do
   mapM_ (executeCommand appResources) commands
   onlyWhen id continousMode $ do
     emulateFrame
+    PPU.drawSprites
     PPU.accessScreen >>= updateScreen appResources
   return (Quit `elem` commands)
 

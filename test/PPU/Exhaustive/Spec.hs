@@ -12,7 +12,6 @@ import           Data.Functor
 import           Data.Word
 import           Data.IORef
 import           Prelude hiding (read)
-import           System.Directory
 import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Nes.EmulatorMonad
