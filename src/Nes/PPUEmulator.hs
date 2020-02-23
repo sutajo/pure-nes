@@ -322,7 +322,7 @@ drawSprites = do
           get a i = fromEnum $ a `testBit` i 
           pixel = fromIntegral $ ((tile_msb `get` c) `shiftL` 1) .|. (tile_lsb `get` c)
         color <- getColor (attr .&. 0b11) pixel
-        when (between 0 239 y) $ setPixel (fromIntegral $ x + (7 - col)) (fromIntegral $ y + row) color
+        when (between 0 239 y && not (attr `testBit` 5)) $ setPixel (fromIntegral $ x + (7 - col)) (fromIntegral $ y + 1 + row) color
     
 
 
