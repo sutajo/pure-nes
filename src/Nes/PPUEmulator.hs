@@ -220,20 +220,22 @@ cpuWriteRegister addr val = let val16 = fromIntegral val in case addr of
   ______ -> pure ()
 
 read :: Word16 -> Emulator Word8
-read addr
+read addrUnsafe
   | addr <= 0x1FFF = ppuReadCartridge addr
   | addr <= 0x3EFF = do
     mirror <- getNametableMirroring
     readNametable (mirror addr)
-  | addr <= 0x3FFF = readPaletteIndices ((addr - 0x3F00) .&. 0x1F)
+  | otherwise = readPaletteIndices ((addr - 0x3F00) .&. 0x1F)
+  where addr = addrUnsafe .&. 0x3FFF
 
 write :: Word16 -> Word8 -> Emulator ()
-write addr val
+write addrUnsafe val
   | addr <= 0x1FFF = ppuWriteCartridge addr val
   | addr <= 0x3EFF = do
     mirror <- getNametableMirroring
     writeNametable (mirror addr) val
-  | addr <= 0x3FFF = writePaletteIndices ((addr - 0x3F00) .&. 0x1F) val
+  | otherwise = writePaletteIndices ((addr - 0x3F00) .&. 0x1F) val
+  where addr = addrUnsafe .&. 0x3FFF
 
 getColor :: Word8 -> Word8 -> Emulator Pixel
 getColor palette pixel = do
@@ -323,7 +325,10 @@ drawSprites = do
         color <- getColor ((attr .&. 0b11) + 4) pixel
         let fineX = if attr `testBit` 6 then col else 7-col
         let fineY = if attr `testBit` 7 then 8-row else 1+row
-        when (between 0 239 y && not (attr `testBit` 5)) $ setPixel (fromIntegral $ x + fineX) (fromIntegral $ y + fineY) color
+        let finalX = x + fineX
+        let finalY = y + fineY
+        when (between 0 239 finalY && between 0 255 finalX && not (attr `testBit` 5)) $
+          setPixel (fromIntegral $ finalX) (fromIntegral $ finalY) color
     
 
 
@@ -373,31 +378,32 @@ shiftRegisters = do
     ] $ (`modifyReg` (`shiftL` 1))
 
 scanLine :: Int -> Emulator ()
-scanLine step = case step of
-  0 -> do
-    updateShiftregisters
-    v <- readReg pvtVRamAddr
-    read (0x2000 .|. v .&. 0xFFF) >>= writeReg emuNextNT
-  2 -> do
-    v                  <- readReg pvtVRamAddr
-    (coarseX, coarseY) <- getCoarsePosition
-    attributeGroup <- read (0x23C0 .|. (v .&. 0xC00) .|. (coarseY .&. 0x1C) `shiftL` 1 .|. coarseX `shiftR` 2)
-    let attr = attributeGroup `shiftR` (fromIntegral $ ((coarseY .&. 0b10) `shiftL` 1 .|. coarseX .&. 0b10))
-    emuNextAT .= attr .&. 0b11
-  4 -> do
-    patternOffset <- readReg ppuCtrl   <&> \ctrl -> if ctrl `testBit` 4 then 0x1000 else 0
-    ntId          <- readReg emuNextNT <&> fromIntegral
-    v             <- readReg pvtVRamAddr
-    let addr = patternOffset + ntId `shiftL` 4 + ((v `shiftR` 12) .&. 0b111)
-    read addr     >>= writeReg emuNextLSB
-  6 -> do
-    patternOffset <- readReg ppuCtrl   <&> \ctrl -> if ctrl `testBit` 4 then 0x1000 else 0
-    ntId          <- readReg emuNextNT <&> fromIntegral
-    v             <- readReg pvtVRamAddr
-    let addr = patternOffset + ntId `shiftL` 4 + ((v `shiftR` 12) .&. 0b111)
-    read (addr+8) >>= writeReg emuNextMSB
-  7 -> incrementHorizontal
-  _ -> pure ()
+scanLine step = 
+  let 
+    getPattAddr = do
+      patternOffset <- readReg ppuCtrl   <&> \ctrl -> if ctrl `testBit` 4 then 0x1000 else 0
+      ntId          <- readReg emuNextNT <&> fromIntegral
+      v             <- readReg pvtVRamAddr
+      return (patternOffset + ntId `shiftL` 4 + ((v `shiftR` 12) .&. 0b111))
+  in case step of
+    0 -> do
+      updateShiftregisters
+      v <- readReg pvtVRamAddr
+      read (0x2000 .|. v .&. 0xFFF) >>= writeReg emuNextNT
+    2 -> do
+      v                  <- readReg pvtVRamAddr
+      (coarseX, coarseY) <- getCoarsePosition
+      attributeGroup <- read (0x23C0 .|. (v .&. 0xC00) .|. (coarseY .&. 0x1C) `shiftL` 1 .|. coarseX `shiftR` 2)
+      let attr = attributeGroup `shiftR` (fromIntegral $ ((coarseY .&. 0b10) `shiftL` 1 .|. coarseX .&. 0b10))
+      emuNextAT .= attr .&. 0b11
+    4 -> do
+      addr <- getPattAddr
+      read addr     >>= writeReg emuNextLSB
+    6 -> do
+      addr <- getPattAddr
+      read (addr+8) >>= writeReg emuNextMSB
+    7 -> incrementHorizontal
+    _ -> pure ()
 
 isRenderingEnabled :: Emulator Bool
 isRenderingEnabled = readReg ppuMask <&> (\mask -> mask .&. 0b00011000 /= 0)

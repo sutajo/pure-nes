@@ -210,9 +210,10 @@ update _ _ (ErrorReport msg)
 
 update _ s _ = Transition s noop
 
+
+
 noop = pure Nothing
 just x = do x; noop
-
 
 
 main :: IO ()
