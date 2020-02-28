@@ -74,7 +74,7 @@ view' threadCount s = do
               ]
           , BoxChild defaultBoxChildProperties { padding = 15 } $ 
               widget Image [ #file := "resources/GUI/save.png"]
-          , BoxChild defaultBoxChildProperties $
+          , BoxChild defaultBoxChildProperties { fill = True } $
               container Box [#orientation := OrientationHorizontal, #valign := AlignCenter, #marginTop := 15, #marginBottom := 15] $
               [
                 BoxChild defaultBoxChildProperties $
@@ -84,7 +84,7 @@ view' threadCount s = do
                     #marginLeft  := 5,
                     #marginRight := 10
                   ]
-              , BoxChild defaultBoxChildProperties $ 
+              , BoxChild defaultBoxChildProperties { fill = True } $ 
                 widget FileChooserButton
                 [#action := FileChooserActionSelectFolder, #expand := True, #createFolders := True]
               ]
