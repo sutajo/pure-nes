@@ -27,12 +27,12 @@ import           Data.List (find)
 import qualified Data.Vector.Unboxed          as VU
 import qualified Data.Vector.Unboxed.Mutable  as VUM
 import qualified Data.Vector.Storable.Mutable as VSM
+import           Data.IORef
 import           Data.IORef.Unboxed
 import           Data.Functor
 import           Data.Word
 import           Data.Bits
 import           Prelude hiding (read)
-import           Text.Printf
 import           Nes.PPU
 import           Nes.EmulatorMonad
 
@@ -73,10 +73,10 @@ readNametable       = readPPUComponent  nametable
 writeNametable      = writePPUComponent nametable
 
 readOam :: Word8 -> Emulator Word8
-readOam  = readPPUComponent oam
+readOam  = readPPUComponent primaryOam
 
 writeOam :: Word8 -> Word8 -> Emulator ()
-writeOam = writePPUComponent oam
+writeOam = writePPUComponent primaryOam
 
 getOamAddr = readReg ppuOamAddr
 
@@ -126,18 +126,14 @@ clearVblAfterStatusRead = do
   transfer emuClocks emuLastStatusRead
 
 debugging :: Bool
-debugging = False
+debugging = True
 
 withInfo :: IO () -> Emulator ()
 withInfo action = when debugging $ do
-  vramAddr <- readReg pvtVRamAddr
-  attrLo <- readReg emuAttrShifterLo
-  attrHi <- readReg emuAttrShifterHi
-  nextAT <- readReg emuNextAT
   cycle    <- readReg emuCycle
   scanLine <- readReg emuScanLine
   liftIO $ do
-    putStr $ show (cycle, scanLine) ++ printf " - V: 0x%X" vramAddr ++ " -> "
+    putStr $ show (cycle, scanLine)
     action
 
 cpuReadRegister :: Word16 -> Emulator Word8
@@ -332,10 +328,10 @@ drawSprites = do
     
 
 
-drawBackgroundPixel :: Emulator ()
-drawBackgroundPixel = do
+getBackgroundColor :: Emulator (Word8, Word8)
+getBackgroundColor = do
   mask <- readReg ppuMask
-  when (mask `testBit` 3) $ do
+  if (mask `testBit` 3) then do
     shiftMask <- readReg pvtFineX <&> (\reg -> 0x8000 `shiftR` (fromIntegral reg))
     pixelLo   <- readReg emuPattShifterLo <&> (.&. shiftMask)
     pixelHi   <- readReg emuPattShifterHi <&> (.&. shiftMask)
@@ -345,14 +341,45 @@ drawBackgroundPixel = do
     let getFirstBit16 = getBit 15 
     let pixel   = fromIntegral $ getFirstBit16 pixelHi   `shiftL` 1 .|. getFirstBit16 pixelLo
     let palette = fromIntegral $ getFirstBit16 paletteHi `shiftL` 1 .|. getFirstBit16 paletteLo
-    cycle    <- readReg emuCycle
-    scanLine <- readReg emuScanLine
-    getColor palette pixel >>= setPixel (cycle - 1) scanLine
+    pure (palette, pixel)
+  else 
+    pure (0,0)
 
+
+getSpritePixel :: (Word8, Word8) -> Emulator Pixel
+getSpritePixel (bgPalette, bgPixel) = do
+  let getBackgroundPixel = getColor bgPalette bgPixel
+  cycle    <- readReg emuCycle
+  scanline <- readReg emuScanLine
+  sprites  <- usePPU readIORef secondaryOam
+  let activeSprite Sprite{cycleTimer = t} = t >= 0
+  activeSprites <- usePPU readIORef secondaryOam <&> filter activeSprite
+  case activeSprites of
+    []             -> getBackgroundPixel
+    Sprite{..} : _ -> 
+      if behindBgd
+      then getBackgroundPixel
+      else do
+        let
+          get a i = fromEnum $ a `testBit` i 
+          fineX = if flipHori then cycleTimer else 7-cycleTimer
+          spPixel = fromIntegral $ ((pattMsb `get` fineX) `shiftL` 1) .|. (pattLsb `get` fineX)
+          getSpritePixel = getColor paletteId spPixel
+
+          combine 0 0 _____ = getBackgroundPixel
+          combine 0 _ _____ = getSpritePixel
+          combine _ 0 _____ = getBackgroundPixel
+          combine _ _ False = getSpritePixel
+          combine _ _ _____ = getBackgroundPixel
+        
+        combine bgPixel spPixel behindBgd
+  
 
 drawPixel :: Emulator ()
 drawPixel = do
-  drawBackgroundPixel
+  cycle    <- readReg emuCycle
+  scanline <- readReg emuScanLine
+  getBackgroundColor >>= getSpritePixel >>= setPixel (cycle - 1) scanline 
 
 
 updateShiftregisters :: Emulator ()
@@ -394,7 +421,7 @@ scanLine step =
       v                  <- readReg pvtVRamAddr
       (coarseX, coarseY) <- getCoarsePosition
       attributeGroup <- read (0x23C0 .|. (v .&. 0xC00) .|. (coarseY .&. 0x1C) `shiftL` 1 .|. coarseX `shiftR` 2)
-      let attr = attributeGroup `shiftR` (fromIntegral $ ((coarseY .&. 0b10) `shiftL` 1 .|. coarseX .&. 0b10))
+      let  attr = attributeGroup `shiftR` (fromIntegral $ ((coarseY .&. 0b10) `shiftL` 1 .|. coarseX .&. 0b10))
       emuNextAT .= attr .&. 0b11
     4 -> do
       addr <- getPattAddr
@@ -448,6 +475,48 @@ incrementVertical = whenRendering $ do
       __ -> (pvtVRamAddr $= (+0x20))
 
 
+resetOamAddr = ppuOamAddr .= 0
+reloadSecondaryOam = do
+  ctrl     <- readReg ppuCtrl
+  scanLine <- readReg emuScanLine
+  let 
+    basePattAddr = if ctrl `testBit` 3 then 0x1000 else 0x0
+    spriteHeight = if ctrl `testBit` 5 then 15 else 7
+
+  candidateAddresses <- do
+    let fallsOnCurrentScanline y = between 0 spriteHeight (scanLine - fromIntegral y)
+    take 9 <$> filterM (\addr -> readOam addr <&> fallsOnCurrentScanline) [0x0, 0x4 .. 0xFC]
+
+  let overflowAction = if length candidateAddresses == 9 then setBit else clearBit 
+  ppuStatus $= (`overflowAction` 5) -- set sprite overflow flag
+
+  sprites <- do
+    forM (take 8 candidateAddresses) $ \addr -> do
+      y          <- readOam addr
+      tile       <- readOam (addr+1)
+      attributes <- readOam (addr+2)
+      cycleTimer <- readOam (addr+3) <&> negate . fromIntegral
+      let
+        row        = (\x -> if flipVert then 7-x else x) $ fromIntegral (scanLine - fromIntegral y)
+        pattOffset = fromIntegral tile * 16 
+        paletteId  = (attributes .&. 0b11) + 4 
+        behindBgd  = attributes `testBit` 5
+        flipHori   = attributes `testBit` 6
+        flipVert   = attributes `testBit` 7
+      pattLsb <- read (basePattAddr+pattOffset+row)
+      pattMsb <- read (basePattAddr+pattOffset+row+8)
+      return Sprite{..}
+
+  usePPU (`writeIORef` sprites) secondaryOam
+  resetOamAddr
+
+
+updateSecondaryOam = do
+  let tickTimer s@Sprite{cycleTimer = t} = s {cycleTimer = t + 1}
+  let notExpired  Sprite{cycleTimer = t} = t < 8
+  usePPU (`modifyIORef` (filter notExpired . map tickTimer)) secondaryOam
+
+
 moveToNextPosition :: Int -> Int -> Emulator ()
 moveToNextPosition cycle scanline = do
   case cycle of
@@ -499,25 +568,24 @@ clock = do
     any = const True; is = (==)
     step = (cycle - 1) .&. 0x7
     vBlank = between 240 260
-    drawPixelIfVisible = when (between 1 256 cycle && between 0 239 scanline) drawPixel
-    resetOamAddr = ppuOamAddr .= 0
+    ifVisible = when (between 1 256 cycle && between 0 239 scanline)
     executeCycle = do
       when (between 2 258 cycle || between 321 337 cycle) shiftRegisters
       scanLine step
-      drawPixelIfVisible
+      ifVisible $ do
+        drawPixel
+        updateSecondaryOam
     phases = [
-        --               cyc           scanl
-        (               is 0,            any,  noop                                        ),
-        (             is 256,     not.vBlank,  executeCycle >> incrementVertical           ),
-        (             is 257,     not.vBlank,  transferHorizontal >> resetOamAddr          ),
-        (               is 1,         is 241,  enterVerticalBlank                          ),
-        (               is 1,         is 261,  exitVerticalBlank                           ),
-        (not.between 258 320,     not.vBlank,  executeCycle                                ),
-        (    between 280 304,         is 261,  transferVertical >> resetOamAddr            ),
-        (    between 258 320,     not.vBlank,  resetOamAddr                                )
+        --                 cyc           scanl
+        (                 is 0,            any,  noop                                       ),
+        (               is 256,     not.vBlank,  do executeCycle; incrementVertical         ),
+        (               is 257,     not.vBlank,  do transferHorizontal; reloadSecondaryOam  ),
+        (                 is 1,         is 241,  enterVerticalBlank                         ),
+        (                 is 1,         is 261,  exitVerticalBlank                          ),
+        (  not.between 258 320,     not.vBlank,  executeCycle                               ),
+        (      between 280 304,         is 261,  do transferVertical; resetOamAddr          ),
+        (      between 258 320,     not.vBlank,  resetOamAddr                               )
       ]
-
-  pos <- getCoarsePosition
 
   runPhase cycle scanline $ phases
   moveToNextPosition cycle scanline

@@ -9,8 +9,6 @@ module JoyControls (
   listJoys
 ) where
 
-import           Control.Monad(void)
-import           Control.Monad.IO.Class(liftIO)
 import           Control.Monad.Trans.Maybe
 import           Control.Monad.Writer.Lazy
 import           Data.Int

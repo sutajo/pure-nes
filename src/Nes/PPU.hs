@@ -2,6 +2,7 @@ module Nes.PPU (
     PPU(..),
     Pixel,
     Palette(..),
+    Sprite(..),
     Register8,
     Register16,
     powerUp,
@@ -16,6 +17,7 @@ import qualified Data.ByteString as B
 import           Data.Bits
 import           Data.Functor
 import           Data.Word
+import           Data.IORef
 import           Data.IORef.Unboxed
 import           Nes.Cartridge
 
@@ -35,12 +37,22 @@ loadPalette path = do
 type Register8  = IORefU Word8
 type Register16 = IORefU Word16
 
+data Sprite = Sprite {
+    cycleTimer :: !Int,
+    pattLsb    :: !Word8,
+    pattMsb    :: !Word8,
+    paletteId  :: !Word8,
+    behindBgd  :: !Bool,
+    flipHori   :: !Bool
+} deriving (Show)
+
 data PPU = PPU {
     palette         :: Palette,
     screen          :: VSM.IOVector Word8,
     nametable       :: VUM.IOVector Word8,
     paletteIndices  :: VUM.IOVector Word8,
-    oam             :: VUM.IOVector Word8,
+    primaryOam      :: VUM.IOVector Word8,
+    secondaryOam    :: IORef [Sprite],
 
     -- Registers visible to the CPU
     ppuCtrl           :: Register8,
@@ -103,6 +115,7 @@ powerUp mirroring =
     VUM.new (2 * 0x400)             <*>
     VUM.new 0x20                    <*>
     VUM.new 256                     <*>
+    newIORef []                     <*>
     newIORefU 0                     <*>
     newIORefU 0                     <*>
     newIORefU 0                     <*>

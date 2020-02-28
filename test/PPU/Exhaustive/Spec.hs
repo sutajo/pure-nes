@@ -48,6 +48,7 @@ tests =
   [
     testGroup "Memory access" [
       testCase "Palette RAM" $ runPPUTest "palette_ram.nes",
+      testCase "Sprite  RAM" $ runPPUTest "sprite_ram.nes",
       testCase "VRAM"        $ runPPUTest "vram_access.nes"
     ],
 

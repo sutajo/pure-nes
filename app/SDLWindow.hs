@@ -140,8 +140,7 @@ releaseResources AppResources{..} = do
   SDL.quit
 
 runApp appResources = runEmulator (nes appResources) $ do
-  CPU.reset
-  PPU.reset
+  do CPU.reset; PPU.reset
   updateWindow appResources `cappedAt` 60
 
 pollCommands res@AppResources{..} = do
@@ -177,8 +176,9 @@ executeCommand appResources@AppResources{..} command = do
         liftIO $ VSM.set pixels 0
     StepClockCycle -> 
       onlyWhen not continousMode $ do
-        clocks
+        replicateM_ 100 clocks
         PPU.drawPalette
+        PPU.drawSprites
         pixels  <- PPU.accessScreen
         updateScreen appResources pixels
     StepOneFrame ->
@@ -195,7 +195,6 @@ updateWindow appResources@AppResources{..} dt = do
   mapM_ (executeCommand appResources) commands
   onlyWhen id continousMode $ do
     emulateFrame
-    PPU.drawSprites
     PPU.accessScreen >>= updateScreen appResources
   return (Quit `elem` commands)
 

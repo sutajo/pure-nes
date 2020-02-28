@@ -23,7 +23,6 @@ module Nes.EmulatorMonad (
 ) where
 
 import           Control.Monad.Reader
-import           Control.Monad.Fail
 import           Data.Array.IO
 import           Data.Word (Word8, Word16)
 import           Data.Vector.Mutable (IOVector)

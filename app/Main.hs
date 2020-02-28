@@ -9,7 +9,6 @@ import           Control.Concurrent.STM
 import           Data.Char (toUpper)
 import           Data.Time
 import           Data.List (intercalate)
-import qualified Data.Vector as V
 import           Data.Version
 import           Language.Haskell.TH
 import           Data.Text (Text)
@@ -18,10 +17,7 @@ import           GI.Gtk                         ( Box(..)
                                                 , Button(..)
                                                 , FileChooserButton(..)
                                                 , Label(..)
-                                                , Orientation(..)
                                                 , Window(..)
-                                                , FileChooserAction(..)
-                                                , FileChooserWidget(..)
                                                 , fileChooserGetFilename
                                                 )
 import           GI.Gtk.Enums

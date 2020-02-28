@@ -9,7 +9,7 @@ cabal-version: 1.12
 name:           pure-nes
 version:        0.1.0.0
 description:    Please see the README on GitHub at <https://github.com/sutajo/pure-nes#readme>
-homepage:       https://github.com/sutajo/pure-nes#readme
+homepage:       https://github.com/sutajo/pure-nes
 bug-reports:    https://github.com/sutajo/pure-nes/issues
 author:         Suhajda Tamás
 maintainer:     sutajo@gmail.com
@@ -84,11 +84,12 @@ executable pure-nes
   hs-source-dirs:
       app
   ghc-options: 
-      -threaded 
-      -rtsopts 
-      -with-rtsopts=-N 
+      -threaded
+      -rtsopts
+      -with-rtsopts=-N
       -funbox-strict-fields
-      -O2
+      --O2
+      --fllvm
       -dynamic
   build-depends:
       base >=4.7 && <5
