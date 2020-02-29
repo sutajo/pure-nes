@@ -356,23 +356,21 @@ getSpritePixel (bgPalette, bgPixel) = do
   activeSprites <- usePPU readIORef secondaryOam <&> filter activeSprite
   case activeSprites of
     []             -> getBackgroundPixel
-    Sprite{..} : _ -> 
-      if behindBgd
-      then getBackgroundPixel
-      else do
-        let
-          get a i = fromEnum $ a `testBit` i 
-          fineX = if flipHori then cycleTimer else 7-cycleTimer
-          spPixel = fromIntegral $ ((pattMsb `get` fineX) `shiftL` 1) .|. (pattLsb `get` fineX)
-          getSpritePixel = getColor paletteId spPixel
+    Sprite{..} : _ -> do
+      let
+        get a i = fromEnum $ a `testBit` i 
+        fineX = if flipHori then cycleTimer else 7-cycleTimer
+        spPixel = fromIntegral $ ((pattMsb `get` fineX) `shiftL` 1) .|. (pattLsb `get` fineX)
+        getSpritePixel = getColor paletteId spPixel
+        checkSpriteZeroHit = when spriteZero $ modifyReg ppuStatus (`setBit` 6)
 
-          combine 0 0 _____ = getBackgroundPixel
-          combine 0 _ _____ = getSpritePixel
-          combine _ 0 _____ = getBackgroundPixel
-          combine _ _ False = getSpritePixel
-          combine _ _ _____ = getBackgroundPixel
-        
-        combine bgPixel spPixel behindBgd
+        combine 0 0 _____ = getColor 0 0
+        combine 0 _ _____ = getSpritePixel
+        combine _ 0 _____ = getBackgroundPixel
+        combine _ _ False = do checkSpriteZeroHit; getSpritePixel
+        combine _ _ _____ = do checkSpriteZeroHit; getBackgroundPixel
+      
+      combine bgPixel spPixel behindBgd
   
 
 drawPixel :: Emulator ()
@@ -475,7 +473,10 @@ incrementVertical = whenRendering $ do
       __ -> (pvtVRamAddr $= (+0x20))
 
 
+resetOamAddr :: Emulator ()
 resetOamAddr = ppuOamAddr .= 0
+
+reloadSecondaryOam :: Emulator ()
 reloadSecondaryOam = do
   ctrl     <- readReg ppuCtrl
   scanLine <- readReg emuScanLine
@@ -483,9 +484,11 @@ reloadSecondaryOam = do
     basePattAddr = if ctrl `testBit` 3 then 0x1000 else 0x0
     spriteHeight = if ctrl `testBit` 5 then 15 else 7
 
+  oamAddr <- readReg ppuOamAddr
+
   candidateAddresses <- do
     let fallsOnCurrentScanline y = between 0 spriteHeight (scanLine - fromIntegral y)
-    take 9 <$> filterM (\addr -> readOam addr <&> fallsOnCurrentScanline) [0x0, 0x4 .. 0xFC]
+    take 9 <$> filterM (\addr -> readOam addr <&> fallsOnCurrentScanline) [oamAddr, oamAddr+0x4 .. 0xFC]
 
   let overflowAction = if length candidateAddresses == 9 then setBit else clearBit 
   ppuStatus $= (`overflowAction` 5) -- set sprite overflow flag
@@ -498,19 +501,22 @@ reloadSecondaryOam = do
       cycleTimer <- readOam (addr+3) <&> negate . fromIntegral
       let
         row        = (\x -> if flipVert then 7-x else x) $ fromIntegral (scanLine - fromIntegral y)
-        pattOffset = fromIntegral tile * 16 
-        paletteId  = (attributes .&. 0b11) + 4 
+        pattOffset = fromIntegral tile * 16
+        paletteId  = (attributes .&. 0b11) + 4
         behindBgd  = attributes `testBit` 5
         flipHori   = attributes `testBit` 6
         flipVert   = attributes `testBit` 7
-      pattLsb <- read (basePattAddr+pattOffset+row)
-      pattMsb <- read (basePattAddr+pattOffset+row+8)
+        spriteZero = addr == oamAddr
+        totalOffset = basePattAddr+pattOffset+row
+      pattLsb <- read totalOffset
+      pattMsb <- read (totalOffset+8)
       return Sprite{..}
 
   usePPU (`writeIORef` sprites) secondaryOam
   resetOamAddr
 
 
+updateSecondaryOam :: Emulator ()
 updateSecondaryOam = do
   let tickTimer s@Sprite{cycleTimer = t} = s {cycleTimer = t + 1}
   let notExpired  Sprite{cycleTimer = t} = t < 8
@@ -569,6 +575,7 @@ clock = do
     step = (cycle - 1) .&. 0x7
     vBlank = between 240 260
     ifVisible = when (between 1 256 cycle && between 0 239 scanline)
+    resetSpriteZeroHit = modifyReg ppuStatus (`clearBit` 6)
     executeCycle = do
       when (between 2 258 cycle || between 321 337 cycle) shiftRegisters
       scanLine step
@@ -581,7 +588,7 @@ clock = do
         (               is 256,     not.vBlank,  do executeCycle; incrementVertical         ),
         (               is 257,     not.vBlank,  do transferHorizontal; reloadSecondaryOam  ),
         (                 is 1,         is 241,  enterVerticalBlank                         ),
-        (                 is 1,         is 261,  exitVerticalBlank                          ),
+        (                 is 1,         is 261,  do exitVerticalBlank; resetSpriteZeroHit   ),
         (  not.between 258 320,     not.vBlank,  executeCycle                               ),
         (      between 280 304,         is 261,  do transferVertical; resetOamAddr          ),
         (      between 258 320,     not.vBlank,  resetOamAddr                               )

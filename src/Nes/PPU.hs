@@ -43,7 +43,8 @@ data Sprite = Sprite {
     pattMsb    :: !Word8,
     paletteId  :: !Word8,
     behindBgd  :: !Bool,
-    flipHori   :: !Bool
+    flipHori   :: !Bool,
+    spriteZero :: !Bool
 } deriving (Show)
 
 data PPU = PPU {
