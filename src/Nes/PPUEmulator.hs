@@ -167,7 +167,7 @@ cpuWriteRegister addr val = let val16 = fromIntegral val in case addr of
   0x2000 -> do
     status  <- readReg ppuStatus
     occured <- testFlag emuNmiOccured
-    let nmiOuput = val `testBit` 7
+    let nmiOuput = val    `testBit` 7
     let inVBlank = status `testBit` 7 
     let shouldOccur = inVBlank && not occured && nmiOuput 
     when shouldOccur $ do
@@ -330,8 +330,9 @@ drawSprites = do
 
 getBackgroundColor :: Emulator (Word8, Word8)
 getBackgroundColor = do
-  mask <- readReg ppuMask
-  if (mask `testBit` 3) then do
+  mask  <- readReg ppuMask
+  cycle <- readReg emuCycle
+  if (mask `testBit` 3 && cycle > 8) || (cycle <= 8 && mask `testBit` 1) then do -- background rendering is enabled
     shiftMask <- readReg pvtFineX <&> (\reg -> 0x8000 `shiftR` (fromIntegral reg))
     pixelLo   <- readReg emuPattShifterLo <&> (.&. shiftMask)
     pixelHi   <- readReg emuPattShifterHi <&> (.&. shiftMask)
@@ -349,28 +350,35 @@ getBackgroundColor = do
 getSpritePixel :: (Word8, Word8) -> Emulator Pixel
 getSpritePixel (bgPalette, bgPixel) = do
   let getBackgroundPixel = getColor bgPalette bgPixel
-  cycle    <- readReg emuCycle
-  scanline <- readReg emuScanLine
-  sprites  <- usePPU readIORef secondaryOam
-  let activeSprite Sprite{cycleTimer = t} = t >= 0
-  activeSprites <- usePPU readIORef secondaryOam <&> filter activeSprite
-  case activeSprites of
-    []             -> getBackgroundPixel
-    Sprite{..} : _ -> do
-      let
-        get a i = fromEnum $ a `testBit` i 
-        fineX = if flipHori then cycleTimer else 7-cycleTimer
-        spPixel = fromIntegral $ ((pattMsb `get` fineX) `shiftL` 1) .|. (pattLsb `get` fineX)
-        getSpritePixel = getColor paletteId spPixel
-        checkSpriteZeroHit = when spriteZero $ modifyReg ppuStatus (`setBit` 6)
+  mask  <- readReg ppuMask
+  cycle <- readReg emuCycle
+  if (mask `testBit` 4 && cycle > 8) || (cycle <= 8 && mask `testBit` 2) then do -- sprite rendering is enabled
+    sprites  <- usePPU readIORef secondaryOam
+    let activeSprite Sprite{cycleTimer = t} = t >= 0
+    activeSprites <- usePPU readIORef secondaryOam <&> filter activeSprite
+    case activeSprites of
+      []             -> getBackgroundPixel
+      Sprite{..} : _ -> do
+        scanline <- readReg emuScanLine
+        let
+          get a i = fromEnum $ a `testBit` i 
+          fineX = if flipHori then cycleTimer else 7-cycleTimer
+          spPixel = fromIntegral $ ((pattMsb `get` fineX) `shiftL` 1) .|. (pattLsb `get` fineX)
+          getSpritePixel = getColor paletteId spPixel
 
-        combine 0 0 _____ = getColor 0 0
-        combine 0 _ _____ = getSpritePixel
-        combine _ 0 _____ = getBackgroundPixel
-        combine _ _ False = do checkSpriteZeroHit; getSpritePixel
-        combine _ _ _____ = do checkSpriteZeroHit; getBackgroundPixel
-      
-      combine bgPixel spPixel behindBgd
+          checkSpriteZeroHit = do
+            when (spriteZero && cycle < 256 && scanline < 239) $
+              modifyReg ppuStatus (`setBit` 6)
+
+          combine 0 0 _____ = getColor 0 0
+          combine 0 _ _____ = getSpritePixel
+          combine _ 0 _____ = getBackgroundPixel
+          combine _ _ False = do checkSpriteZeroHit; getSpritePixel
+          combine _ _ _____ = do checkSpriteZeroHit; getBackgroundPixel
+        
+        combine bgPixel spPixel behindBgd
+  else
+    getBackgroundPixel
   
 
 drawPixel :: Emulator ()
@@ -489,9 +497,9 @@ reloadSecondaryOam = do
   candidateAddresses <- do
     let fallsOnCurrentScanline y = between 0 spriteHeight (scanLine - fromIntegral y)
     take 9 <$> filterM (\addr -> readOam addr <&> fallsOnCurrentScanline) [oamAddr, oamAddr+0x4 .. 0xFC]
-
-  let overflowAction = if length candidateAddresses == 9 then setBit else clearBit 
-  ppuStatus $= (`overflowAction` 5) -- set sprite overflow flag
+ 
+  when (length candidateAddresses == 9) $ do
+    ppuStatus $= (`setBit` 5) -- set sprite overflow flag
 
   sprites <- do
     forM (take 8 candidateAddresses) $ \addr -> do
@@ -502,7 +510,7 @@ reloadSecondaryOam = do
       let
         row        = (\x -> if flipVert then 7-x else x) $ fromIntegral (scanLine - fromIntegral y)
         pattOffset = fromIntegral tile * 16
-        paletteId  = (attributes .&. 0b11) + 4
+        paletteId  = (attributes .&. 0b11) .|. 4
         behindBgd  = attributes `testBit` 5
         flipHori   = attributes `testBit` 6
         flipVert   = attributes `testBit` 7
@@ -554,7 +562,7 @@ enterVerticalBlank = do
 
 exitVerticalBlank :: Emulator ()
 exitVerticalBlank = do
-  modifyReg ppuStatus (`clearBit` 7)
+  ppuStatus .= 0
   setFlag emuNmiOccured False
 
 
@@ -574,8 +582,7 @@ clock = do
     any = const True; is = (==)
     step = (cycle - 1) .&. 0x7
     vBlank = between 240 260
-    ifVisible = when (between 1 256 cycle && between 0 239 scanline)
-    resetSpriteZeroHit = modifyReg ppuStatus (`clearBit` 6)
+    ifVisible = when (between 1 256 cycle && between 0 239 scanline)  
     executeCycle = do
       when (between 2 258 cycle || between 321 337 cycle) shiftRegisters
       scanLine step
@@ -588,7 +595,7 @@ clock = do
         (               is 256,     not.vBlank,  do executeCycle; incrementVertical         ),
         (               is 257,     not.vBlank,  do transferHorizontal; reloadSecondaryOam  ),
         (                 is 1,         is 241,  enterVerticalBlank                         ),
-        (                 is 1,         is 261,  do exitVerticalBlank; resetSpriteZeroHit   ),
+        (                 is 1,         is 261,  exitVerticalBlank                          ),
         (  not.between 258 320,     not.vBlank,  executeCycle                               ),
         (      between 280 304,         is 261,  do transferVertical; resetOamAddr          ),
         (      between 258 320,     not.vBlank,  resetOamAddr                               )
