@@ -68,7 +68,6 @@ library
      , containers
      , vector
      , attoparsec
-     , sdl2
      , template-haskell
      , extra
   default-extensions: ApplicativeDo, RecordWildCards, BinaryLiterals, ScopedTypeVariables
@@ -102,8 +101,6 @@ executable pure-nes
     , text
     , vector
     , sdl2
-    , sdl2-ttf
-    , sdl2-image
     , monad-loops
     , stm
     , mtl
