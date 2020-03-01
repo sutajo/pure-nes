@@ -366,7 +366,7 @@ getSpritePixel (bgPalette, bgPixel) = do
           getSpritePixel = getColor paletteId spPixel
 
           checkSpriteZeroHit = do
-            when (spriteZero && cycle < 256 && scanline < 239) $
+            when (spriteZero && cycle /= 256) $
               modifyReg ppuStatus (`setBit` 6)
 
           combine 0 0 _____ = getColor 0 0
@@ -485,6 +485,7 @@ resetOamAddr = ppuOamAddr .= 0
 
 reloadSecondaryOam :: Emulator ()
 reloadSecondaryOam = do
+  resetOamAddr
   ctrl     <- readReg ppuCtrl
   mask     <- readReg ppuMask
   scanLine <- readReg emuScanLine
@@ -495,7 +496,7 @@ reloadSecondaryOam = do
   oamAddr <- readReg ppuOamAddr
 
   candidateAddresses <- do
-    let fallsOnCurrentScanline y = between 0 spriteHeight (scanLine - fromIntegral y)
+    let fallsOnCurrentScanline y = y /= 0xFF && between 0 spriteHeight (scanLine - fromIntegral y)
     take 9 <$> filterM (\addr -> readOam addr <&> fallsOnCurrentScanline) [oamAddr, oamAddr+0x4 .. 0xFC]
  
   enabled <- isRenderingEnabled
@@ -522,7 +523,6 @@ reloadSecondaryOam = do
       return Sprite{..}
 
   usePPU (`writeIORef` sprites) secondaryOam
-  resetOamAddr
 
 
 updateSecondaryOam :: Emulator ()
