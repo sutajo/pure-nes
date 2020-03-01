@@ -333,15 +333,14 @@ getBackgroundColor = do
   mask  <- readReg ppuMask
   cycle <- readReg emuCycle
   if (mask `testBit` 3 && cycle > 8) || (cycle <= 8 && mask `testBit` 1) then do -- background rendering is enabled
-    shiftMask <- readReg pvtFineX <&> (\reg -> 0x8000 `shiftR` (fromIntegral reg))
-    pixelLo   <- readReg emuPattShifterLo <&> (.&. shiftMask)
-    pixelHi   <- readReg emuPattShifterHi <&> (.&. shiftMask)
-    paletteLo <- readReg emuAttrShifterLo <&> (.&. shiftMask)
-    paletteHi <- readReg emuAttrShifterHi <&> (.&. shiftMask)
-    let getBit index byte = fromEnum $ byte `testBit` index
-    let getFirstBit16 = getBit 15 
-    let pixel   = fromIntegral $ getFirstBit16 pixelHi   `shiftL` 1 .|. getFirstBit16 pixelLo
-    let palette = fromIntegral $ getFirstBit16 paletteHi `shiftL` 1 .|. getFirstBit16 paletteLo
+    shift     <- readReg pvtFineX <&> fromIntegral
+    let getBit byte = fromEnum $ byte `testBit` (15-shift)
+    pixelLo   <- readReg emuPattShifterLo <&> getBit
+    pixelHi   <- readReg emuPattShifterHi <&> getBit
+    paletteLo <- readReg emuAttrShifterLo <&> getBit
+    paletteHi <- readReg emuAttrShifterHi <&> getBit
+    let pixel   = fromIntegral $ pixelHi   `shiftL` 1 .|. pixelLo
+    let palette = fromIntegral $ paletteHi `shiftL` 1 .|. paletteLo
     pure (palette, pixel)
   else 
     pure (0,0)

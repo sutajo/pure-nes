@@ -53,13 +53,11 @@ runSpriteOverflow = runTestWith clocks blargg_spriteOverflow
 tests :: [TestTree]
 tests =
   [
-    {-
     testGroup "Memory access" [
       testCase "Palette RAM" $ runPPUTest "palette_ram.nes",
       testCase "Sprite  RAM" $ runPPUTest "sprite_ram.nes",
       testCase "VRAM"        $ runPPUTest "vram_access.nes"
     ],
-    -}
 
     testGroup "Synchronization" [
       testCase "Vbl basics"      $ runVblNmi "01-vbl_basics.nes",
