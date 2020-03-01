@@ -76,15 +76,12 @@ tests =
       testCase "Right edge"      $ runSpriteZero "06-right_edge.nes",
       testCase "Screen bottom"   $ runSpriteZero "07-screen_bottom.nes",
       testCase "Double height"   $ runSpriteZero "08-double_height.nes",
-      --testCase "Timing"          $ runSpriteZero "09-timing.nes",
       testCase "Timing order"    $ runSpriteZero "10-timing_order.nes"
     ],
     
     testGroup "Sprite Overflow" [
       testCase "Basics"          $ runSpriteOverflow "01-basics.nes",
       testCase "Details"         $ runSpriteOverflow "02-details.nes",
-      --testCase "Timing"          $ runSpriteOverflow "03-timing.nes",
-      --testCase "Obscure"         $ runSpriteOverflow "04-obscure.nes",
       testCase "Emulator"        $ runSpriteOverflow "05-emulator.nes"
     ]
   ]

@@ -63,7 +63,7 @@ writePPUComponent :: Enum addr => (PPU -> VUM.IOVector Word8) -> addr -> Word8 -
 writePPUComponent component addr val = usePPU (\ind -> VUM.write ind (fromEnum addr) val) component
 
 usePaletteIndices usage addr
- | 0x10 <= addr && addr <= 0x1C && addr .&. 0b11 == 0 = usage (addr - 0x10)
+ | addr `testBit` 4 && addr .&. 0b11 == 0 = usage (addr `clearBit` 4)
  | otherwise = usage addr
   
 readPaletteIndices  = usePaletteIndices (readPPUComponent  paletteIndices)
@@ -325,14 +325,18 @@ drawSprites = do
         let finalY = y + fineY
         when (between 0 239 finalY && between 0 255 finalX && not (attr `testBit` 5)) $
           setPixel (fromIntegral $ finalX) (fromIntegral $ finalY) color
-    
 
+
+isBackgroundRenderingEnabled :: Emulator Bool
+isBackgroundRenderingEnabled = do
+  mask  <- readReg ppuMask
+  cycle <- readReg emuCycle
+  return ((mask `testBit` 3 && cycle > 8) || (cycle <= 8 && mask `testBit` 1))
 
 getBackgroundColor :: Emulator (Word8, Word8)
 getBackgroundColor = do
-  mask  <- readReg ppuMask
-  cycle <- readReg emuCycle
-  if (mask `testBit` 3 && cycle > 8) || (cycle <= 8 && mask `testBit` 1) then do -- background rendering is enabled
+  enabled <- isBackgroundRenderingEnabled
+  if enabled then do
     shift     <- readReg pvtFineX <&> fromIntegral
     let getBit byte = fromEnum $ byte `testBit` (15-shift)
     pixelLo   <- readReg emuPattShifterLo <&> getBit
@@ -345,39 +349,55 @@ getBackgroundColor = do
   else 
     pure (0,0)
 
+isSpriteRenderingEnabled :: Emulator Bool
+isSpriteRenderingEnabled = do
+  mask  <- readReg ppuMask
+  cycle <- readReg emuCycle
+  return ((mask `testBit` 4 && cycle > 8) || (cycle <= 8 && mask `testBit` 2))
+
 
 getSpritePixel :: (Word8, Word8) -> Emulator Pixel
 getSpritePixel (bgPalette, bgPixel) = do
-  let getBackgroundPixel = getColor bgPalette bgPixel
-  mask  <- readReg ppuMask
-  cycle <- readReg emuCycle
-  if (mask `testBit` 4 && cycle > 8) || (cycle <= 8 && mask `testBit` 2) then do -- sprite rendering is enabled
-    sprites  <- usePPU readIORef secondaryOam
-    let activeSprite Sprite{cycleTimer = t} = t >= 0
-    activeSprites <- usePPU readIORef secondaryOam <&> filter activeSprite
-    case activeSprites of
-      []             -> getBackgroundPixel
-      Sprite{..} : _ -> do
-        scanline <- readReg emuScanLine
+  enabled <- isSpriteRenderingEnabled
+  cycle   <- readReg emuCycle
+
+  let defaultSpriteValues = pure (0, 0, True, False) 
+
+  (spPalette, spPixel, 
+   behindBgd, isSpriteZero) <- if enabled then
+      do
+        secondaryOam  <- usePPU readIORef secondaryOam
         let
           get a i = fromEnum $ a `testBit` i 
-          fineX = if flipHori then cycleTimer else 7-cycleTimer
-          spPixel = fromIntegral $ ((pattMsb `get` fineX) `shiftL` 1) .|. (pattLsb `get` fineX)
-          getSpritePixel = getColor paletteId spPixel
+          getFineX Sprite{..}   = if flipHori then cycleTimer else 7-cycleTimer
+          spPixel s@Sprite{..}  = 
+            let fineX = getFineX s 
+            in fromIntegral $ ((pattMsb `get` fineX) `shiftL` 1) .|. (pattLsb `get` fineX)
+          activeSprite s@Sprite{cycleTimer = t} = t >= 0
+          visible s = spPixel s /= 0
+          activeSprites = filter activeSprite secondaryOam
+        case activeSprites of
+          []               -> defaultSpriteValues
+          s@Sprite{..} : _ -> do
+            return (paletteId, spPixel s, behindBgd, spriteZero)
+      else
+        defaultSpriteValues
 
-          checkSpriteZeroHit = do
-            when (spriteZero && cycle /= 256) $
-              modifyReg ppuStatus (`setBit` 6)
+  let
+    checkSpriteZeroHit = do
+      when (isSpriteZero && enabled && cycle /= 256) $
+        modifyReg ppuStatus (`setBit` 6)
 
-          combine 0 0 _____ = getColor 0 0
-          combine 0 _ _____ = getSpritePixel
-          combine _ 0 _____ = getBackgroundPixel
-          combine _ _ False = do checkSpriteZeroHit; getSpritePixel
-          combine _ _ _____ = do checkSpriteZeroHit; getBackgroundPixel
-        
-        combine bgPixel spPixel behindBgd
-  else
-    getBackgroundPixel
+    getSpritePixel     = getColor spPalette spPixel
+    getBackgroundPixel = getColor bgPalette bgPixel
+
+    combine 0 0 _____ = getColor 0 0
+    combine 0 _ _____ = getSpritePixel
+    combine _ 0 _____ = getBackgroundPixel
+    combine _ _ False = do checkSpriteZeroHit; getSpritePixel
+    combine _ _ _____ = do checkSpriteZeroHit; getBackgroundPixel
+
+  combine bgPixel spPixel behindBgd  
   
 
 drawPixel :: Emulator ()
@@ -401,7 +421,7 @@ updateShiftregisters = do
 
 
 shiftRegisters :: Emulator ()
-shiftRegisters = do
+shiftRegisters = whenM isBackgroundRenderingEnabled $ do
   forM_ [
       emuPattShifterLo,
       emuPattShifterHi,
@@ -511,13 +531,13 @@ reloadSecondaryOam = do
       cycleTimer <- readOam (addr+3) <&> negate . fromIntegral
       let
         row        = (\x -> if flipVert then 7-x else x) $ fromIntegral (scanLine - fromIntegral y)
-        pattOffset = fromIntegral tile * 16
+        pattOffset = fromIntegral tile `shiftL` 4
         paletteId  = (attributes .&. 0b11) .|. 4
         behindBgd  = attributes `testBit` 5
         flipHori   = attributes `testBit` 6
         flipVert   = attributes `testBit` 7
         spriteZero = addr == oamAddr
-        totalOffset = basePattAddr+pattOffset+row
+        totalOffset = basePattAddr .|. pattOffset .|. row
       pattLsb <- read totalOffset
       pattMsb <- read (totalOffset+8)
       return Sprite{..}
