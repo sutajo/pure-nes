@@ -373,8 +373,7 @@ getSpritePixel (bgPalette, bgPixel) = do
           spPixel s@Sprite{..}  = 
             let fineX = getFineX s 
             in fromIntegral $ ((pattMsb `get` fineX) `shiftL` 1) .|. (pattLsb `get` fineX)
-          activeSprite s@Sprite{cycleTimer = t} = t >= 0
-          visible s = spPixel s /= 0
+          activeSprite s@Sprite{cycleTimer = t} = t >= 0 && spPixel s /= 0
           activeSprites = filter activeSprite secondaryOam
         case activeSprites of
           []               -> defaultSpriteValues
