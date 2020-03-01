@@ -486,6 +486,7 @@ resetOamAddr = ppuOamAddr .= 0
 reloadSecondaryOam :: Emulator ()
 reloadSecondaryOam = do
   ctrl     <- readReg ppuCtrl
+  mask     <- readReg ppuMask
   scanLine <- readReg emuScanLine
   let 
     basePattAddr = if ctrl `testBit` 3 then 0x1000 else 0x0
@@ -497,7 +498,8 @@ reloadSecondaryOam = do
     let fallsOnCurrentScanline y = between 0 spriteHeight (scanLine - fromIntegral y)
     take 9 <$> filterM (\addr -> readOam addr <&> fallsOnCurrentScanline) [oamAddr, oamAddr+0x4 .. 0xFC]
  
-  when (length candidateAddresses == 9) $ do
+  enabled <- isRenderingEnabled
+  when (length candidateAddresses == 9 && enabled) $ do
     ppuStatus $= (`setBit` 5) -- set sprite overflow flag
 
   sprites <- do
