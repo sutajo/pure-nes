@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase, CPP #-}
 
 module Nes.PPUEmulator (
   reset,
@@ -6,10 +6,7 @@ module Nes.PPUEmulator (
   accessScreen,
   cpuReadRegister,
   cpuWriteRegister,
-  drawPatternTable,
   drawPalette,
-  drawBackground,
-  drawSprites,
   getFrameCount,
   read,
   readReg,
@@ -247,6 +244,8 @@ setPixel x y (r,g,b) = do
     VSM.write screen (offset + 1) g
     VSM.write screen (offset + 2) b
 
+#ifdef DEBUG
+
 drawBackground :: Emulator ()
 drawBackground = do
   ctrl <- readReg ppuCtrl
@@ -290,16 +289,6 @@ drawPatternTable = do
             color <- getColor 0 pixel
             setPixel (fromIntegral patterntab * 128 + fromIntegral(x*8 + (7 - col))) (58 + fromIntegral(y*8 + row)) color
 
-drawPalette = do
-  forM_ [0..7] $ \palette ->
-    forM_ [0..3] $ \pixel ->
-      forM_ [0..4] $ \i -> do
-        setPixel (palette * 25 + pixel*5 + i) 233 (255, 255, 255)
-        setPixel (palette * 25 + pixel*5 + i) 239 (255, 255, 255)
-        forM_ [0..4] $ \j -> do
-          color <- getColor (fromIntegral palette) (fromIntegral pixel)
-          setPixel (palette * 25 + pixel*5 + i) (234 + j) color
-
 drawSprites = do
   ctrl <- readReg ppuCtrl
   let basePattAddr = if ctrl `testBit` 3 then 0x1000 else 0x0
@@ -326,6 +315,17 @@ drawSprites = do
         when (between 0 239 finalY && between 0 255 finalX && not (attr `testBit` 5)) $
           setPixel (fromIntegral $ finalX) (fromIntegral $ finalY) color
 
+#endif
+
+drawPalette = do
+  forM_ [0..7] $ \palette ->
+    forM_ [0..3] $ \pixel ->
+      forM_ [0..4] $ \i -> do
+        setPixel (palette * 25 + pixel*5 + i) 233 (255, 255, 255)
+        setPixel (palette * 25 + pixel*5 + i) 239 (255, 255, 255)
+        forM_ [0..4] $ \j -> do
+          color <- getColor (fromIntegral palette) (fromIntegral pixel)
+          setPixel (palette * 25 + pixel*5 + i) (234 + j) color
 
 isBackgroundRenderingEnabled :: Emulator Bool
 isBackgroundRenderingEnabled = do
