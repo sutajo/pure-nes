@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module PPU.Exhaustive.Spec (
+module PPU.Spec (
   tests
 ) where
 

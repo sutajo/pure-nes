@@ -77,7 +77,7 @@ tests =
     [
       testCase "Abs X wrap"  $ runTest misc "01-abs_x_wrap.nes",
       testCase "Branch wrap" $ runTest misc "02-branch_wrap.nes"
-    ]
+    ],
 
     {-
 
@@ -87,10 +87,11 @@ tests =
     [
       testCase "Branch" $ runTest instr_time "rom_singles/2-branch_timing.nes"
     ],
+
+    -}
     
     testGroup "Interrupts" $ 
     [
       testCase "Cli latency" $ runTest intr "1-cli_latency.nes"
     ]
-    -}
   ]
