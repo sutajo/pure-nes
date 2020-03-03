@@ -14,17 +14,17 @@ $ sudo apt-get install libgirepository1.0-dev libwebkit2gtk-4.0-dev libgtksource
 $ sudo apt-get install libsdl2-dev
 ```
 
-# Build with stack
+# Build the project using Make
 ```console
-$ stack build
+$ make
 ```
 
-# Usage
+# Start the emulator
 ```console
 $ stack exec pure-nes
 ```
 
-# Run tests
+# (Optional): Run tests to check the accuracy of the emulator
 ```console
 $ stack test
 ```

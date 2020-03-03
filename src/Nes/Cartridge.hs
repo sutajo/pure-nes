@@ -56,7 +56,7 @@ iNESloader = do
    , flags6      , flags7      
    , len_prg_ram , flags9      
    , _ ] <- header   
-  "\NUL\NUL\NUL\NUL\NUL" <- getByteString 5
+  skip 5
   let 
     has_trainer = testBit flags6 2
     has_playChoice = testBit flags7 0
@@ -147,23 +147,27 @@ ppuWriteCartridge cart = ppuWrite (mapper cart)
 nrom :: Bool -> Cartridge -> IO Mapper
 nrom hasChrRam Cartridge{..} = pure Mapper{..}
  where 
+  chr_rom_size = VM.length chr_rom
   prg_ram_size = VM.length prg_ram
-  mirrored  addr = fromIntegral $ (addr - 0x8000) `rem` 0x4000
-  intact addr = fromIntegral (addr - 0x8000)
-  prg_ram_addr addr = (fromIntegral addr - 0x6000) `rem` prg_ram_size
+  mirrored  addr = fromIntegral $ (addr - 0x8000) .&. 0x3FFF
+  intact addr = fromIntegral (addr `clearBit` 15)
+  prg_ram_addr addr = (fromIntegral (addr .&. 0x1FFF)) .&. (prg_ram_size-1)
   readWith :: (Word16 -> Int) -> Word16 -> IO Word8
-  readWith mode addr
+  readWith mode addrUnsafe
     | addr <= 0x7FFF = VM.read prg_ram (prg_ram_addr addr)
-    | addr <= 0xFFFF = VM.read prg_rom (mode addr)
-  cpuWrite addr val
+    | otherwise = VM.read prg_rom (mode addr)
+    where addr = addrUnsafe .&. 0xFFFF
+  cpuWrite addrUnsafe val
     | addr <= 0x7FFF = VM.write prg_ram (prg_ram_addr addr) val
-    | addr <= 0xFFFF = error $ "The program tried to cpuWrite PRG_ROM at $" ++ map toUpper (showHex addr "")
+    | otherwise = error $ "The program tried to cpuWrite PRG_ROM at $" ++ map toUpper (showHex addr "")
+    where addr = addrUnsafe .&. 0xFFFF
   cpuRead = readWith $
     case VM.length prg_rom of
       0x4000 ->  mirrored
       0x8000 ->  intact
+  mkChrAddr addrUnsafe = fromIntegral addrUnsafe .&. (chr_rom_size - 1)
   ppuRead :: Word16 -> IO Word8
-  ppuRead  = VM.read chr_rom . fromIntegral
-  ppuWrite addr val = if hasChrRam
-    then VM.write chr_rom (fromIntegral addr) val 
+  ppuRead addrUnsafe = VM.read chr_rom (mkChrAddr addrUnsafe)
+  ppuWrite addrUnsafe val = if hasChrRam
+    then VM.write chr_rom (mkChrAddr addrUnsafe) val 
     else error "PPU attempted to write CHR_ROM"

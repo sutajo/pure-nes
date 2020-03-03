@@ -79,19 +79,13 @@ tests =
       testCase "Branch wrap" $ runTest misc "02-branch_wrap.nes"
     ],
 
-    {-
-
-    TODO: run these tests after implementing the APU
-
     testGroup "Instr_Timing" $
     [
-      testCase "Branch" $ runTest instr_time "rom_singles/2-branch_timing.nes"
+      --testCase "Branch" $ runTest instr_time "rom_singles/2-branch_timing.nes"
     ],
-
-    -}
     
     testGroup "Interrupts" $ 
     [
-      testCase "Cli latency" $ runTest intr "1-cli_latency.nes"
+      --testCase "Cli latency" $ runTest intr "1-cli_latency.nes"
     ]
   ]

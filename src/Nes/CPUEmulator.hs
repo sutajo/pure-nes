@@ -84,12 +84,12 @@ writeAPU :: Word16 -> Word8 -> Emulator ()
 writeAPU = writeComponent (APU.registers . apu)
 
 zeropage :: Word16 -> Word8 -> Word16
-zeropage arg reg = (arg + fromIntegral reg) `rem` 0x100
+zeropage arg reg = (arg + fromIntegral reg) .&. 0xFF
 
 read :: Word16 -> Emulator Word8
 read addr 
-  | addr <= 0x1FFF = readRAM (addr `rem` 0x800)
-  | addr <= 0x3FFF = PPUE.cpuReadRegister (0x2000 + addr `rem` 0x8)
+  | addr <= 0x1FFF = readRAM (addr .&. 0x7FF)
+  | addr <= 0x3FFF = PPUE.cpuReadRegister (0x2000 .|. addr .&. 7)
   | addr <= 0x4015 = readAPU addr
   | addr <= 0x4017 = readController (fromIntegral $ addr - 0x4016)
   | addr <= 0xFFFF = cpuReadCartridge addr
@@ -120,8 +120,8 @@ readAddressWithBug addr = do
 
 write :: Word16 -> Word8 -> Emulator ()
 write addr val
-  | addr <= 0x1FFF = writeRAM (addr `rem` 0x800) val
-  | addr <= 0x3FFF = PPUE.cpuWriteRegister (0x2000 + addr `rem` 0x8) val
+  | addr <= 0x1FFF = writeRAM (addr .&. 0x7FF) val
+  | addr <= 0x3FFF = PPUE.cpuWriteRegister (0x2000 .|. addr .&. 7) val
   | addr == 0x4014 = oamDma val
   | addr <= 0x4015 = writeAPU addr val
   | addr == 0x4016 = forM_ [0..1] (writeController val) -- writing to 0x4016 polls both controllers

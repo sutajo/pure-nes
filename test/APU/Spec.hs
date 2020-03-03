@@ -23,7 +23,11 @@ import           CPU.Exhaustive.Spec (runTestWith)
 
 runMixer = runTestWith clocks "roms/tests/apu/apu_mixer/"
 
+runApuTest = runTestWith clocks "roms/tests/apu/apu_test/rom_singles/"
+
 tests :: [TestTree]
 tests = [
-
+    testCase "Length counter" $ runApuTest "1-len_ctr.nes",
+    testCase "Length table"   $ runApuTest "2-len_table.nes",
+    testCase "IRQ flag"       $ runApuTest "3-irq_flag.nes"
   ]

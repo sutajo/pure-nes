@@ -48,7 +48,7 @@ accessScreen = accessMemory screen
 readPalette :: Word8 -> Emulator Pixel
 readPalette index = do
   Palette p <- accessMemory palette
-  pure $ p VU.! (fromIntegral index)
+  return $ p VU.! (fromIntegral index)
 
 usePPU :: (b -> IO a) -> (PPU -> b) -> Emulator a
 usePPU action field = useMemory (field . ppu) action
@@ -238,7 +238,7 @@ getColor palette pixel = do
 setPixel :: Int -> Int -> Pixel -> Emulator ()
 setPixel x y (r,g,b) = do
   screen <- accessScreen
-  let offset = (256*y + x) * 3
+  let offset = (y `shiftL` 8 + x) * 3
   liftIO $ do
     VSM.write screen  offset      r
     VSM.write screen (offset + 1) g

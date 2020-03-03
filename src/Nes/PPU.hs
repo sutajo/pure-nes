@@ -103,10 +103,10 @@ data PPU = PPU {
 
 horizontalMirroring :: Word16 -> Word16
 horizontalMirroring addr = a - ((a .&. 0x800) `shiftR` 1)
-  where a = ((addr-0x2000) `rem` (4*0x400)) .&. complement 0x400
+  where a = (addr .&. 0xFFF) .&. complement 0x400
 
 verticalMirroring :: Word16 -> Word16
-verticalMirroring = (`rem` 0x800)
+verticalMirroring = (.&. 0x7FF)
 
 powerUp :: Mirroring -> IO PPU
 powerUp mirroring = 
