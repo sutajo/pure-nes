@@ -19,15 +19,19 @@ module Nes.EmulatorMonad (
     useCpu,
     readController,
     writeController,
-    processInput
+    processInput,
+    module Data.Functor,
+    module Data.Primitive,
+    module PPU,
+    module Data.Array.IO,
+    module Control.Monad.Reader
 ) where
 
 import           Control.Monad.Reader
 import           Data.Array.IO
-import           Data.Word (Word8, Word16)
+import           Data.Primitive(Prim)
 import           Data.Vector.Mutable (IOVector)
 import qualified Data.Vector.Mutable as VM
-import           Data.IORef.Unboxed
 import           Data.Functor
 import           Nes.CPU6502   as CPU
 import           Nes.PPU       as PPU
@@ -92,10 +96,10 @@ useCpu :: (b -> IO a) -> (CPU -> b) -> Emulator a
 useCpu action field = useMemory (field . cpu) action
 
 -- Sends an NMI which fires after the specified amount of clock cycles
-sendPendingInterrupt :: (CPU -> Register) -> Word8 -> Emulator ()
+sendPendingInterrupt :: (CPU -> Register8) -> Word8 -> Emulator ()
 sendPendingInterrupt reg cyc = useCpu (`writeIORefU` cyc) reg
 
-clearInterrupt :: (CPU -> Register) -> Emulator ()
+clearInterrupt :: (CPU -> Register8) -> Emulator ()
 clearInterrupt reg = useCpu (`writeIORefU` 0) reg
 
 sendPendingNmi = sendPendingInterrupt nmiTimer

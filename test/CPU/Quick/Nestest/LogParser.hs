@@ -32,6 +32,8 @@ snapshotParser = do
   cycle    <- skipSpace *> decimal <* char ','
   scanline <- skipSpace *> decimal <* space
   cyc' <- string "CYC:" *> decimal <* endOfLine
+  let irqTimer' = 0
+  let nmiTimer' = 0
   pure (opcode, CpuSnapshot{..}, PPUState{..})
 
 logParser :: Parser [(Word8, CpuSnapshot, PPUState, Int)]

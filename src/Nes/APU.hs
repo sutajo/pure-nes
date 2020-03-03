@@ -4,10 +4,15 @@ module Nes.APU (
 ) where
 
 import Data.Array.IO
+import Data.Array.Unboxed
 import Data.Word
 
-data APU = APU {
-    registers :: IOUArray Word16 Word8
+newtype APU = APU {
+    registers  :: IOUArray Word16 Word8
+}
+
+newtype ApuSnapshot = ApuSnapshot {
+    registers' :: UArray Word16 Word8
 }
 
 powerUp :: IO APU

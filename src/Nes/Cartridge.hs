@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, ScopedTypeVariables, RecordWildCards, LambdaCase, FlexibleContexts, TypeFamilies #-}
+{-# LANGUAGE OverloadedStrings, TypeFamilies, DeriveAnyClass #-}
 
 module Nes.Cartridge (
   Cartridge,
@@ -16,8 +16,9 @@ module Nes.Cartridge (
 
 import qualified Data.Vector.Unboxed         as V
 import qualified Data.Vector.Unboxed.Mutable as VM
-import           Data.Char (toUpper)
 import qualified Data.Map                    as M
+import           Data.Store
+import           GHC.Generics
 import           Data.Functor
 import           Data.Word
 import           Data.Binary
@@ -27,7 +28,6 @@ import           Data.ByteString      as BS hiding (readFile, putStrLn, map, not
 import qualified Data.ByteString.Lazy as B (readFile, toStrict)
 import           Control.Monad
 import           Control.Applicative()
-import           Numeric (showHex)
 
 data INES = INES {
     title         :: ByteString,
@@ -83,7 +83,7 @@ data Mirroring
   = Horizontal
   | Vertical
   | FourScreen
-  deriving (Show, Enum)
+  deriving (Show, Enum, Generic, Store)
     
 data Cartridge = Cartridge {
     mapper       :: Mapper,
@@ -159,7 +159,7 @@ nrom hasChrRam Cartridge{..} = pure Mapper{..}
     where addr = addrUnsafe .&. 0xFFFF
   cpuWrite addrUnsafe val
     | addr <= 0x7FFF = VM.write prg_ram (prg_ram_addr addr) val
-    | otherwise = error $ "The program tried to cpuWrite PRG_ROM at $" ++ map toUpper (showHex addr "")
+    | otherwise = pure ()
     where addr = addrUnsafe .&. 0xFFFF
   cpuRead = readWith $
     case VM.length prg_rom of
@@ -170,4 +170,4 @@ nrom hasChrRam Cartridge{..} = pure Mapper{..}
   ppuRead addrUnsafe = VM.read chr_rom (mkChrAddr addrUnsafe)
   ppuWrite addrUnsafe val = if hasChrRam
     then VM.write chr_rom (mkChrAddr addrUnsafe) val 
-    else error "PPU attempted to write CHR_ROM"
+    else pure () -- On NROM writing ROM is a nop. See: https://forums.nesdev.com/viewtopic.php?f=3&t=17584

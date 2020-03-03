@@ -1,12 +1,17 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
 module Nes.PPU (
     PPU(..),
     Pixel,
     Palette(..),
     Sprite(..),
-    Register8,
-    Register16,
     powerUp,
-    loadPalette
+    loadPalette,
+    module Nes.CPU6502,
+    module Data.Bits,
+    module Data.IORef,
+    module Data.IORef.Unboxed,
+    module Data.Word
 ) where
 
 import qualified Data.Vector.Unboxed          as VU
@@ -14,15 +19,18 @@ import qualified Data.Vector.Unboxed.Mutable  as VUM
 import qualified Data.Vector.Storable.Mutable as VSM
 import qualified Data.Attoparsec.ByteString.Char8 as A
 import qualified Data.ByteString as B
+import           Data.Store
+import           GHC.Generics
 import           Data.Bits
 import           Data.Functor
 import           Data.Word
 import           Data.IORef
 import           Data.IORef.Unboxed
+import           Nes.CPU6502 (Register8, Register16)
 import           Nes.Cartridge
 
 type Pixel = (Word8, Word8, Word8)
-newtype Palette = Palette (VU.Vector Pixel) deriving (Show)
+newtype Palette = Palette (VU.Vector Pixel) deriving (Show, Generic, Store)
 
 loadPalette :: FilePath -> IO B.ByteString
 loadPalette path = do 
@@ -34,9 +42,6 @@ loadPalette path = do
         Left error -> fail $ "Failed to load palette data. Reason: " ++ show error
         Right bytelist -> pure (B.pack bytelist)
 
-type Register8  = IORefU Word8
-type Register16 = IORefU Word16
-
 data Sprite = Sprite {
     cycleTimer :: !Int,
     pattLsb    :: !Word8,
@@ -45,7 +50,7 @@ data Sprite = Sprite {
     behindBgd  :: !Bool,
     flipHori   :: !Bool,
     spriteZero :: !Bool
-} deriving (Show)
+} deriving (Show, Generic, Store)
 
 data PPU = PPU {
     palette         :: Palette,
@@ -220,3 +225,129 @@ palette2C02 =
     ,(0,  0,  0  )
     ,(0,  0,  0  ) 
     ]
+
+
+data PpuSnapshot = PpuSnapshot {
+    palette'           :: Palette,
+    --screen            :: VSM.IOVector Word8,
+    nametable'         :: VU.Vector Word8,
+    paletteIndices'    :: VU.Vector Word8,
+    primaryOam'        :: VU.Vector Word8,
+    secondaryOam'      :: [Sprite],
+
+    -- Registers visible to the CPU
+    ppuCtrl'           :: Word8,
+    ppuMask'           :: Word8,
+    ppuStatus'         :: Word8,
+    ppuOamAddr'        :: Word8,
+    ppuOamData'        :: Word8,
+    ppuScroll'         :: Word8,
+    ppuAddr'           :: Word8,
+    ppuData'           :: Word8,
+
+    -- Internal registers used exclusively by the PPU
+    pvtDataBuffer'     :: Word8,
+    pvtVRamAddr'       :: Word16,
+    pvtTempAddr'       :: Word16,
+    pvtAddressLatch'   :: Word8,
+    pvtFineX'          :: Word8,
+
+    -- Registers used for emulation
+    emuCycle'          :: Int,
+    emuScanLine'       :: Int,
+    emuFrameCount'     :: Word,
+    emuClocks'         :: Word,
+    emuLastStatusRead' :: Word,
+    emuNmiPending'     :: Word8,
+    emuNmiOccured'     :: Word8,
+    emuNextNT'         :: Word8,
+    emuNextAT'         :: Word8,
+    emuNextLSB'        :: Word8,
+    emuNextMSB'        :: Word8,
+    emuPattShifterLo'  :: Word16,
+    emuPattShifterHi'  :: Word16,
+    emuAttrShifterLo'  :: Word16,
+    emuAttrShifterHi'  :: Word16,
+    -- Mirroring function
+    mirroringType :: Mirroring
+} deriving (Generic, Store)
+
+getPpuSnapshot :: Mirroring -> PPU -> IO PpuSnapshot
+getPpuSnapshot mirroringType PPU{..} = do
+  let palette' = palette
+  nametable'         <- VU.freeze nametable
+  paletteIndices'    <- VU.freeze paletteIndices
+  primaryOam'        <- VU.freeze primaryOam
+  secondaryOam'      <- readIORef secondaryOam
+  ppuCtrl'           <- readIORefU ppuCtrl
+  ppuData'           <- readIORefU ppuData
+  ppuMask'           <- readIORefU ppuMask
+  ppuStatus'         <- readIORefU ppuStatus
+  ppuOamAddr'        <- readIORefU ppuOamAddr
+  ppuOamData'        <- readIORefU ppuOamData
+  ppuScroll'         <- readIORefU ppuScroll
+  ppuAddr'           <- readIORefU ppuAddr
+  pvtDataBuffer'     <- readIORefU pvtDataBuffer
+  pvtAddressLatch'   <- readIORefU pvtAddressLatch
+  pvtFineX'          <- readIORefU pvtFineX
+  pvtVRamAddr'       <- readIORefU pvtVRamAddr
+  pvtTempAddr'       <- readIORefU pvtTempAddr
+  emuFrameCount'     <- readIORefU emuFrameCount
+  emuCycle'          <- readIORefU emuCycle
+  emuScanLine'       <- readIORefU emuScanLine
+  emuClocks'         <- readIORefU emuClocks
+  emuLastStatusRead' <- readIORefU emuLastStatusRead
+  emuNmiPending'     <- readIORefU emuNmiPending
+  emuNmiOccured'     <- readIORefU emuNmiOccured
+  emuNextNT'         <- readIORefU emuNextNT
+  emuNextAT'         <- readIORefU emuNextAT
+  emuNextLSB'        <- readIORefU emuNextLSB
+  emuNextMSB'        <- readIORefU emuNextMSB
+  emuPattShifterLo'  <- readIORefU emuPattShifterLo
+  emuPattShifterHi'  <- readIORefU emuPattShifterHi
+  emuAttrShifterLo'  <- readIORefU emuAttrShifterLo
+  emuAttrShifterHi'  <- readIORefU emuAttrShifterHi
+  return PpuSnapshot{..}
+
+thawPpuSnapshot :: PpuSnapshot -> IO PPU
+thawPpuSnapshot PpuSnapshot{..} = do
+  let 
+    palette = palette'
+    mirrorNametableAddress = case mirroringType of
+      Horizontal -> horizontalMirroring
+      Vertical   -> verticalMirroring
+      __________ -> error $ "PPU emulator does not support this mirroring type: " ++ show mirroringType
+  screen             <- VSM.replicate (256*240*3) 0
+  nametable          <- VU.thaw nametable'
+  paletteIndices     <- VU.thaw paletteIndices'
+  primaryOam         <- VU.thaw primaryOam'
+  secondaryOam       <- newIORef secondaryOam'
+  ppuCtrl            <- newIORefU ppuCtrl'
+  ppuData            <- newIORefU ppuData'
+  ppuMask            <- newIORefU ppuMask'
+  ppuStatus          <- newIORefU ppuStatus'
+  ppuOamAddr         <- newIORefU ppuOamAddr'
+  ppuOamData         <- newIORefU ppuOamData'
+  ppuScroll          <- newIORefU ppuScroll'
+  ppuAddr            <- newIORefU ppuAddr'
+  pvtDataBuffer      <- newIORefU pvtDataBuffer'
+  pvtAddressLatch    <- newIORefU pvtAddressLatch'
+  pvtFineX           <- newIORefU pvtFineX'
+  pvtVRamAddr        <- newIORefU pvtVRamAddr'
+  pvtTempAddr        <- newIORefU pvtTempAddr'
+  emuFrameCount      <- newIORefU emuFrameCount'
+  emuCycle           <- newIORefU emuCycle'
+  emuScanLine        <- newIORefU emuScanLine'
+  emuClocks          <- newIORefU emuClocks'
+  emuLastStatusRead  <- newIORefU emuLastStatusRead'
+  emuNmiPending      <- newIORefU emuNmiPending'
+  emuNmiOccured      <- newIORefU emuNmiOccured'
+  emuNextNT          <- newIORefU emuNextNT'
+  emuNextAT          <- newIORefU emuNextAT'
+  emuNextLSB         <- newIORefU emuNextLSB'
+  emuNextMSB         <- newIORefU emuNextMSB'
+  emuPattShifterLo   <- newIORefU emuPattShifterLo'
+  emuPattShifterHi   <- newIORefU emuPattShifterHi'
+  emuAttrShifterLo   <- newIORefU emuAttrShifterLo'
+  emuAttrShifterHi   <- newIORefU emuAttrShifterHi'
+  return PPU{..}

@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, LambdaCase, RecordWildCards, TemplateHaskell, DeriveLift #-}
+{-# LANGUAGE ScopedTypeVariables, LambdaCase, RecordWildCards #-}
 
 module Nes.CPUEmulator(
   reset,
@@ -16,22 +16,13 @@ module Nes.CPUEmulator(
 
 import           Prelude hiding (read, cycle, and)
 import           Control.Applicative
-import           Control.Monad.Reader
 import           Control.Monad.Loops
-import           Data.IORef.Unboxed
-import           Data.Array.IO
-import           Data.Primitive(Prim)
-import           Data.Word
-import           Data.Bits hiding (bit)
-import           Data.Functor
-import           Language.Haskell.TH()
-import           Language.Haskell.TH.Syntax
-import           Nes.EmulatorMonad
+import           Nes.EmulatorMonad hiding (bit)
 import           Nes.CPU6502
 import qualified Nes.APU as APU
 import qualified Nes.PPUEmulator as PPUE hiding (clock)
 
-data Penalty = None | BoundaryCross deriving (Enum, Lift)
+data Penalty = None | BoundaryCross deriving (Enum)
 
 type Opcode = Word8
 
@@ -867,7 +858,9 @@ getSnapshot =
   readReg pc  <*>
   readReg s   <*>
   readReg p   <*>
-  readReg cyc
+  readReg cyc <*>
+  readReg irqTimer <*>
+  readReg nmiTimer
 
 -- https://forums.nesdev.com/viewtopic.php?f=3&t=14231
 reset :: Emulator ()

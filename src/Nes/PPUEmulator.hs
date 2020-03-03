@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase, CPP #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Nes.PPUEmulator (
   reset,
@@ -6,7 +6,10 @@ module Nes.PPUEmulator (
   accessScreen,
   cpuReadRegister,
   cpuWriteRegister,
+  drawPatternTable,
+  drawBackground,
   drawPalette,
+  drawSprites,
   getFrameCount,
   read,
   readReg,
@@ -18,17 +21,10 @@ import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.Extra
 import           Control.Monad.IO.Class
-import           Control.Monad.Reader
-import           Data.Primitive(Prim)
 import           Data.List (find)
 import qualified Data.Vector.Unboxed          as VU
 import qualified Data.Vector.Unboxed.Mutable  as VUM
 import qualified Data.Vector.Storable.Mutable as VSM
-import           Data.IORef
-import           Data.IORef.Unboxed
-import           Data.Functor
-import           Data.Word
-import           Data.Bits
 import           Prelude hiding (read)
 import           Nes.PPU
 import           Nes.EmulatorMonad
@@ -244,7 +240,6 @@ setPixel x y (r,g,b) = do
     VSM.write screen (offset + 1) g
     VSM.write screen (offset + 2) b
 
-#ifdef DEBUG
 
 drawBackground :: Emulator ()
 drawBackground = do
@@ -315,7 +310,6 @@ drawSprites = do
         when (between 0 239 finalY && between 0 255 finalX && not (attr `testBit` 5)) $
           setPixel (fromIntegral $ finalX) (fromIntegral $ finalY) color
 
-#endif
 
 drawPalette = do
   forM_ [0..7] $ \palette ->

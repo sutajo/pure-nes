@@ -5,7 +5,6 @@ module Nes.MasterClock (
 
 import           Control.Monad
 import           Control.Monad.Loops
-import           Data.Functor
 import           Nes.EmulatorMonad
 import qualified Nes.CPUEmulator as CPU
 import qualified Nes.PPUEmulator as PPU

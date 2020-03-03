@@ -21,9 +21,9 @@ import           Nes.Cartridge hiding (readCartridge)
 
 
 assertMatch :: (Word8, CpuSnapshot, PPUState, Int) -> (Word8, CpuSnapshot, PPUState) -> Assertion
-assertMatch (opce, spe, ppue, lineNum) (opca, spa, ppua) = do
+assertMatch (opce, spe@CpuSnapshot{irqTimer' = i, nmiTimer' = n}, ppue, lineNum) (opca, spa, ppua) = do
   let stateErrorMessage = "roms/tests/cpu/nestest/nestest.log:" ++ show lineNum ++":\nFailed to match the " ++ show lineNum ++ ". snapshot from the log." 
-  assertEqual stateErrorMessage spe spa
+  assertEqual stateErrorMessage spe (spa {irqTimer' = i, nmiTimer' = n})
   assertEqual stateErrorMessage ppue ppua
   assertEqual ("Failed to match the " ++ show lineNum ++ ". opcode from the log.") opce opca 
 

@@ -178,6 +178,7 @@ executeCommand appResources@AppResources{..} command = do
       onlyWhen not continousMode $ do
         replicateM_ 100 clocks
         PPU.drawPalette
+        PPU.drawSprites
         pixels  <- PPU.accessScreen
         updateScreen appResources pixels
     StepOneFrame ->
