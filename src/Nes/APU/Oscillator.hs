@@ -1,4 +1,9 @@
-module Nes.Oscillator where
+module Nes.APU.Oscillator (
+  Oscillator(..),
+  sineWaveGenerator,
+  pulseWaveGenerator,
+  triangleWaveGenerator
+) where
 
 import Data.Int
 import Graphics.Rendering.Chart.Easy

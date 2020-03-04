@@ -1,10 +1,9 @@
 {-# LANGUAGE ScopedTypeVariables, LambdaCase, RecordWildCards #-}
 
-module Nes.CPUEmulator(
+module Nes.CPU.Emulation (
   reset,
   clock,
   fetch,
-  getSnapshot,
   writeReg,
   readReg,
   modifyReg,
@@ -12,15 +11,15 @@ module Nes.CPUEmulator(
   write,
   readNullTerminatedString,
   processInterrupt
-)where
+) where
 
 import           Prelude hiding (read, cycle, and)
 import           Control.Applicative
 import           Control.Monad.Loops
-import           Nes.EmulatorMonad hiding (bit)
-import           Nes.CPU6502
-import qualified Nes.APU as APU
-import qualified Nes.PPUEmulator as PPUE hiding (clock)
+import           Nes.Emulation.Monad hiding (bit)
+import           Nes.CPU.Memory
+import qualified Nes.APU.Emulation as APU
+import qualified Nes.PPU.Emulation as PPU hiding (clock)
 
 data Penalty = None | BoundaryCross deriving (Enum)
 
@@ -59,29 +58,14 @@ writeReg reg val = useCpu (flip writeIORefU val) reg
 modifyReg :: Prim a => (CPU -> IORefU a) -> (a -> a) -> Emulator ()
 modifyReg reg f = readReg reg >>= writeReg reg . f
 
-readComponent :: (Nes -> IOUArray Word16 Word8) -> Word16 -> Emulator Word8
-readComponent comp addr = useMemory comp $ (`readArray` addr)
-
-writeComponent :: (Nes -> IOUArray Word16 Word8) -> Word16 -> Word8 -> Emulator ()
-writeComponent comp addr val = useMemory comp $ (\arr -> writeArray arr addr val)
-
-readRAM = readComponent ram
-writeRAM = writeComponent ram
-
-readAPU :: Word16 -> Emulator Word8
-readAPU = readComponent (APU.registers. apu)
-
-writeAPU :: Word16 -> Word8 -> Emulator ()
-writeAPU = writeComponent (APU.registers . apu)
-
-zeropage :: Word16 -> Word8 -> Word16
-zeropage arg reg = (arg + fromIntegral reg) .&. 0xFF
+readRAM = readMemory ram
+writeRAM = writeMemory ram
 
 read :: Word16 -> Emulator Word8
 read addr 
   | addr <= 0x1FFF = readRAM (addr .&. 0x7FF)
-  | addr <= 0x3FFF = PPUE.cpuReadRegister (0x2000 .|. addr .&. 7)
-  | addr <= 0x4015 = readAPU addr
+  | addr <= 0x3FFF = PPU.cpuReadRegister (0x2000 .|. addr .&. 7)
+  | addr <= 0x4015 = getApu <&> APU.read (addr .&. 0x3FFF)
   | addr <= 0x4017 = readController (fromIntegral $ addr - 0x4016)
   | addr <= 0xFFFF = cpuReadCartridge addr
 
@@ -112,9 +96,9 @@ readAddressWithBug addr = do
 write :: Word16 -> Word8 -> Emulator ()
 write addr val
   | addr <= 0x1FFF = writeRAM (addr .&. 0x7FF) val
-  | addr <= 0x3FFF = PPUE.cpuWriteRegister (0x2000 .|. addr .&. 7) val
+  | addr <= 0x3FFF = PPU.cpuWriteRegister (0x2000 .|. addr .&. 7) val
   | addr == 0x4014 = oamDma val
-  | addr <= 0x4015 = writeAPU addr val
+  | addr <= 0x4015 = getApu >>= setApu . APU.write (addr .&. 0x3FFF) val
   | addr == 0x4016 = forM_ [0..1] (writeController val) -- writing to 0x4016 polls both controllers
   | addr == 0x4017 = pure ()
   | addr <= 0xFFFF = cpuWriteCartridge addr val
@@ -822,8 +806,8 @@ nmi = do
 
 irq :: Emulator ()
 irq = do
-  irqEnable <- not <$> testFlag InterruptDisable
-  when irqEnable $ do
+  irqEnabled <- not <$> testFlag InterruptDisable
+  when irqEnabled $ do
     readReg pc >>= pushAddress
     setFlag InterruptDisable True
     readReg p <&> (`clearBit` 4) >>= push
@@ -843,24 +827,11 @@ processInterrupt = do
 oamDma :: Word8 -> Emulator ()
 oamDma pageId = do
   let (baseAddr :: Word16) = fromIntegral pageId `shiftL` 8
-  (oamOffset :: Word16) <- PPUE.getOamAddr <&> fromIntegral
-  let copyByte source dest = read source >>= PPUE.writeOam (fromIntegral dest)
+  (oamOffset :: Word16) <- PPU.getOamAddr <&> fromIntegral
+  let copyByte source dest = read source >>= PPU.writeOam (fromIntegral dest)
   zipWithM_ copyByte [baseAddr..baseAddr+0xFF] [oamOffset..oamOffset+0xFF]
   cycles <- readReg cyc <&> fromIntegral
   cycle (513 + cycles .&. 0x1)
-
-getSnapshot :: Emulator CpuSnapshot
-getSnapshot = 
-  CpuSnapshot <$>
-  readReg a   <*>
-  readReg x   <*>
-  readReg y   <*>
-  readReg pc  <*>
-  readReg s   <*>
-  readReg p   <*>
-  readReg cyc <*>
-  readReg irqTimer <*>
-  readReg nmiTimer
 
 -- https://forums.nesdev.com/viewtopic.php?f=3&t=14231
 reset :: Emulator ()
@@ -873,7 +844,7 @@ reset = do
 clock :: Emulator Int
 clock = do
   DecodedOpcode 
-    instruction 
+    instruction
       cycles <- do
         fetch <&> decodeOpcode
 

@@ -1,21 +1,23 @@
 {-# LANGUAGE OverloadedStrings, TypeFamilies, DeriveAnyClass #-}
 
-module Nes.Cartridge (
-  Cartridge,
+module Nes.Cartridge.Parser (
+  Cartridge(..),
   Mirroring(..),
+  Mapper,
+  dummyMapper,
+  mappersById,
   loadCartridge,
   cpuReadCartridge,
   cpuWriteCartridge,
   ppuReadCartridge,
-  ppuWriteCartridge,
-  mirror
+  ppuWriteCartridge
 ) where
 
 -- INES format: https://wiki.nesdev.com/w/index.php/INES
 -- https://formats.kaitai.io/ines/index.html 
 
-import qualified Data.Vector.Unboxed         as V
-import qualified Data.Vector.Unboxed.Mutable as VM
+import qualified Data.Vector.Unboxed         as VU
+import qualified Data.Vector.Unboxed.Mutable as VUM
 import qualified Data.Map                    as M
 import           Data.Store
 import           GHC.Generics
@@ -86,15 +88,17 @@ data Mirroring
   deriving (Show, Enum, Generic, Store)
     
 data Cartridge = Cartridge {
+    hasChrRam    :: Bool,
+    mapperId     :: Word8,
     mapper       :: Mapper,
     mirror       :: Mirroring,
-    chr_rom      :: VM.IOVector Word8,
-    prg_rom      :: VM.IOVector Word8,
-    prg_ram      :: VM.IOVector Word8
+    chr_rom      :: VUM.IOVector Word8,
+    prg_rom      :: VUM.IOVector Word8,
+    prg_ram      :: VUM.IOVector Word8
 }
 
-toVector :: ByteString -> IO (VM.IOVector Word8)
-toVector bs = V.unsafeThaw $ V.fromList (BS.unpack bs)
+toVector :: ByteString -> IO (VUM.IOVector Word8)
+toVector bs = VU.unsafeThaw $ VU.fromList (BS.unpack bs)
 
 
 data Mapper = Mapper {
@@ -104,7 +108,7 @@ data Mapper = Mapper {
  ,  ppuWrite   :: Word16 -> Word8 -> IO ()
 }
 
-mappersById :: M.Map Word8 (Bool -> Cartridge -> IO Mapper)
+mappersById :: M.Map Word8 (Cartridge -> IO Mapper)
 mappersById = M.fromList [
     (0, nrom)
   ]
@@ -118,14 +122,14 @@ assembleCartridge INES{..} = do
     mapperId = (flags6 `shiftR` 4) .|. (flags7 .&. 0xF0)
     mirror = if flags6 `testBit` 3 then FourScreen else (toEnum . fromEnum) (flags6 `testBit` 0)
   when (mapperId `M.notMember` mappersById) . fail $ "Mapper type " ++ show mapperId ++ " is currently not supported"
-  let hasChrRam = BS.length chr_rom_bs == 0  
-  chr_rom <- if hasChrRam then VM.new 0x2000 else toVector chr_rom_bs
+  let hasChrRam = BS.length chr_rom_bs == 0
+  chr_rom <- if hasChrRam then VUM.new 0x2000 else toVector chr_rom_bs
   prg_rom <- toVector prg_rom_bs
-  prg_ram <- VM.new (if prg_ram_size == 0 then 0x2000 else fromIntegral prg_ram_size)
+  prg_ram <- VUM.new (if prg_ram_size == 0 then 0x2000 else fromIntegral prg_ram_size)
   let 
     cart = Cartridge{..}
     mapper = dummyMapper
-  assembledMapper <- (mappersById M.! mapperId) hasChrRam cart
+  assembledMapper <- (mappersById M.! mapperId) cart
   pure cart { mapper = assembledMapper }
 
 
@@ -144,30 +148,30 @@ ppuWriteCartridge cart = ppuWrite (mapper cart)
 
 -- Mappers
 
-nrom :: Bool -> Cartridge -> IO Mapper
-nrom hasChrRam Cartridge{..} = pure Mapper{..}
+nrom :: Cartridge -> IO Mapper
+nrom Cartridge{..} = pure Mapper{..}
  where 
-  chr_rom_size = VM.length chr_rom
-  prg_ram_size = VM.length prg_ram
+  chr_rom_size = VUM.length chr_rom
+  prg_ram_size = VUM.length prg_ram
   mirrored  addr = fromIntegral $ (addr - 0x8000) .&. 0x3FFF
   intact addr = fromIntegral (addr `clearBit` 15)
   prg_ram_addr addr = (fromIntegral (addr .&. 0x1FFF)) .&. (prg_ram_size-1)
   readWith :: (Word16 -> Int) -> Word16 -> IO Word8
   readWith mode addrUnsafe
-    | addr <= 0x7FFF = VM.read prg_ram (prg_ram_addr addr)
-    | otherwise = VM.read prg_rom (mode addr)
+    | addr <= 0x7FFF = VUM.read prg_ram (prg_ram_addr addr)
+    | otherwise = VUM.read prg_rom (mode addr)
     where addr = addrUnsafe .&. 0xFFFF
   cpuWrite addrUnsafe val
-    | addr <= 0x7FFF = VM.write prg_ram (prg_ram_addr addr) val
+    | addr <= 0x7FFF = VUM.write prg_ram (prg_ram_addr addr) val
     | otherwise = pure ()
     where addr = addrUnsafe .&. 0xFFFF
   cpuRead = readWith $
-    case VM.length prg_rom of
+    case VUM.length prg_rom of
       0x4000 ->  mirrored
       0x8000 ->  intact
   mkChrAddr addrUnsafe = fromIntegral addrUnsafe .&. (chr_rom_size - 1)
   ppuRead :: Word16 -> IO Word8
-  ppuRead addrUnsafe = VM.read chr_rom (mkChrAddr addrUnsafe)
+  ppuRead addrUnsafe = VUM.read chr_rom (mkChrAddr addrUnsafe)
   ppuWrite addrUnsafe val = if hasChrRam
-    then VM.write chr_rom (mkChrAddr addrUnsafe) val 
+    then VUM.write chr_rom (mkChrAddr addrUnsafe) val 
     else pure () -- On NROM writing ROM is a nop. See: https://forums.nesdev.com/viewtopic.php?f=3&t=17584

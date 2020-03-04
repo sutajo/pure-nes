@@ -19,13 +19,13 @@ import           SDL
 import           Foreign hiding (void)
 import           Communication as Comms
 import           JoyControls
-import           Nes.Cartridge
-import           Nes.EmulatorMonad
-import qualified Nes.CPUEmulator as CPU
-import qualified Nes.PPUEmulator as PPU
+import           Nes.Cartridge.Parser
+import           Nes.Emulation.Monad
+import qualified Nes.CPU.Emulation as CPU
+import qualified Nes.PPU.Emulation as PPU
 import           Nes.Timing
 import           Nes.Controls as Controls (Input(..), Button(..))
-import           Nes.MasterClock
+import           Nes.Emulation.MasterClock
 
 scale :: Int
 scale = 4

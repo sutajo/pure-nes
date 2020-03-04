@@ -11,26 +11,27 @@ import           Data.Word
 import           Test.Tasty
 import           Test.Tasty.HUnit
 import           CPU.Quick.Nestest.LogParser
-import           Nes.EmulatorMonad
-import           Nes.CPU6502
-import           Nes.CPUEmulator
-import           Nes.PPU
-import qualified Nes.PPUEmulator as PPU
-import           Nes.MasterClock
-import           Nes.Cartridge hiding (readCartridge)
+import           Nes.Emulation.Monad
+import           Nes.CPU.Memory (pc, p)
+import           Nes.CPU.Serialization as CPU hiding (pc, p)
+import           Nes.CPU.Emulation
+import           Nes.PPU.Memory
+import qualified Nes.PPU.Emulation as PPU
+import           Nes.Emulation.MasterClock
+import           Nes.Cartridge.Parser hiding (readCartridge)
 
 
-assertMatch :: (Word8, CpuSnapshot, PPUState, Int) -> (Word8, CpuSnapshot, PPUState) -> Assertion
-assertMatch (opce, spe@CpuSnapshot{irqTimer' = i, nmiTimer' = n}, ppue, lineNum) (opca, spa, ppua) = do
+assertMatch :: (Word8, CPU, PPUState, Int) -> (Word8, CPU, PPUState) -> Assertion
+assertMatch (opce, spe@CPU{irqTimer = i, nmiTimer = n}, ppue, lineNum) (opca, spa, ppua) = do
   let stateErrorMessage = "roms/tests/cpu/nestest/nestest.log:" ++ show lineNum ++":\nFailed to match the " ++ show lineNum ++ ". snapshot from the log." 
-  assertEqual stateErrorMessage spe (spa {irqTimer' = i, nmiTimer' = n})
+  assertEqual stateErrorMessage spe (spa {irqTimer = i, nmiTimer = n})
   assertEqual stateErrorMessage ppue ppua
   assertEqual ("Failed to match the " ++ show lineNum ++ ". opcode from the log.") opce opca 
 
-runClock :: (Word8, CpuSnapshot, PPUState, Int) -> Emulator ()
+runClock :: (Word8, CPU, PPUState, Int) -> Emulator ()
 runClock expectedSnapshot = do
   op       <- fetch
-  snapshot <- getSnapshot
+  snapshot <- CPU.serialize
   cycle    <- PPU.readReg emuCycle
   scanline <- PPU.readReg emuScanLine
   liftIO $ assertMatch expectedSnapshot (op, snapshot, PPUState{..})

@@ -14,12 +14,12 @@ import           Data.IORef
 import           Prelude hiding (read)
 import           Test.Tasty
 import           Test.Tasty.HUnit
-import           Nes.EmulatorMonad
-import           Nes.CPU6502 hiding (intr)
-import           Nes.CPUEmulator as CPU
-import qualified Nes.PPUEmulator as PPU
-import           Nes.MasterClock
-import           Nes.Cartridge hiding (readCartridge)
+import           Nes.Emulation.Monad
+import           Nes.CPU.Memory hiding (intr)
+import           Nes.CPU.Emulation as CPU
+import qualified Nes.PPU.Emulation as PPU
+import           Nes.Emulation.MasterClock
+import           Nes.Cartridge.Parser hiding (readCartridge)
 import           CPU.Exhaustive.Spec (runTestWith)
 
 blargg_ppu_tests :: FilePath

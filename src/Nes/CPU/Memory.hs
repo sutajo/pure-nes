@@ -1,19 +1,16 @@
 {-# LANGUAGE MultiParamTypeClasses, RecordWildCards, DeriveAnyClass #-}
 
-module Nes.CPU6502 (
+module Nes.CPU.Memory (
   CPU(..),
   Flag(..),
-  CpuSnapshot(..),
+  Interrupt(..),
   Register8,
   Register16,
   powerUp
-)where
+) where
 
 import Data.Word  (Word8, Word16)
-import Data.Store
-import GHC.Generics
 import Data.IORef.Unboxed (IORefU, newIORefU)
-import Text.Printf
 
 type Register8  = IORefU Word8
 type Register16 = IORefU Word16
@@ -55,17 +52,6 @@ data Flag
   | Negative 
   deriving (Enum)
 
-data CpuSnapshot = CpuSnapshot {
-  a'     ::  Word8, 
-  x'     ::  Word8, 
-  y'     ::  Word8, 
-  pc'    ::  Word16,
-  s'     ::  Word8, 
-  p'     ::  Word8, 
-  cyc'   ::  Int,
-  irqTimer' :: Word8,
-  nmiTimer' :: Word8
-} deriving (Eq, Generic, Store)
-
-instance Show CpuSnapshot where
-  show CpuSnapshot{..} = printf "Cpu { a = 0x%X, x = 0x%X, y = 0x%X, pc = 0x%X, s = 0x%X, p = 0x%X, cycles = %d }" a' x' y' pc' s' p' cyc'
+data Interrupt
+  = NMI
+  | IRQ

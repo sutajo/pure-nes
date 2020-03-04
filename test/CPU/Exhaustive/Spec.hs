@@ -15,11 +15,11 @@ import           Data.IORef
 import           Prelude hiding (read)
 import           Test.Tasty
 import           Test.Tasty.HUnit
-import           Nes.EmulatorMonad
-import           Nes.CPU6502 hiding (intr)
-import           Nes.CPUEmulator as CPU
-import qualified Nes.PPUEmulator as PPU
-import           Nes.Cartridge hiding (readCartridge)
+import           Nes.Emulation.Monad
+import           Nes.CPU.Memory hiding (intr)
+import           Nes.CPU.Emulation as CPU
+import qualified Nes.PPU.Emulation as PPU
+import           Nes.Cartridge.Parser hiding (readCartridge)
 
 instr_v5 :: FilePath
 instr_v5 = "roms/tests/cpu/instr_test-v5/"

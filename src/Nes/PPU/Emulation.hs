@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 
-module Nes.PPUEmulator (
+module Nes.PPU.Emulation (
   reset,
   clock,
   accessScreen,
@@ -26,8 +26,8 @@ import qualified Data.Vector.Unboxed          as VU
 import qualified Data.Vector.Unboxed.Mutable  as VUM
 import qualified Data.Vector.Storable.Mutable as VSM
 import           Prelude hiding (read)
-import           Nes.PPU
-import           Nes.EmulatorMonad
+import           Nes.PPU.Memory
+import           Nes.Emulation.Monad
 
 --http://wiki.nesdev.com/w/index.php/PPU_registers
 --http://wiki.nesdev.com/w/index.php/PPU_scrolling
@@ -50,10 +50,10 @@ usePPU :: (b -> IO a) -> (PPU -> b) -> Emulator a
 usePPU action field = useMemory (field . ppu) action
 
 readPPUComponent :: Enum addr => (PPU -> VUM.IOVector Word8) -> addr -> Emulator Word8
-readPPUComponent component addr = usePPU (`VUM.read` (fromEnum addr)) component
+readPPUComponent component = readMemory (component . ppu)
 
 writePPUComponent :: Enum addr => (PPU -> VUM.IOVector Word8) -> addr -> Word8 -> Emulator ()
-writePPUComponent component addr val = usePPU (\ind -> VUM.write ind (fromEnum addr) val) component
+writePPUComponent component = writeMemory (component . ppu)
 
 usePaletteIndices usage addr
  | addr `testBit` 4 && addr .&. 0b11 == 0 = usage (addr `clearBit` 4)

@@ -1,11 +1,15 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Nes.EmulatorMonad (
+module Nes.Emulation.Monad (
     Nes(..),
     Emulator,
     powerUpNes,
     runEmulator,
     useMemory,
+    readMemory,
+    writeMemory,
+    getApu,
+    setApu,
     cpuReadCartridge,
     cpuWriteCartridge,
     ppuReadCartridge,
@@ -23,32 +27,31 @@ module Nes.EmulatorMonad (
     module Data.Functor,
     module Data.Primitive,
     module PPU,
-    module Data.Array.IO,
     module Control.Monad.Reader
 ) where
 
 import           Control.Monad.Reader
-import           Data.Array.IO
+import qualified Data.Vector.Unboxed.Mutable  as VUM
 import           Data.Primitive(Prim)
 import           Data.Vector.Mutable (IOVector)
 import qualified Data.Vector.Mutable as VM
 import           Data.Functor
-import           Nes.CPU6502   as CPU
-import           Nes.PPU       as PPU
-import qualified Nes.Cartridge as Cart
-import           Nes.APU       as APU
-import qualified Nes.Controls  as Controls
+import           Nes.APU.Memory         as APU
+import           Nes.CPU.Memory         as CPU
+import           Nes.PPU.Memory         as PPU
+import qualified Nes.Cartridge.Parser   as Cart
+import qualified Nes.Controls           as Controls
 
-type RAM = IOUArray Word16 Word8
+type RAM = VUM.IOVector Word8
 
 allocateRAM :: IO RAM
-allocateRAM = newArray (0, 0x07FF) 0
+allocateRAM = VUM.new 0x800
 
 data Nes =  Nes {
     cpu         ::  CPU,
     ram         ::  RAM,
     ppu         ::  PPU,
-    apu         ::  APU,
+    apu         ::  IORef APU,
     cartridge   ::  Cart.Cartridge,
     controllers ::  IOVector Controls.Controller
 }
@@ -59,8 +62,8 @@ powerUpNes cart =
     CPU.powerUp <*>
     allocateRAM <*>
     PPU.powerUp (Cart.mirror cart) <*>
-    APU.powerUp <*>
-    pure cart   <*>
+    newIORef APU.powerUp <*>
+    pure cart            <*>
     VM.replicate 2 Controls.powerUp
 
 newtype Emulator a = Emulator (ReaderT Nes IO a) 
@@ -70,9 +73,17 @@ newtype Emulator a = Emulator (ReaderT Nes IO a)
 runEmulator :: Nes -> Emulator a -> IO a
 runEmulator nes (Emulator emu) = runReaderT emu nes
 
+-- Memory access
+
 useMemory :: (Nes -> b) -> (b -> IO a) -> Emulator a
 useMemory memory action = ask >>= liftIO . action . memory
 {-# INLINE useMemory #-}
+
+readMemory :: Enum addr => (Nes -> VUM.IOVector Word8) -> addr -> Emulator Word8
+readMemory comp addr = useMemory comp $ (`VUM.read` (fromEnum addr))
+
+writeMemory :: Enum addr => (Nes -> VUM.IOVector Word8) -> addr -> Word8 -> Emulator ()
+writeMemory comp addr val = useMemory comp $ (\arr -> VUM.write arr (fromEnum addr) val)
 
 readCartridgeWith accessor addr = useMemory cartridge (`accessor` addr)
 writeCartridgeWith modifier addr val = useMemory cartridge $ \cart -> modifier cart addr val
@@ -95,6 +106,14 @@ getNametableMirroring = ask <&> (mirrorNametableAddress . ppu)
 useCpu :: (b -> IO a) -> (CPU -> b) -> Emulator a
 useCpu action field = useMemory (field . cpu) action
 
+getApu :: Emulator APU
+getApu = useMemory apu readIORef
+
+setApu :: APU -> Emulator ()
+setApu val = useMemory apu (`writeIORef` val)
+
+-- Cpu interrupts
+
 -- Sends an NMI which fires after the specified amount of clock cycles
 sendPendingInterrupt :: (CPU -> Register8) -> Word8 -> Emulator ()
 sendPendingInterrupt reg cyc = useCpu (`writeIORefU` cyc) reg
@@ -107,6 +126,8 @@ sendNmi  = sendPendingNmi 1
 clearNmi = clearInterrupt nmiTimer
 sendPendingIrq = sendPendingInterrupt irqTimer
 sendIrq = sendPendingIrq 1
+
+-- Controller access
 
 readController :: Int -> Emulator Word8
 readController index = 
