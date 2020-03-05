@@ -187,7 +187,7 @@ executeCommand appResources@AppResources{..} command = do
   case command of
     Save path -> do
       pureNes <- serialize
-      liftIO . void . forkIO $ B.writeFile (path ++ "/sav.purenes") (encode pureNes)
+      liftIO . void . forkIO $ B.writeFile path (encode pureNes)
     Load path -> do
       newNes <- liftIO $ B.readFile path <&> decodeEx >>= deserialize
       liftIO $ do

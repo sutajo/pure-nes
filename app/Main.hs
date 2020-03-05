@@ -22,7 +22,9 @@ import           GI.Gtk                         ( Box(..)
                                                 )
 import           GI.Gtk.Enums
 import           GI.Gtk.Declarative
+import           GI.Gtk.Objects.Entry
 import           GI.Gtk.Objects.Image(Image(..))
+import           GI.Gtk.Interfaces.Editable
 import           GI.Gtk.Declarative.App.Simple as DAS
 import           System.Info
 import           Text.RawString.QQ
@@ -33,7 +35,12 @@ import           SDLWindow
 
 data State = Started (Maybe FilePath)
            | Message Text
-           | Emulating { romName :: Text, running :: Bool, savePath :: Maybe FilePath, loadPath :: FilePath }
+           | Emulating { 
+             romName :: Text, 
+             running :: Bool,
+             savePath :: Maybe FilePath, 
+             loadPath :: FilePath, 
+             saveRomName :: String }
 
 view' :: Int -> State -> AppView Window Event
 view' threadCount s = do
@@ -81,15 +88,31 @@ view' threadCount s = do
                 BoxChild defaultBoxChildProperties $
                   widget Button
                   [ 
+                    #label := "Quick save",
+                    #marginLeft  := 30,
+                    #marginRight := 10,
+                    on #clicked QuickSavePressed
+                  ]
+              , BoxChild defaultBoxChildProperties { fill = True } $ 
+                widget FileChooserButton
+                [ onM #selectionChanged (fmap SavePathChanged . fileChooserGetFilename),
+                  #action := FileChooserActionSelectFolder, #expand := True, #createFolders := True]
+              ]
+          , BoxChild defaultBoxChildProperties { fill = True } $
+              container Box [#orientation := OrientationHorizontal, #valign := AlignCenter, #marginTop := 15, #marginBottom := 15] $
+              [
+                BoxChild defaultBoxChildProperties $
+                  widget Button
+                  [ 
                     #label := "Save progress",
                     #marginLeft  := 5,
                     #marginRight := 10,
                     on #clicked SaveButtonPressed
                   ]
               , BoxChild defaultBoxChildProperties { fill = True } $ 
-                widget FileChooserButton
-                [ onM #selectionChanged (fmap SavePathChanged . fileChooserGetFilename),
-                  #action := FileChooserActionSelectFolder, #expand := True, #createFolders := True]
+                widget Entry
+                  [ #expand := True, #placeholderText := "How should I call this save?",
+                    onM #changed (\e -> SaveNameChanged . Text.unpack <$> editableGetChars e 0 (-1))]
               ]
           , BoxChild defaultBoxChildProperties { padding = 15 } $ 
               widget Image [ #file := "resources/GUI/reload.png"]
@@ -109,7 +132,7 @@ view' threadCount s = do
                     BoxChild defaultBoxChildProperties $
                       widget Button
                       [ 
-                        #label := "Quick reload",
+                        #label := "Quick load",
                         #marginLeft  := 5,
                         #marginRight := 10,
                         on #clicked QuickReloadPressed
@@ -197,14 +220,21 @@ update :: CommResources -> State -> Event -> Transition State Event
 update _ (Started _) (FileSelectionChanged p) 
   = Transition (Started p) (return Nothing)
 
-update CommResources{..} e@Emulating{savePath = Just path} SaveButtonPressed
-  = Transition e (just . atomically $ writeTChan toSDLWindow (Communication.SaveVM path))
+update CommResources{..} e@Emulating{saveRomName = ""} SaveButtonPressed = Transition e noop
+update CommResources{..} e@Emulating{savePath = Just path, saveRomName = saveName } SaveButtonPressed
+  = Transition e (just . atomically $ writeTChan toSDLWindow (Communication.SaveVM (path ++ "/" ++ saveName ++".purenes")))
+
+update CommResources{..} e@Emulating{savePath = Just path} QuickSavePressed
+  = Transition e (just . atomically $ writeTChan toSDLWindow (Communication.SaveVM (path ++ "/quick.purenes")))
 
 update _ e@Emulating{} (SavePathChanged s)
   = Transition (e {savePath = s}) noop
 
-update CommResources{..} e@Emulating{..} QuickReloadPressed
-  = Transition e (just . atomically $ when (loadPath /= "") $ writeTChan toSDLWindow (Communication.LoadVM loadPath))
+update _ e@Emulating{} (SaveNameChanged s)
+  = Transition e{saveRomName = s} noop
+
+update CommResources{..} e@Emulating{ savePath = Just path } QuickReloadPressed
+  = Transition e (just . atomically $ writeTChan toSDLWindow (Communication.LoadVM (path ++ "/quick.purenes")))
 
 update CommResources{..} e@Emulating{} (LoadPathChanged (Just path))
   = Transition e {loadPath = path} (just . atomically $ writeTChan toSDLWindow (Communication.LoadVM path))
@@ -213,7 +243,7 @@ update _  _ Closed
   = Exit
 
 update comms s@(Started (Just path)) StartEmulator 
-  = Transition (Emulating (Text.pack . dropExtension . takeFileName $ path) True Nothing "") (just $ launchEmulator path comms)
+  = Transition (Emulating (Text.pack . dropExtension . takeFileName $ path) True Nothing "" "") (just $ launchEmulator path comms)
 
 update _ s@(Started Nothing) StartEmulator
   = Transition (Message "No ROM selected.") noop

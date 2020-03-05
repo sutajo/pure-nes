@@ -9,6 +9,7 @@ data Event
   = FileSelectionChanged (Maybe FilePath)
   | SavePathChanged (Maybe FilePath)
   | LoadPathChanged (Maybe FilePath)
+  | SaveNameChanged String
   | Closed 
   | Help 
   | StartEmulator 
@@ -18,6 +19,7 @@ data Event
   | SDLWindowClosed
   | ErrorReport String
   | SwitchMode
+  | QuickSavePressed
   | SaveButtonPressed
   | QuickReloadPressed
 
