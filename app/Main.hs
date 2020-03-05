@@ -47,6 +47,7 @@ view' threadCount s = do
       , on #deleteEvent (const (True, Closed))
       , #heightRequest := 700
       , #widthRequest := 400
+      , #windowPosition := WindowPositionCenter
       ]
     $ windowContent s
   where

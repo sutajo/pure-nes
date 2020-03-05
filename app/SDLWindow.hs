@@ -18,6 +18,7 @@ import           Data.Word
 import           Data.IORef
 import           Data.Time
 import           SDL
+import           System.FilePath.Posix
 import           Foreign hiding (void)
 import           Communication as Comms
 import           JoyControls
@@ -120,8 +121,14 @@ runEmulatorWindow romPath comms = do
   bye
 
 acquireResources romPath comms = do
-  cartridge <- loadCartridge romPath `except` (comms, "Error: Failed to load cartridge.")
-  nes       <- powerUpNes cartridge >>= newIORef
+  reboot        <- newIORef False
+  nes       <- do
+    if ".purenes" `isExtensionOf` romPath then do
+      writeIORef reboot True
+      B.readFile romPath <&> decodeEx >>= deserialize >>= newIORef
+    else do
+      cartridge <- loadCartridge romPath `except` (comms, "Error: Failed to load cartridge.")
+      powerUpNes cartridge >>= newIORef
   SDL.initializeAll
   greetings
   let windowConfig = SDL.defaultWindow {
@@ -138,7 +145,6 @@ acquireResources romPath comms = do
   continousMode <- newIORef True
   let buttonMappings = M.fromList [(0, Select), (1, Start), (2, A), (3, B)]
   joys          <- JoyControls.init buttonMappings >>= newIORef
-  reboot        <- newIORef False
   return AppResources{..}
 
 releaseResources AppResources{..} = do
@@ -155,6 +161,7 @@ runApp appResources@AppResources{..} = do
   runEmulator nes $ do
     when (not rebootRequest) $ do CPU.reset; PPU.reset
     updateWindow appResources `cappedAt` 60
+
   shouldReboot <- readIORef reboot
   when shouldReboot $ do
     runApp appResources

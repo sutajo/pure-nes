@@ -45,17 +45,17 @@ library
       -fno-warn-name-shadowing
       -Wno-unsupported-llvm-version
       -fwarn-unused-imports
-      --O2
-      --fllvm
-      --optlc -O3
-      --funbox-strict-fields
-      --foptimal-applicative-do
-      --fexpose-all-unfoldings
-      --flate-specialise
-      --fcross-module-specialise
-      --fspecialise-aggressively
-      --fstatic-argument-transformation
-      --fstg-cse
+      -O2
+      -fllvm
+      -optlc -O3
+      -funbox-strict-fields
+      -foptimal-applicative-do
+      -fexpose-all-unfoldings
+      -flate-specialise
+      -fcross-module-specialise
+      -fspecialise-aggressively
+      -fstatic-argument-transformation
+      -fstg-cse
       --funfolding-keeness-factor=3
   build-depends:
        base >=4.7 && <5
@@ -76,6 +76,7 @@ library
      , Chart
      , Chart-diagrams
      , store
+     , filepath
   default-extensions: 
        ApplicativeDo
      , RecordWildCards
@@ -100,13 +101,14 @@ executable pure-nes
       -rtsopts
       -with-rtsopts=-N
       -funbox-strict-fields
-      --O2
-      --fllvm
+      -O2
+      -fllvm
       -dynamic
   build-depends:
       base >=4.7 && <5
     , pure-nes
     , gi-gtk
+    , gi-gdk
     , gi-gtk-declarative
     , gi-gtk-declarative-app-simple
     , haskell-gi-base
