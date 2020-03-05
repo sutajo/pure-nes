@@ -9,6 +9,8 @@ data Event
   = FileSelectionChanged (Maybe FilePath)
   | SavePathChanged (Maybe FilePath)
   | LoadPathChanged (Maybe FilePath)
+  | SaveError (Maybe String)
+  | LoadError (Maybe String)
   | SaveNameChanged String
   | Closed 
   | Help 
@@ -17,7 +19,8 @@ data Event
   | MessageAck
   | CloseEmulator
   | SDLWindowClosed
-  | ErrorReport String
+  | MessageText String
+  | Error String
   | SwitchMode
   | QuickSavePressed
   | SaveButtonPressed
@@ -39,4 +42,4 @@ readAllTChan :: TChan a -> STM [a]
 readAllTChan tchan = unfoldM (tryReadTChan tchan)
 
 except op (comms, msg) = op `onException` do
-  writeChan (fromSDLWindow comms) (ErrorReport msg)
+  writeChan (fromSDLWindow comms) (Error msg)

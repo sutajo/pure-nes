@@ -183,16 +183,21 @@ updateScreen AppResources{..} pixels = liftIO $ do
 
 executeCommand :: AppResources -> Command -> Emulator ()
 executeCommand appResources@AppResources{..} command = do
+  let sendEvent = writeChan (fromSDLWindow commRes)
   joys <- liftIO $ readIORef joys
   case command of
     Save path -> do
       pureNes <- serialize
-      liftIO . void . forkIO $ B.writeFile path (encode pureNes)
-    Load path -> do
-      newNes <- liftIO $ B.readFile path <&> decodeEx >>= deserialize
-      liftIO $ do
+      liftIO $
+        void . forkIO $ (do
+          B.writeFile path (encode pureNes)
+          sendEvent (SaveError Nothing)) `catch` (\(e :: SomeException) -> do print (show e); sendEvent (SaveError . Just $ show e))
+    Load path -> 
+      liftIO $ (do
+        newNes <- liftIO $ B.readFile path <&> decodeEx >>= deserialize
         writeIORef nes newNes
-        writeIORef reboot True 
+        writeIORef reboot True
+        sendEvent (LoadError Nothing)) `catch` (\(e :: SomeException) -> do print (show e); sendEvent (LoadError . Just $ show e))
     JoyButtonCommand eventData -> liftIO (manageButtonEvent joys eventData) >>= mapM_ (`processInput` 0)
     JoyHatCommand eventData    -> liftIO (manageHatEvent    joys eventData) >>= mapM_ (`processInput` 0)
     JoyDeviceCommand eventData -> liftIO (manageDeviceEvent joys eventData)

@@ -34,20 +34,40 @@ import           System.FilePath.Posix
 import           SDLWindow
 
 data State = Started (Maybe FilePath)
-           | Message Text
+           | Message { text :: Text, stateAfterOk :: State }
            | Emulating { 
              romName :: Text, 
              running :: Bool,
              savePath :: Maybe FilePath, 
              loadPath :: FilePath, 
-             saveRomName :: String }
+             saveRomName :: String,
+             saveResultSuccess :: Maybe (Maybe String),
+             loadResultSuccess :: Maybe (Maybe String)
+            }
+
+saveLabel = [r|  First, select a folder for your saves.
+  Quicksaving creates an anonymous save 
+  file that you can access with Quickload.
+  You can create unique saves by giving it 
+  a name and then hitting the save button. 
+  |]
+
+loadLabel = [r|  Quickload loads the quicksave file 
+  located in the selected save folder (if one exists).
+  You can load ordinary save files using the filechooser.
+  |]
+
+saveAsQuick = [r|
+You can't name your save as 'quick' 
+as it would overwrite the previous quicksave.
+  |]
 
 view' :: Int -> State -> AppView Window Event
 view' threadCount s = do
   let 
     title = case s of
-      Message _ -> "Message"
-      _         -> "Pure-Nes Menu"
+      Message _ _ -> "Message"
+      _           -> "Pure-Nes Menu"
   bin
       Window
       [ #title := title
@@ -59,7 +79,7 @@ view' threadCount s = do
     $ windowContent s
   where
     windowContent s = case s of
-        Message text -> 
+        Message text _ -> 
           container Box
           [#orientation := OrientationVertical, #valign := AlignCenter, #margin := 10 ]
           [
@@ -80,8 +100,28 @@ view' threadCount s = do
                 #label := Text.append (if running then "Pause " else "Resume ") romName,
                 on #clicked SwitchMode
               ]
-          , BoxChild defaultBoxChildProperties { padding = 15 } $ 
-              widget Image [ #file := "resources/GUI/save.png"]
+          , BoxChild defaultBoxChildProperties { padding = 15, expand = True, fill = True } $
+              container Box [#orientation := OrientationHorizontal, #halign := AlignCenter] $
+                case saveResultSuccess of
+                  Nothing -> [BoxChild defaultBoxChildProperties $ widget Image [ #file := "resources/GUI/save.png"]]
+                  Just result -> 
+                    let 
+                      img = case result of
+                        Nothing  -> "tick.png"
+                        Just err -> "cross.png"
+                    in
+                      [
+                        BoxChild defaultBoxChildProperties $ 
+                          widget Image [ #file := Text.append "resources/GUI/" img, #marginRight := 40]
+                      , BoxChild defaultBoxChildProperties $ 
+                          widget Image [ #file := "resources/GUI/save.png"]
+                      ]
+          , BoxChild defaultBoxChildProperties $
+              widget Label
+              [ 
+                #label := saveLabel,
+                #marginBottom := 5
+              ]
           , BoxChild defaultBoxChildProperties { fill = True } $
               container Box [#orientation := OrientationHorizontal, #valign := AlignCenter, #marginTop := 15, #marginBottom := 15] $
               [
@@ -114,16 +154,29 @@ view' threadCount s = do
                   [ #expand := True, #placeholderText := "How should I call this save?",
                     onM #changed (\e -> SaveNameChanged . Text.unpack <$> editableGetChars e 0 (-1))]
               ]
-          , BoxChild defaultBoxChildProperties { padding = 15 } $ 
-              widget Image [ #file := "resources/GUI/reload.png"]
+          , BoxChild defaultBoxChildProperties { padding = 15, expand = True, fill = True } $
+              container Box [#orientation := OrientationHorizontal, #halign := AlignCenter] $
+                case loadResultSuccess of
+                  Nothing -> [BoxChild defaultBoxChildProperties $ widget Image [ #file := "resources/GUI/reload.png"]]
+                  Just result ->
+                    let 
+                      img = case result of
+                        Nothing  -> "tick.png"
+                        Just err -> "cross.png"
+                    in 
+                      [
+                        BoxChild defaultBoxChildProperties $ 
+                          widget Image [ #file := Text.append "resources/GUI/" img, #marginRight := 40]
+                      , BoxChild defaultBoxChildProperties $ 
+                          widget Image [ #file := "resources/GUI/reload.png"]
+                      ]
           , BoxChild defaultBoxChildProperties {fill = True} $
-              container Box [#orientation := OrientationVertical, #valign := AlignCenter, #marginTop := 15, #marginBottom := 15] $
+              container Box [#orientation := OrientationVertical, #valign := AlignCenter, #marginTop := 5, #marginBottom := 15] $
               [
                 BoxChild defaultBoxChildProperties $
                   widget Label
                   [ 
-                    #label := [r|<span size="larger" font_family="cursive">Load progress</span>|],
-                    #useMarkup := True,
+                    #label := loadLabel,
                     #marginBottom := 5
                   ]
               , BoxChild defaultBoxChildProperties { fill = True } $
@@ -220,7 +273,15 @@ update :: CommResources -> State -> Event -> Transition State Event
 update _ (Started _) (FileSelectionChanged p) 
   = Transition (Started p) (return Nothing)
 
-update CommResources{..} e@Emulating{saveRomName = ""} SaveButtonPressed = Transition e noop
+update CommResources{..} e@Emulating{saveRomName = ""} SaveButtonPressed 
+  = Transition e (return . Just $ MessageText "You need to give a name to your save file.")
+
+update CommResources{..} e@Emulating{savePath = Nothing} QuickSavePressed
+  = Transition e (return . Just $ MessageText "You need to choose a save folder first.")
+
+update CommResources{..} e@Emulating{saveRomName = "quick"} SaveButtonPressed 
+  = Transition e (return . Just$ MessageText saveAsQuick)
+
 update CommResources{..} e@Emulating{savePath = Just path, saveRomName = saveName } SaveButtonPressed
   = Transition e (just . atomically $ writeTChan toSDLWindow (Communication.SaveVM (path ++ "/" ++ saveName ++".purenes")))
 
@@ -233,6 +294,15 @@ update _ e@Emulating{} (SavePathChanged s)
 update _ e@Emulating{} (SaveNameChanged s)
   = Transition e{saveRomName = s} noop
 
+update _ e@Emulating{} (SaveError b)
+  = Transition e{saveResultSuccess = Just $ b} noop
+
+update _ e@Emulating{} (LoadError b)
+  = Transition e{loadResultSuccess = Just $ b} noop
+
+update CommResources{..} e@Emulating{ savePath = Nothing } QuickReloadPressed
+  = Transition e (return . Just $ MessageText "You need to choose a save folder first.")
+
 update CommResources{..} e@Emulating{ savePath = Just path } QuickReloadPressed
   = Transition e (just . atomically $ writeTChan toSDLWindow (Communication.LoadVM (path ++ "/quick.purenes")))
 
@@ -243,13 +313,13 @@ update _  _ Closed
   = Exit
 
 update comms s@(Started (Just path)) StartEmulator 
-  = Transition (Emulating (Text.pack . dropExtension . takeFileName $ path) True Nothing "" "") (just $ launchEmulator path comms)
+  = Transition (Emulating (Text.pack . dropExtension . takeFileName $ path) True Nothing "" "" Nothing Nothing) (just $ launchEmulator path comms)
 
 update _ s@(Started Nothing) StartEmulator
-  = Transition (Message "No ROM selected.") noop
+  = Transition s (return . Just $ MessageText "No ROM selected.")
 
-update _ (Message _) MessageAck 
-  = Transition (Started Nothing) noop
+update _ (Message _ stateAfterOk) MessageAck 
+  = Transition stateAfterOk noop
 
 update comms (Emulating{..}) CloseEmulator 
   = Transition (Started Nothing) (just . atomically $ writeTChan (toSDLWindow comms) Stop)
@@ -260,8 +330,11 @@ update CommResources{..} e SwitchMode
 update _ (Emulating{}) SDLWindowClosed 
   = Transition (Started Nothing) noop
 
-update _ _ (ErrorReport msg) 
-  = Transition (Message $ Text.pack msg) noop
+update _ s (Error msg) 
+  = Transition (Message (Text.pack msg) (Started Nothing)) noop
+
+update _ s (MessageText msg) 
+  = Transition (Message (Text.pack msg) s) noop
 
 update _ s _ = Transition s noop
 
