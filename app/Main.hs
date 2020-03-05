@@ -33,7 +33,7 @@ import           SDLWindow
 
 data State = Started (Maybe FilePath)
            | Message Text
-           | Emulating { romName :: Text, running :: Bool }
+           | Emulating { romName :: Text, running :: Bool, savePath :: Maybe FilePath, loadPath :: FilePath }
 
 view' :: Int -> State -> AppView Window Event
 view' threadCount s = do
@@ -60,7 +60,7 @@ view' threadCount s = do
           , BoxChild defaultBoxChildProperties { padding = 15 } $ 
               widget Button [#label := "Ok", on #clicked MessageAck]
           ]
-        Emulating romName running ->
+        Emulating{..} ->
           container Box
           [#orientation := OrientationVertical, #valign := AlignCenter, #margin := 10 ]
           [
@@ -82,11 +82,13 @@ view' threadCount s = do
                   [ 
                     #label := "Save progress",
                     #marginLeft  := 5,
-                    #marginRight := 10
+                    #marginRight := 10,
+                    on #clicked SaveButtonPressed
                   ]
               , BoxChild defaultBoxChildProperties { fill = True } $ 
                 widget FileChooserButton
-                [#action := FileChooserActionSelectFolder, #expand := True, #createFolders := True]
+                [ onM #selectionChanged (fmap SavePathChanged . fileChooserGetFilename),
+                  #action := FileChooserActionSelectFolder, #expand := True, #createFolders := True]
               ]
           , BoxChild defaultBoxChildProperties { padding = 15 } $ 
               widget Image [ #file := "resources/GUI/reload.png"]
@@ -100,8 +102,22 @@ view' threadCount s = do
                     #useMarkup := True,
                     #marginBottom := 5
                   ]
-              , BoxChild defaultBoxChildProperties {fill = True} $ 
-                widget FileChooserButton [#action := FileChooserActionOpen, #expand := True]
+              , BoxChild defaultBoxChildProperties { fill = True } $
+                  container Box [#orientation := OrientationHorizontal, #valign := AlignCenter, #marginTop := 15, #marginBottom := 15] $
+                  [
+                    BoxChild defaultBoxChildProperties $
+                      widget Button
+                      [ 
+                        #label := "Quick reload",
+                        #marginLeft  := 5,
+                        #marginRight := 10,
+                        on #clicked QuickReloadPressed
+                      ]
+                  , BoxChild defaultBoxChildProperties {fill = True} $ 
+                      widget FileChooserButton 
+                        [ onM #selectionChanged (fmap LoadPathChanged . fileChooserGetFilename),
+                          #action := FileChooserActionOpen, #expand := True ]
+                  ]
               ]
           , BoxChild defaultBoxChildProperties { padding = 15 } $ 
               widget Image [ #file := "resources/GUI/back2.png"]
@@ -180,11 +196,23 @@ update :: CommResources -> State -> Event -> Transition State Event
 update _ (Started _) (FileSelectionChanged p) 
   = Transition (Started p) (return Nothing)
 
+update CommResources{..} e@Emulating{savePath = Just path} SaveButtonPressed
+  = Transition e (just . atomically $ writeTChan toSDLWindow (Communication.SaveVM path))
+
+update _ e@Emulating{} (SavePathChanged s)
+  = Transition (e {savePath = s}) noop
+
+update CommResources{..} e@Emulating{..} QuickReloadPressed
+  = Transition e (just . atomically $ when (loadPath /= "") $ writeTChan toSDLWindow (Communication.LoadVM loadPath))
+
+update CommResources{..} e@Emulating{} (LoadPathChanged (Just path))
+  = Transition e {loadPath = path} (just . atomically $ writeTChan toSDLWindow (Communication.LoadVM path))
+
 update _  _ Closed 
   = Exit
 
 update comms s@(Started (Just path)) StartEmulator 
-  = Transition (Emulating (Text.pack . dropExtension . takeFileName $ path) True) (just $ launchEmulator path comms)
+  = Transition (Emulating (Text.pack . dropExtension . takeFileName $ path) True Nothing "") (just $ launchEmulator path comms)
 
 update _ s@(Started Nothing) StartEmulator
   = Transition (Message "No ROM selected.") noop
@@ -192,13 +220,13 @@ update _ s@(Started Nothing) StartEmulator
 update _ (Message _) MessageAck 
   = Transition (Started Nothing) noop
 
-update comms (Emulating _ _) CloseEmulator 
+update comms (Emulating{..}) CloseEmulator 
   = Transition (Started Nothing) (just . atomically $ writeTChan (toSDLWindow comms) Stop)
 
-update CommResources{..} (Emulating rom running) SwitchMode
-  = Transition (Emulating rom (not running)) (just . atomically $ writeTChan toSDLWindow Communication.Switch)
+update CommResources{..} e SwitchMode
+  = Transition (e { running = not (running e) }) (just . atomically $ writeTChan toSDLWindow Communication.Switch)
 
-update _ (Emulating _ _) SDLWindowClosed 
+update _ (Emulating{}) SDLWindowClosed 
   = Transition (Started Nothing) noop
 
 update _ _ (ErrorReport msg) 

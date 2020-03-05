@@ -6,6 +6,7 @@ module Nes.CPU.Serialization (
     deserialize
 ) where
 
+import           Data.IORef.Unboxed
 import           Data.Store
 import           GHC.Generics
 import           Text.Printf
@@ -41,15 +42,16 @@ serialize =
   readReg M.irqTimer <*>
   readReg M.nmiTimer
 
-deserialize :: CPU -> Emulator ()
-deserialize CPU{..} = do
-  writeReg M.a a
-  writeReg M.x x
-  writeReg M.y y  
-  writeReg M.pc pc 
-  writeReg M.s s  
-  writeReg M.p p  
-  writeReg M.cyc cyc 
-  writeReg M.irqTimer irqTimer
-  writeReg M.nmiTimer nmiTimer
+deserialize :: CPU -> IO M.CPU
+deserialize CPU{..} = 
+  M.CPU         <$>
+  newIORefU a   <*>
+  newIORefU x   <*>
+  newIORefU y   <*>
+  newIORefU pc  <*>
+  newIORefU s   <*>
+  newIORefU p   <*>
+  newIORefU cyc <*>
+  newIORefU irqTimer <*>
+  newIORefU nmiTimer
 

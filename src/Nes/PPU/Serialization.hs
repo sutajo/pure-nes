@@ -13,7 +13,7 @@ import           Data.IORef.Unboxed
 import           Data.Word
 import qualified Data.Vector.Unboxed          as VU
 import qualified Data.Vector.Storable.Mutable as VSM
-import           Nes.PPU.Memory hiding (PPU)
+import           Nes.Emulation.Monad hiding (PPU)
 import qualified Nes.PPU.Memory as M
 import           Nes.Cartridge.Parser
 
@@ -61,41 +61,43 @@ data PPU = PPU {
     smirroringType :: Mirroring
 } deriving (Generic, Store)
 
-serialize :: Mirroring -> M.PPU -> IO PPU
-serialize smirroringType M.PPU{..} = do
+serialize :: Emulator PPU
+serialize = do
+  smirroringType <- ask <&> mirror . cartridge
+  M.PPU{..}      <- ask <&> ppu
   let spalette = palette
-  snametable         <- VU.freeze nametable
-  spaletteIndices    <- VU.freeze paletteIndices
-  sprimaryOam        <- VU.freeze primaryOam
-  ssecondaryOam      <- readIORef secondaryOam
-  sppuCtrl           <- readIORefU ppuCtrl
-  sppuData           <- readIORefU ppuData
-  sppuMask           <- readIORefU ppuMask
-  sppuStatus         <- readIORefU ppuStatus
-  sppuOamAddr        <- readIORefU ppuOamAddr
-  sppuOamData        <- readIORefU ppuOamData
-  sppuScroll         <- readIORefU ppuScroll
-  sppuAddr           <- readIORefU ppuAddr
-  spvtDataBuffer     <- readIORefU pvtDataBuffer
-  spvtAddressLatch   <- readIORefU pvtAddressLatch
-  spvtFineX          <- readIORefU pvtFineX
-  spvtVRamAddr       <- readIORefU pvtVRamAddr
-  spvtTempAddr       <- readIORefU pvtTempAddr
-  semuFrameCount     <- readIORefU emuFrameCount
-  semuCycle          <- readIORefU emuCycle
-  semuScanLine       <- readIORefU emuScanLine
-  semuClocks         <- readIORefU emuClocks
-  semuLastStatusRead <- readIORefU emuLastStatusRead
-  semuNmiPending     <- readIORefU emuNmiPending
-  semuNmiOccured     <- readIORefU emuNmiOccured
-  semuNextNT         <- readIORefU emuNextNT
-  semuNextAT         <- readIORefU emuNextAT
-  semuNextLSB        <- readIORefU emuNextLSB
-  semuNextMSB        <- readIORefU emuNextMSB
-  semuPattShifterLo  <- readIORefU emuPattShifterLo
-  semuPattShifterHi  <- readIORefU emuPattShifterHi
-  semuAttrShifterLo  <- readIORefU emuAttrShifterLo
-  semuAttrShifterHi  <- readIORefU emuAttrShifterHi
+  snametable         <- liftIO $ VU.freeze nametable
+  spaletteIndices    <- liftIO $ VU.freeze paletteIndices
+  sprimaryOam        <- liftIO $ VU.freeze primaryOam
+  ssecondaryOam      <- liftIO $ readIORef secondaryOam
+  sppuCtrl           <- liftIO $ readIORefU ppuCtrl
+  sppuData           <- liftIO $ readIORefU ppuData
+  sppuMask           <- liftIO $ readIORefU ppuMask
+  sppuStatus         <- liftIO $ readIORefU ppuStatus
+  sppuOamAddr        <- liftIO $ readIORefU ppuOamAddr
+  sppuOamData        <- liftIO $ readIORefU ppuOamData
+  sppuScroll         <- liftIO $ readIORefU ppuScroll
+  sppuAddr           <- liftIO $ readIORefU ppuAddr
+  spvtDataBuffer     <- liftIO $ readIORefU pvtDataBuffer
+  spvtAddressLatch   <- liftIO $ readIORefU pvtAddressLatch
+  spvtFineX          <- liftIO $ readIORefU pvtFineX
+  spvtVRamAddr       <- liftIO $ readIORefU pvtVRamAddr
+  spvtTempAddr       <- liftIO $ readIORefU pvtTempAddr
+  semuFrameCount     <- liftIO $ readIORefU emuFrameCount
+  semuCycle          <- liftIO $ readIORefU emuCycle
+  semuScanLine       <- liftIO $ readIORefU emuScanLine
+  semuClocks         <- liftIO $ readIORefU emuClocks
+  semuLastStatusRead <- liftIO $ readIORefU emuLastStatusRead
+  semuNmiPending     <- liftIO $ readIORefU emuNmiPending
+  semuNmiOccured     <- liftIO $ readIORefU emuNmiOccured
+  semuNextNT         <- liftIO $ readIORefU emuNextNT
+  semuNextAT         <- liftIO $ readIORefU emuNextAT
+  semuNextLSB        <- liftIO $ readIORefU emuNextLSB
+  semuNextMSB        <- liftIO $ readIORefU emuNextMSB
+  semuPattShifterLo  <- liftIO $ readIORefU emuPattShifterLo
+  semuPattShifterHi  <- liftIO $ readIORefU emuPattShifterHi
+  semuAttrShifterLo  <- liftIO $ readIORefU emuAttrShifterLo
+  semuAttrShifterHi  <- liftIO $ readIORefU emuAttrShifterHi
   return PPU{..}
 
 

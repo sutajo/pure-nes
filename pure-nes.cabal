@@ -126,6 +126,8 @@ executable pure-nes
     , filepath
     , template-haskell
     , raw-strings-qq
+    , store
+    , bytestring
   default-extensions: RecordWildCards
   default-language: Haskell2010
 

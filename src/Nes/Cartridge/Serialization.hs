@@ -25,14 +25,15 @@ data Cartridge = Cartridge {
   sprg_ram      :: VU.Vector Word8
 } deriving (Generic, Store)
 
-serialize :: P.Cartridge -> IO Cartridge
-serialize P.Cartridge{..} = do
+serialize :: Emulator Cartridge
+serialize = do
+  P.Cartridge{..} <- ask <&> cartridge
   let shasChrRam = hasChrRam
   let smapperId = mapperId
   let smirror   = mirror
-  schr_rom <- VU.freeze chr_rom
-  sprg_rom <- VU.freeze prg_rom
-  sprg_ram <- VU.freeze prg_ram
+  schr_rom <- liftIO $ VU.freeze chr_rom
+  sprg_rom <- liftIO $ VU.freeze prg_rom
+  sprg_ram <- liftIO $ VU.freeze prg_ram
   return Cartridge{..}
 
 deserialize :: Cartridge -> IO P.Cartridge

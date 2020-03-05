@@ -6,7 +6,9 @@ import Control.Exception
 import Control.Monad.Loops
 
 data Event 
-  = FileSelectionChanged (Maybe FilePath) 
+  = FileSelectionChanged (Maybe FilePath)
+  | SavePathChanged (Maybe FilePath)
+  | LoadPathChanged (Maybe FilePath)
   | Closed 
   | Help 
   | StartEmulator 
@@ -17,12 +19,14 @@ data Event
   | ErrorReport String
   | SwitchMode
   | SaveButtonPressed
-  | LoadButtonPressed
+  | QuickReloadPressed
 
 data ParentMessage 
   = Stop
   | Switch
   | TraceRequest
+  | SaveVM FilePath
+  | LoadVM FilePath
 
 data CommResources = CommResources {
   toSDLWindow   :: TChan ParentMessage,

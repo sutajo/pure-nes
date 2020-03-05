@@ -9,8 +9,10 @@ import           Control.Monad.IO.Class
 import           Control.Concurrent
 import           Control.Concurrent.STM
 import           Control.Exception
+import qualified Data.ByteString              as B
 import qualified Data.Map                     as M
 import qualified Data.Vector.Storable.Mutable as VSM
+import           Data.Store
 import           Data.Maybe
 import           Data.Word
 import           Data.IORef
@@ -26,6 +28,7 @@ import qualified Nes.PPU.Emulation as PPU
 import           Nes.Timing
 import           Nes.Controls as Controls (Input(..), Button(..))
 import           Nes.Emulation.MasterClock
+import           Nes.Serialization (serialize, deserialize)
 
 scale :: Int
 scale = 4
@@ -37,7 +40,9 @@ height :: Int
 height = 240
 
 data Command 
-  = Quit 
+  = Quit
+  | Save FilePath
+  | Load FilePath
   | PlayerInput Input 
   | SwitchEmulationMode -- switches between continous and step-by-step emulation
   | JoyButtonCommand JoyButtonEventData
@@ -78,6 +83,8 @@ translateSDLEvent _ = Nothing
 
 translateParentMessage :: ParentMessage -> [Command]
 translateParentMessage Stop = [Quit]
+translateParentMessage (SaveVM p) = [Save p]
+translateParentMessage (LoadVM p) = [Load p]
 translateParentMessage Comms.Switch = [SwitchEmulationMode]
 translateParentMessage TraceRequest = []
 
@@ -95,8 +102,9 @@ data AppResources = AppResources {
   window          :: Window,
   renderer        :: Renderer,
   screen          :: Texture,
-  nes             :: Nes,
   commRes         :: CommResources,
+  nes             :: IORef Nes,
+  reboot          :: IORef Bool,
   continousMode   :: IORef Bool,
   joys            :: IORef JoyControlState
 }
@@ -113,7 +121,7 @@ runEmulatorWindow romPath comms = do
 
 acquireResources romPath comms = do
   cartridge <- loadCartridge romPath `except` (comms, "Error: Failed to load cartridge.")
-  nes       <- powerUpNes cartridge
+  nes       <- powerUpNes cartridge >>= newIORef
   SDL.initializeAll
   greetings
   let windowConfig = SDL.defaultWindow {
@@ -130,6 +138,7 @@ acquireResources romPath comms = do
   continousMode <- newIORef True
   let buttonMappings = M.fromList [(0, Select), (1, Start), (2, A), (3, B)]
   joys          <- JoyControls.init buttonMappings >>= newIORef
+  reboot        <- newIORef False
   return AppResources{..}
 
 releaseResources AppResources{..} = do
@@ -139,9 +148,16 @@ releaseResources AppResources{..} = do
   destroyWindow window
   SDL.quit
 
-runApp appResources = runEmulator (nes appResources) $ do
-  do CPU.reset; PPU.reset
-  updateWindow appResources `cappedAt` 60
+runApp appResources@AppResources{..} = do
+  nes <- readIORef nes
+  rebootRequest <- readIORef reboot
+  writeIORef reboot False
+  runEmulator nes $ do
+    when (not rebootRequest) $ do CPU.reset; PPU.reset
+    updateWindow appResources `cappedAt` 60
+  shouldReboot <- readIORef reboot
+  when shouldReboot $ do
+    runApp appResources
 
 pollCommands res@AppResources{..} = do
   sdlCommands <- (catMaybes . map (translateSDLEvent . eventPayload)) <$> SDL.pollEvents
@@ -162,6 +178,14 @@ executeCommand :: AppResources -> Command -> Emulator ()
 executeCommand appResources@AppResources{..} command = do
   joys <- liftIO $ readIORef joys
   case command of
+    Save path -> do
+      pureNes <- serialize
+      liftIO . void . forkIO $ B.writeFile (path ++ "/sav.purenes") (encode pureNes)
+    Load path -> do
+      newNes <- liftIO $ B.readFile path <&> decodeEx >>= deserialize
+      liftIO $ do
+        writeIORef nes newNes
+        writeIORef reboot True 
     JoyButtonCommand eventData -> liftIO (manageButtonEvent joys eventData) >>= mapM_ (`processInput` 0)
     JoyHatCommand eventData    -> liftIO (manageHatEvent    joys eventData) >>= mapM_ (`processInput` 0)
     JoyDeviceCommand eventData -> liftIO (manageDeviceEvent joys eventData)
@@ -195,6 +219,7 @@ updateWindow appResources@AppResources{..} dt = do
   onlyWhen id continousMode $ do
     emulateFrame
     PPU.accessScreen >>= updateScreen appResources
-  return (Quit `elem` commands)
+  reboot <- liftIO $ readIORef reboot
+  return (Quit `elem` commands || reboot)
 
     
