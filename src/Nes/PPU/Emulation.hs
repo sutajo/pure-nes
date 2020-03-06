@@ -14,7 +14,8 @@ module Nes.PPU.Emulation (
   read,
   readReg,
   getOamAddr,
-  writeOam
+  writeOam,
+  isRenderingEnabled
 ) where
 
 import           Control.Applicative

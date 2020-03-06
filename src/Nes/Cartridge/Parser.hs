@@ -16,6 +16,7 @@ module Nes.Cartridge.Parser (
 -- INES format: https://wiki.nesdev.com/w/index.php/INES
 -- https://formats.kaitai.io/ines/index.html 
 
+import           Control.DeepSeq
 import qualified Data.Vector.Unboxed         as VU
 import qualified Data.Vector.Unboxed.Mutable as VUM
 import qualified Data.Map                    as M
@@ -85,7 +86,7 @@ data Mirroring
   = Horizontal
   | Vertical
   | FourScreen
-  deriving (Show, Enum, Generic, Store)
+  deriving (Show, Enum, Generic, Store, NFData)
     
 data Cartridge = Cartridge {
     hasChrRam    :: Bool,
@@ -95,7 +96,7 @@ data Cartridge = Cartridge {
     chr_rom      :: VUM.IOVector Word8,
     prg_rom      :: VUM.IOVector Word8,
     prg_ram      :: VUM.IOVector Word8
-}
+} deriving (Generic, NFData)
 
 toVector :: ByteString -> IO (VUM.IOVector Word8)
 toVector bs = VU.unsafeThaw $ VU.fromList (BS.unpack bs)
@@ -106,7 +107,7 @@ data Mapper = Mapper {
  ,  cpuWrite   :: Word16 -> Word8 -> IO ()
  ,  ppuRead    :: Word16 -> IO Word8
  ,  ppuWrite   :: Word16 -> Word8 -> IO ()
-}
+} deriving (Generic, NFData)
 
 mappersById :: M.Map Word8 (Cartridge -> IO Mapper)
 mappersById = M.fromList [

@@ -1,0 +1,20 @@
+These benchmarks were written in C, and 
+they are intended to be the main
+performance measurement tool for this
+emulator.
+
+After the computation is performed, the
+benchmark programs enable rendering, thus
+informing the emulator when to stop.
+
+
+List of benchmarks:
+----------------------------------------
+
+Delay.nes - delay(1000)
+
+----------------------------------------
+
+Factorial.nes - fact(10)
+
+----------------------------------------

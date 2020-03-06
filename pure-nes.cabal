@@ -76,6 +76,8 @@ library
      , Chart-diagrams
      , store
      , filepath
+     , colour
+     , deepseq
   default-extensions: 
        ApplicativeDo
      , RecordWildCards
@@ -97,6 +99,7 @@ executable pure-nes
       app
   ghc-options: 
       -Wno-unsupported-llvm-version
+      -fwarn-unused-imports
       -threaded
       -rtsopts
       -with-rtsopts=-N
@@ -155,4 +158,23 @@ test-suite pure-nes-test
     , bytestring
     , monad-loops
   default-extensions: RecordWildCards
+  default-language: Haskell2010
+
+benchmark framerate-benchmark
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   bench
+  main-is:          Main.hs
+  build-depends:
+      base >=4.7 && <5    
+    , pure-nes
+    , criterion
+    , deepseq
+    , vector
+    , monad-loops
+    , time
+  ghc-options:     
+    -Wno-unsupported-llvm-version
+    -fwarn-unused-imports
+    -O2
+    -fllvm
   default-language: Haskell2010
