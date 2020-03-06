@@ -41,9 +41,16 @@ data State = Started (Maybe FilePath)
              savePath :: Maybe FilePath, 
              loadPath :: FilePath, 
              saveRomName :: String,
-             saveResultSuccess :: Maybe (Maybe String),
-             loadResultSuccess :: Maybe (Maybe String)
+             saveResultSuccess :: Maybe (Maybe String, String),
+             loadResultSuccess :: Maybe (Maybe String, String)
             }
+        
+
+mkResultTimeLabel :: (Maybe String, String) -> Text.Text
+mkResultTimeLabel (x, t) = prefix x `Text.append` (Text.pack t) `Text.append`  [r| </span> |]
+  where
+    prefix Nothing  = [r| <span size="larger" foreground="#6FC6AE"> |]
+    prefix (Just _) = [r| <span size="larger" foreground="#E24C4B"> |]
 
 saveLabel = [r|  First, select a folder for your saves.
   Quicksaving creates an anonymous save 
@@ -101,21 +108,28 @@ view' threadCount s = do
                 on #clicked SwitchMode
               ]
           , BoxChild defaultBoxChildProperties { padding = 15, expand = True, fill = True } $
-              container Box [#orientation := OrientationHorizontal, #halign := AlignCenter] $
-                case saveResultSuccess of
-                  Nothing -> [BoxChild defaultBoxChildProperties $ widget Image [ #file := "resources/GUI/save.png"]]
-                  Just result -> 
-                    let 
-                      img = case result of
-                        Nothing  -> "tick.png"
-                        Just err -> "cross.png"
-                    in
+              case saveResultSuccess of
+                Nothing -> 
+                  container Box [#orientation := OrientationHorizontal, #halign := AlignCenter] $ 
+                    [BoxChild defaultBoxChildProperties $ widget Image [ #file := "resources/GUI/save.png"]]
+                Just result -> 
+                  let 
+                    img = case result of
+                      (Nothing,  _)  -> "tick.png"
+                      (Just err, _) -> "cross.png"
+                  in
+                    container Box [#orientation := OrientationVertical, #halign := AlignCenter] $
+                    [
+                      container Box [#orientation := OrientationHorizontal, #halign := AlignCenter] $
                       [
                         BoxChild defaultBoxChildProperties $ 
                           widget Image [ #file := Text.append "resources/GUI/" img, #marginRight := 40]
                       , BoxChild defaultBoxChildProperties $ 
                           widget Image [ #file := "resources/GUI/save.png"]
-                      ]
+                      ],
+                      BoxChild defaultBoxChildProperties $
+                        widget Label [#label := mkResultTimeLabel result, #useMarkup := True, #marginTop := 10]
+                    ]
           , BoxChild defaultBoxChildProperties $
               widget Label
               [ 
@@ -155,31 +169,38 @@ view' threadCount s = do
                     onM #changed (\e -> SaveNameChanged . Text.unpack <$> editableGetChars e 0 (-1))]
               ]
           , BoxChild defaultBoxChildProperties { padding = 15, expand = True, fill = True } $
-              container Box [#orientation := OrientationHorizontal, #halign := AlignCenter] $
                 case loadResultSuccess of
-                  Nothing -> [BoxChild defaultBoxChildProperties $ widget Image [ #file := "resources/GUI/reload.png"]]
+                  Nothing -> 
+                    container Box [#orientation := OrientationHorizontal, #halign := AlignCenter] $
+                      [BoxChild defaultBoxChildProperties $ widget Image [ #file := "resources/GUI/reload.png"]]
                   Just result ->
-                    let 
-                      img = case result of
-                        Nothing  -> "tick.png"
-                        Just err -> "cross.png"
-                    in 
-                      [
-                        BoxChild defaultBoxChildProperties $ 
-                          widget Image [ #file := Text.append "resources/GUI/" img, #marginRight := 40]
-                      , BoxChild defaultBoxChildProperties $ 
-                          widget Image [ #file := "resources/GUI/reload.png"]
-                      ]
+                    container Box [#orientation := OrientationVertical, #halign := AlignCenter] $
+                      let 
+                        img = case result of
+                          (Nothing, _)  -> "tick.png"
+                          (Just err,_) -> "cross.png"
+                      in 
+                        [
+                          container Box [#orientation := OrientationHorizontal, #halign := AlignCenter] $
+                          [
+                            BoxChild defaultBoxChildProperties $ 
+                              widget Image [ #file := Text.append "resources/GUI/" img, #marginRight := 40]
+                          , BoxChild defaultBoxChildProperties $ 
+                              widget Image [ #file := "resources/GUI/reload.png"]
+                          ],
+                          BoxChild defaultBoxChildProperties $
+                            widget Label [#label := mkResultTimeLabel result, #useMarkup := True, #marginTop := 5]
+                        ]
+          , BoxChild defaultBoxChildProperties $
+              widget Label
+              [ 
+                #label := loadLabel,
+                #marginBottom := 5
+              ]
           , BoxChild defaultBoxChildProperties {fill = True} $
               container Box [#orientation := OrientationVertical, #valign := AlignCenter, #marginTop := 5, #marginBottom := 15] $
               [
-                BoxChild defaultBoxChildProperties $
-                  widget Label
-                  [ 
-                    #label := loadLabel,
-                    #marginBottom := 5
-                  ]
-              , BoxChild defaultBoxChildProperties { fill = True } $
+                BoxChild defaultBoxChildProperties { fill = True } $
                   container Box [#orientation := OrientationHorizontal, #valign := AlignCenter, #marginTop := 15, #marginBottom := 15] $
                   [
                     BoxChild defaultBoxChildProperties $

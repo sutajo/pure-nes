@@ -31,6 +31,12 @@ import           Nes.Controls as Controls (Input(..), Button(..))
 import           Nes.Emulation.MasterClock
 import           Nes.Serialization (serialize, deserialize)
 
+formatResultTime :: IO String
+formatResultTime = do
+  tz <- getCurrentTimeZone
+  t  <- getCurrentTime
+  return $ formatTime defaultTimeLocale "%H:%M:%S" (utcToLocalTime tz t)
+
 scale :: Int
 scale = 4
 
@@ -188,16 +194,19 @@ executeCommand appResources@AppResources{..} command = do
   case command of
     Save path -> do
       pureNes <- serialize
-      liftIO $
+      liftIO $ do
+        t <- formatResultTime
         void . forkIO $ (do
           B.writeFile path (encode pureNes)
-          sendEvent (SaveError Nothing)) `catch` (\(e :: SomeException) -> do print (show e); sendEvent (SaveError . Just $ show e))
+          sendEvent (SaveError (Nothing, t))) `catch` (\(e :: SomeException) -> do print (show e); sendEvent (SaveError (Just $ show e, t)))
     Load path -> 
-      liftIO $ (do
-        newNes <- liftIO $ B.readFile path <&> decodeEx >>= deserialize
-        writeIORef nes newNes
-        writeIORef reboot True
-        sendEvent (LoadError Nothing)) `catch` (\(e :: SomeException) -> do print (show e); sendEvent (LoadError . Just $ show e))
+      liftIO $ do
+        t <- formatResultTime
+        (do
+          newNes <- liftIO $ B.readFile path <&> decodeEx >>= deserialize
+          writeIORef nes newNes
+          writeIORef reboot True
+          sendEvent (LoadError (Nothing, t))) `catch` (\(e :: SomeException) -> do print (show e); sendEvent (LoadError (Just $ show e, t)))
     JoyButtonCommand eventData -> liftIO (manageButtonEvent joys eventData) >>= mapM_ (`processInput` 0)
     JoyHatCommand eventData    -> liftIO (manageHatEvent    joys eventData) >>= mapM_ (`processInput` 0)
     JoyDeviceCommand eventData -> liftIO (manageDeviceEvent joys eventData)

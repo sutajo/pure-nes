@@ -9,8 +9,8 @@ data Event
   = FileSelectionChanged (Maybe FilePath)
   | SavePathChanged (Maybe FilePath)
   | LoadPathChanged (Maybe FilePath)
-  | SaveError (Maybe String)
-  | LoadError (Maybe String)
+  | SaveError (Maybe String, String)
+  | LoadError (Maybe String, String)
   | SaveNameChanged String
   | Closed 
   | Help 
