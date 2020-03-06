@@ -69,6 +69,11 @@ You can't name your save as 'quick'
 as it would overwrite the previous quicksave.
   |]
 
+runs :: Int -> [a] -> [[a]]
+runs n [] = []
+runs n l = x : runs n y
+ where (x,y) = splitAt n l
+
 view' :: Int -> State -> AppView Window Event
 view' threadCount s = do
   let 
@@ -286,8 +291,15 @@ view' threadCount s = do
 
 launchEmulator :: FilePath -> CommResources -> IO ()
 launchEmulator path comms = do
- toSDLWindow' <- atomically $ dupTChan (toSDLWindow comms)
- void . forkOS $ runEmulatorWindow path comms { toSDLWindow = toSDLWindow' }
+  toSDLWindow' <- atomically $ dupTChan (toSDLWindow comms)
+  void . forkOS $ runEmulatorWindow path comms { toSDLWindow = toSDLWindow' }
+
+
+resultEvent b op = 
+  let prefix = "Oops! An exception has occured during " ++ op ++ ":\n" in
+  case b of
+    (Nothing,  _) -> noop
+    (Just err, _) -> return . Just . MessageText $ prefix ++ err
 
 
 update :: CommResources -> State -> Event -> Transition State Event
@@ -316,10 +328,10 @@ update _ e@Emulating{} (SaveNameChanged s)
   = Transition e{saveRomName = s} noop
 
 update _ e@Emulating{} (SaveError b)
-  = Transition e{saveResultSuccess = Just $ b} noop
+  = Transition e{saveResultSuccess = Just $ b} $ resultEvent b "saving"
 
 update _ e@Emulating{} (LoadError b)
-  = Transition e{loadResultSuccess = Just $ b} noop
+  = Transition e{loadResultSuccess = Just $ b} $ resultEvent b "loading"
 
 update CommResources{..} e@Emulating{ savePath = Nothing } QuickReloadPressed
   = Transition e (return . Just $ MessageText "You need to choose a save folder first.")

@@ -36,7 +36,6 @@ library
       Nes.Cartridge.Serialization
       Nes.Serialization
       Nes.Controls
-      Nes.Timing
   other-modules:
       Paths_pure_nes
   hs-source-dirs:
@@ -93,6 +92,7 @@ executable pure-nes
       SDLWindow
       JoyControls
       Communication
+      Timing
   hs-source-dirs:
       app
   ghc-options: 

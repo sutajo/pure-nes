@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, RecordWildCards, ScopedTypeVariables, GADTs #-}
+{-# LANGUAGE OverloadedStrings, RecordWildCards, ScopedTypeVariables, GADTs, QuasiQuotes #-}
 
 module SDLWindow (
   runEmulatorWindow
@@ -22,11 +22,12 @@ import           System.FilePath.Posix
 import           Foreign hiding (void)
 import           Communication as Comms
 import           JoyControls
+import           Text.RawString.QQ
+import           Timing
 import           Nes.Cartridge.Parser
 import           Nes.Emulation.Monad
 import qualified Nes.CPU.Emulation as CPU
 import qualified Nes.PPU.Emulation as PPU
-import           Nes.Timing
 import           Nes.Controls as Controls (Input(..), Button(..))
 import           Nes.Emulation.MasterClock
 import           Nes.Serialization (serialize, deserialize)
@@ -116,6 +117,13 @@ data AppResources = AppResources {
   joys            :: IORef JoyControlState
 }
 
+loadErrorMsg = [r|
+Could not deserialize Nes from the save file.
+You may have created this save on a different
+CPU architecture, or this file is not a valid 
+save at all.
+|]
+
 onlyWhen :: MonadIO m => (a -> Bool) -> IORef a -> m () -> m ()
 onlyWhen f ref m = do
   cond <- liftIO (f <$> readIORef ref)
@@ -201,9 +209,14 @@ executeCommand appResources@AppResources{..} command = do
           sendEvent (SaveError (Nothing, t))) `catch` (\(e :: SomeException) -> do print (show e); sendEvent (SaveError (Just $ show e, t)))
     Load path -> 
       liftIO $ do
+        let 
+          loadNes = do
+            file <- B.readFile path
+            (deserialize $ decodeEx file) 
+              `catch` (\(e :: SomeException) -> fail loadErrorMsg)
         t <- formatResultTime
         (do
-          newNes <- liftIO $ B.readFile path <&> decodeEx >>= deserialize
+          newNes <- liftIO $ loadNes
           writeIORef nes newNes
           writeIORef reboot True
           sendEvent (LoadError (Nothing, t))) `catch` (\(e :: SomeException) -> do print (show e); sendEvent (LoadError (Just $ show e, t)))
@@ -233,8 +246,8 @@ executeCommand appResources@AppResources{..} command = do
         updateScreen appResources pixels
     _ -> pure ()
 
-updateWindow :: AppResources -> NominalDiffTime -> Emulator Bool
-updateWindow appResources@AppResources{..} dt = do
+updateWindow :: AppResources -> Emulator Bool
+updateWindow appResources@AppResources{..} = do
   commands <- liftIO $ pollCommands appResources
   mapM_ (executeCommand appResources) commands
   onlyWhen id continousMode $ do
