@@ -172,6 +172,7 @@ benchmark framerate-benchmark
     , vector
     , monad-loops
     , time
+    , cpuinfo
   ghc-options:     
     -Wno-unsupported-llvm-version
     -fwarn-unused-imports

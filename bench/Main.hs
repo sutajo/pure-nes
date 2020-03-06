@@ -5,8 +5,9 @@ import Control.Monad.Loops
 import Criterion.Main
 import Criterion.Types
 import Data.Vector.Mutable
-import Data.Time.Clock
+import Data.Time
 import GHC.Generics
+import qualified System.CPU as Info
 import Nes.Controls
 import Nes.Cartridge.Parser
 import Nes.Emulation.Monad
@@ -41,9 +42,12 @@ runBench name = bench name $ perRunEnv resource computation
 
 main :: IO ()
 main = do
-  time <- getCurrentTime
+  time  <- getCurrentTime
+  (cpu:_) <- Info.getCPUs
+  let Just modelName = Info.modelName cpu
+  let formattedTime = formatTime defaultTimeLocale "%m_%d_%H_%M" time
   defaultMainWith 
-    defaultConfig { reportFile = Just ("bench/results/report_" ++ show time ++ ".html") } $
+    defaultConfig { reportFile = Just ("bench/results/report_" ++ formattedTime ++ "_" ++ show modelName ++ ".html") } $
       [
         runBench "factorial.nes",
         runBench "delay10s.nes",
