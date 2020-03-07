@@ -77,7 +77,6 @@ library
      , store
      , filepath
      , colour
-     , deepseq
   default-extensions: 
        ApplicativeDo
      , RecordWildCards

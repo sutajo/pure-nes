@@ -25,6 +25,9 @@ instance NFData CPU where
 instance NFData PPU where
   rnf x = x `seq` ()
 
+deriving instance NFData Mirroring
+deriving instance NFData Mapper
+deriving instance NFData Cartridge
 deriving instance Generic Nes
 deriving instance NFData Nes
 

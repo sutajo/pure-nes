@@ -3,7 +3,7 @@
 module Nes.Cartridge.Parser (
   Cartridge(..),
   Mirroring(..),
-  Mapper,
+  Mapper(..),
   dummyMapper,
   mappersById,
   loadCartridge,
@@ -16,10 +16,10 @@ module Nes.Cartridge.Parser (
 -- INES format: https://wiki.nesdev.com/w/index.php/INES
 -- https://formats.kaitai.io/ines/index.html 
 
-import           Control.DeepSeq
 import qualified Data.Vector.Unboxed         as VU
 import qualified Data.Vector.Unboxed.Mutable as VUM
 import qualified Data.Map                    as M
+import           Data.IORef.Unboxed
 import           Data.Store
 import           GHC.Generics
 import           Data.Functor
@@ -86,7 +86,7 @@ data Mirroring
   = Horizontal
   | Vertical
   | FourScreen
-  deriving (Show, Enum, Generic, Store, NFData)
+  deriving (Show, Enum, Generic, Store)
     
 data Cartridge = Cartridge {
     hasChrRam    :: Bool,
@@ -96,10 +96,10 @@ data Cartridge = Cartridge {
     chr_rom      :: VUM.IOVector Word8,
     prg_rom      :: VUM.IOVector Word8,
     prg_ram      :: VUM.IOVector Word8
-} deriving (Generic, NFData)
+} deriving (Generic)
 
 toVector :: ByteString -> IO (VUM.IOVector Word8)
-toVector bs = VU.unsafeThaw $ VU.fromList (BS.unpack bs)
+toVector bs = VU.thaw $ VU.fromList (BS.unpack bs)
 
 
 data Mapper = Mapper {
@@ -107,11 +107,12 @@ data Mapper = Mapper {
  ,  cpuWrite   :: Word16 -> Word8 -> IO ()
  ,  ppuRead    :: Word16 -> IO Word8
  ,  ppuWrite   :: Word16 -> Word8 -> IO ()
-} deriving (Generic, NFData)
+} deriving (Generic)
 
 mappersById :: M.Map Word8 (Cartridge -> IO Mapper)
 mappersById = M.fromList [
-    (0, nrom)
+    (0, nrom),
+    (2, unrom)
   ]
 
 dummyMapper = Mapper dummyRead dummyWrite dummyRead dummyWrite
@@ -122,6 +123,7 @@ assembleCartridge INES{..} = do
   let 
     mapperId = (flags6 `shiftR` 4) .|. (flags7 .&. 0xF0)
     mirror = if flags6 `testBit` 3 then FourScreen else (toEnum . fromEnum) (flags6 `testBit` 0)
+  BS.putStr "Mirroring: " >> print mirror
   when (mapperId `M.notMember` mappersById) . fail $ "Mapper type " ++ show mapperId ++ " is currently not supported"
   let hasChrRam = BS.length chr_rom_bs == 0
   chr_rom <- if hasChrRam then VUM.new 0x2000 else toVector chr_rom_bs
@@ -176,3 +178,49 @@ nrom Cartridge{..} = pure Mapper{..}
   ppuWrite addrUnsafe val = if hasChrRam
     then VUM.write chr_rom (mkChrAddr addrUnsafe) val 
     else pure () -- On NROM writing ROM is a nop. See: https://forums.nesdev.com/viewtopic.php?f=3&t=17584
+
+
+unrom :: Cartridge -> IO Mapper
+unrom Cartridge{..} = do
+  control <- newIORefU (0 :: Int)
+  let
+    
+    (prgBanks :: Int) = VUM.length prg_rom `quot` 0x4000
+
+    {-
+    cpuRead :: Word16 -> IO Word8
+    cpuRead addr
+      | addr' >= 0xC000 = do
+        VUM.read prg_rom (((prgBanks-1) * 0x4000) + (addr' - 0xC000))
+      | addr' >= 0x8000 = do
+        prgBank1V <- readIORefU control
+        VUM.read prg_rom ((prgBank1V * 0x4000) + (addr' - 0x8000))
+      | addr' >= 0x6000 = VUM.read prg_ram (addr' - 0x6000)
+      | otherwise = error $ "Erroneous cart read detected!"
+      where addr' = fromIntegral addr
+
+    cpuWrite :: Word16 -> Word8 -> IO ()
+    cpuWrite addr v
+      | addr' >= 0x8000 = writeIORefU control (fromIntegral v `rem` prgBanks)
+      | addr' >= 0x6000 = VUM.write prg_ram (addr' - 0x6000) v
+      | otherwise = error $ "Erroneous cart write detected!"
+      where addr' = fromIntegral addr
+      -}
+    
+    cpuRead addr
+      | addr < 0x8000 = VUM.read prg_ram $ fromIntegral (addr - 0x6000)
+      | addr < 0xC000 = do
+        offset <- readIORefU control <&> (\reg -> reg * 0x4000)
+        VUM.read prg_rom (offset + fromIntegral (addr - 0x8000))
+      | otherwise = VUM.read prg_rom ((prgBanks-1) * 0x4000 + fromIntegral (addr - 0xC000))
+        
+    cpuWrite addr val
+      | addr < 0x8000 = VUM.write prg_ram (fromIntegral (addr - 0x6000)) val 
+      | otherwise = control `writeIORefU` (fromIntegral val `rem` prgBanks)
+
+    ppuRead  addr = VUM.read chr_rom $ fromIntegral addr
+    ppuWrite addr val = 
+      if hasChrRam
+      then VUM.write chr_rom (fromIntegral addr) val
+      else pure ()
+  return Mapper{..}
