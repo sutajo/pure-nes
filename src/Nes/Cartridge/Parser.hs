@@ -4,6 +4,7 @@ module Nes.Cartridge.Parser (
   Cartridge(..),
   Mirroring(..),
   Mapper(..),
+  MapperState(..),
   dummyMapper,
   mappersById,
   loadCartridge,
@@ -87,6 +88,9 @@ data Mirroring
   | Vertical
   | FourScreen
   deriving (Show, Enum, Generic, Store)
+
+newtype MapperState = MapperState [Word8] 
+  deriving (Generic, Store)
     
 data Cartridge = Cartridge {
     hasChrRam    :: Bool,
@@ -103,10 +107,12 @@ toVector bs = VU.thaw $ VU.fromList (BS.unpack bs)
 
 
 data Mapper = Mapper {
-    cpuRead    :: Word16 -> IO Word8
- ,  cpuWrite   :: Word16 -> Word8 -> IO ()
- ,  ppuRead    :: Word16 -> IO Word8
- ,  ppuWrite   :: Word16 -> Word8 -> IO ()
+    cpuRead     :: Word16 -> IO Word8
+ ,  cpuWrite    :: Word16 -> Word8 -> IO ()
+ ,  ppuRead     :: Word16 -> IO Word8
+ ,  ppuWrite    :: Word16 -> Word8 -> IO ()
+ ,  serialize   :: IO MapperState
+ ,  deserialize :: MapperState -> IO ()
 } deriving (Generic)
 
 mappersById :: M.Map Word8 (Cartridge -> IO Mapper)
@@ -115,7 +121,7 @@ mappersById = M.fromList [
     (2, unrom)
   ]
 
-dummyMapper = Mapper dummyRead dummyWrite dummyRead dummyWrite
+dummyMapper = Mapper dummyRead dummyWrite dummyRead dummyWrite (pure $ MapperState []) (\_ -> undefined)
  where dummyRead = const (pure 0); dummyWrite _ _ = pure ()
 
 assembleCartridge :: INES -> IO Cartridge
@@ -123,7 +129,6 @@ assembleCartridge INES{..} = do
   let 
     mapperId = (flags6 `shiftR` 4) .|. (flags7 .&. 0xF0)
     mirror = if flags6 `testBit` 3 then FourScreen else (toEnum . fromEnum) (flags6 `testBit` 0)
-  BS.putStr "Mirroring: " >> print mirror
   when (mapperId `M.notMember` mappersById) . fail $ "Mapper type " ++ show mapperId ++ " is currently not supported"
   let hasChrRam = BS.length chr_rom_bs == 0
   chr_rom <- if hasChrRam then VUM.new 0x2000 else toVector chr_rom_bs
@@ -154,6 +159,8 @@ ppuWriteCartridge cart = ppuWrite (mapper cart)
 nrom :: Cartridge -> IO Mapper
 nrom Cartridge{..} = pure Mapper{..}
  where 
+  serialize = pure $ MapperState []
+  deserialize _ = pure ()
   chr_rom_size = VUM.length chr_rom
   prg_ram_size = VUM.length prg_ram
   mirrored  addr = fromIntegral $ (addr - 0x8000) .&. 0x3FFF
@@ -184,28 +191,10 @@ unrom :: Cartridge -> IO Mapper
 unrom Cartridge{..} = do
   control <- newIORefU (0 :: Int)
   let
-    
     (prgBanks :: Int) = VUM.length prg_rom `quot` 0x4000
 
-    {-
-    cpuRead :: Word16 -> IO Word8
-    cpuRead addr
-      | addr' >= 0xC000 = do
-        VUM.read prg_rom (((prgBanks-1) * 0x4000) + (addr' - 0xC000))
-      | addr' >= 0x8000 = do
-        prgBank1V <- readIORefU control
-        VUM.read prg_rom ((prgBank1V * 0x4000) + (addr' - 0x8000))
-      | addr' >= 0x6000 = VUM.read prg_ram (addr' - 0x6000)
-      | otherwise = error $ "Erroneous cart read detected!"
-      where addr' = fromIntegral addr
-
-    cpuWrite :: Word16 -> Word8 -> IO ()
-    cpuWrite addr v
-      | addr' >= 0x8000 = writeIORefU control (fromIntegral v `rem` prgBanks)
-      | addr' >= 0x6000 = VUM.write prg_ram (addr' - 0x6000) v
-      | otherwise = error $ "Erroneous cart write detected!"
-      where addr' = fromIntegral addr
-      -}
+    serialize = MapperState . return . fromIntegral <$> readIORefU control
+    deserialize (MapperState [x]) = writeIORefU control $ fromIntegral x
     
     cpuRead addr
       | addr < 0x8000 = VUM.read prg_ram $ fromIntegral (addr - 0x6000)
