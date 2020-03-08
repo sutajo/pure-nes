@@ -13,6 +13,7 @@ import           Control.Monad.Trans.Maybe
 import           Control.Monad.Writer.Lazy
 import           Data.Int
 import           Data.IORef
+import qualified Data.Either  as E
 import           Data.Functor()
 import           Data.Maybe
 import           Data.Word
@@ -67,16 +68,16 @@ convertHatState hatPos = case hatPos of
   HatRight    -> Controls.Right
   _           -> error "HatState not convertible"
 
-manageButtonEvent :: JoyControlState -> JoyButtonEventData -> IO [Command]
-manageButtonEvent _ (JoyButtonEventData _ 4 JoyButtonPressed) = pure [QuickSave]
-manageButtonEvent _ (JoyButtonEventData _ 6 JoyButtonPressed) = pure [QuickLoad]
+manageButtonEvent :: JoyControlState -> JoyButtonEventData -> IO (Either [Input] Command)
+manageButtonEvent _ (JoyButtonEventData _ 4 JoyButtonPressed) = pure $ E.Right QuickSave
+manageButtonEvent _ (JoyButtonEventData _ 6 JoyButtonPressed) = pure $ E.Right QuickLoad
 manageButtonEvent JoyControlState{..} (JoyButtonEventData _ btn state) = do
   let 
     controllerButton = maybeToList (buttonMappings M.!? btn)
     action = case state of
       JoyButtonPressed  -> Press
       JoyButtonReleased -> Release
-  return $ map (PlayerInput . action) controllerButton
+  return . E.Left $ map action controllerButton
 
 
 manageHatEvent :: JoyControlState -> JoyHatEventData -> IO [Input]

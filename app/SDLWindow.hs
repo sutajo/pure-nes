@@ -9,6 +9,7 @@ import           Control.Monad.IO.Class
 import           Control.Concurrent
 import           Control.Concurrent.STM
 import           Control.Exception
+import qualified Data.Either                  as E
 import qualified Data.ByteString              as B
 import qualified Data.Map                     as M
 import qualified Data.Vector.Storable.Mutable as VSM
@@ -62,6 +63,7 @@ translateSDLEvent (SDL.KeyboardEvent (SDL.KeyboardEventData _ motion _ sym)) =
       Pressed  -> Press x
       Released -> Release x
     inputs = case keysymKeycode sym of
+      KeycodeG     -> onlyOnPress ToggleJoyMap
       KeycodeF5    -> onlyOnPress QuickSave
       KeycodeF9    -> onlyOnPress QuickLoad
       KeycodeSpace -> onlyOnPress SwitchEmulationMode
@@ -106,6 +108,7 @@ data AppResources = AppResources {
   reset           :: IORef Bool,
   reboot          :: IORef Bool,
   continousMode   :: IORef Bool,
+  joyIsSecondCtrl :: IORef Bool,
   joys            :: IORef JoyControlState,
   saveFolder      :: IORef (Maybe FilePath)
 }
@@ -158,6 +161,7 @@ acquireResources romPath comms = do
   joys          <- JoyControls.init buttonMappings >>= newIORef
   saveFolder    <- newIORef Nothing
   reset         <- newIORef (not $ isSave romPath)
+  joyIsSecondCtrl <- newIORef False
   return AppResources{..}
 
 releaseResources AppResources{..} = do
@@ -240,10 +244,15 @@ executeCommand appResources@AppResources{..} command = do
     Load path -> load appResources path
 
     JoyButtonCommand eventData -> do
-      commands <- liftIO (manageButtonEvent joys eventData)
-      mapM_ (executeCommand appResources) commands
+      commandOrInputs <- liftIO (manageButtonEvent joys eventData)
+      id <- liftIO $ readIORef joyIsSecondCtrl
+      case commandOrInputs of
+        E.Left inputs   -> forM_  inputs (`processInput` (fromEnum id))
+        E.Right command -> executeCommand appResources command
 
-    JoyHatCommand eventData    -> liftIO (manageHatEvent    joys eventData) >>= mapM_ (`processInput` 0)
+    JoyHatCommand eventData    -> do
+      controllerId <- liftIO $ readIORef joyIsSecondCtrl
+      liftIO (manageHatEvent    joys eventData) >>= mapM_ (`processInput` fromEnum controllerId)
 
     JoyDeviceCommand eventData -> liftIO (manageDeviceEvent joys eventData)
 
@@ -271,6 +280,12 @@ executeCommand appResources@AppResources{..} command = do
         emulateFrame
         pixels  <- PPU.accessScreen
         updateScreen appResources pixels
+
+    ToggleJoyMap -> liftIO $ do
+      modifyIORef' joyIsSecondCtrl not
+      id <- readIORef joyIsSecondCtrl
+      putStr "Joy has been remapped as controller "
+      print (fromEnum id)
         
     _ -> pure ()
 

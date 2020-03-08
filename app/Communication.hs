@@ -50,6 +50,7 @@ data Command
   | JoyHatCommand JoyHatEventData
   | StepOneFrame
   | StepClockCycle
+  | ToggleJoyMap
   deriving (Eq)
 
 data CommResources = CommResources {
