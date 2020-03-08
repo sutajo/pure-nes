@@ -415,13 +415,15 @@ updateShiftregisters = do
 
 
 shiftRegisters :: Emulator ()
-shiftRegisters = whenM isBackgroundRenderingEnabled $ do
-  forM_ [
-      emuPattShifterLo,
-      emuPattShifterHi,
-      emuAttrShifterLo,
-      emuAttrShifterHi
-    ] $ (`modifyReg` (`shiftL` 1))
+shiftRegisters = do
+  mask <- readReg ppuMask
+  when (mask `testBit` 3) $ do
+    forM_ [
+        emuPattShifterLo,
+        emuPattShifterHi,
+        emuAttrShifterLo,
+        emuAttrShifterHi
+      ] $ (`modifyReg` (`shiftL` 1))
 
 scanLine :: Int -> Emulator ()
 scanLine step = 
