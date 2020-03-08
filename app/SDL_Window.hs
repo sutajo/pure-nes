@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, RecordWildCards, ScopedTypeVariables, GADTs, QuasiQuotes #-}
 
-module SDLWindow (
+module SDL_Window (
   runEmulatorWindow
 ) where
 
@@ -33,6 +33,7 @@ import qualified Nes.PPU.Emulation as PPU
 import           Nes.Controls as Controls (Input(..), Button(..))
 import           Nes.Emulation.MasterClock
 import           Nes.Serialization (serialize, deserialize)
+import           SDL_Audio
 
 formatResultTime :: IO String
 formatResultTime = do
@@ -127,6 +128,7 @@ onlyWhen f ref m = do
 
 runEmulatorWindow :: FilePath -> CommResources -> IO ()
 runEmulatorWindow romPath comms = do
+  --play ((pulseWaveGenerator (2*pi) pi 1 10 - 0.5) * 2)
   bracket (acquireResources romPath comms) releaseResources runApp 
   bye
 

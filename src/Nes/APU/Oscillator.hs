@@ -11,19 +11,19 @@ import Control.Applicative
 import Graphics.Rendering.Chart.Easy
 import Graphics.Rendering.Chart.Backend.Diagrams
 
-newtype Oscillator = Oscillator { 
-  sample :: Double -> Double
+newtype Oscillator a = Oscillator { 
+  sample :: Double -> a
 }
 
-instance Num Oscillator where
+instance Num a => Num (Oscillator a) where
   (+) (Oscillator f) (Oscillator g) = Oscillator $ liftA2 (+) f g
   (*) (Oscillator f) (Oscillator g) = Oscillator $ liftA2 (*) f g
   abs (Oscillator f) = Oscillator $ abs . f
-  signum (Oscillator f) = Oscillator $ signum
+  signum _ = undefined
   fromInteger x = Oscillator $ const (fromIntegral x)
   negate (Oscillator f) = Oscillator $ negate . f
 
-instance Fractional Oscillator where
+instance Fractional a => Fractional (Oscillator a) where
   (/) (Oscillator f) (Oscillator g) = Oscillator $ liftA2 (/) f g
   fromRational x = Oscillator $ const (fromRational x)
 
@@ -33,30 +33,40 @@ plotWaveForms oscillators = do
     setColors $ map opaque [blue, green, gold, red]
     layout_title  .= "Waveform plot"
     layout_x_axis .= def { _laxis_title = "t" }
-    mapM_ (\(o, n) -> plot (line n [signal [0,0.5..400] o])) oscillators
+    mapM_ (\(o, n) -> plot (line n [signal [0,0.05..30] o])) oscillators
 
 plotWaveForm x = plotWaveForms [x]
 
-sineWaveGenerator :: Oscillator
-sineWaveGenerator = Oscillator (\t -> sin (t * 2 * pi / 100) * 100)
+sineWaveGenerator :: Oscillator Double
+sineWaveGenerator = Oscillator sin
 
-plotSine = plotWaveForm (sineWaveGenerator, "sin(t*2*pi/100)*100")
+plotSine = plotWaveForm (sineWaveGenerator, "sin(t)")
 
-pulseWaveGenerator :: Double -> Double -> Double -> Int -> Oscillator
+pulseWaveGenerator :: Double -> Double -> Double -> Int -> Oscillator Double
 pulseWaveGenerator period pulseTime amplitude elementCount = Oscillator (\t -> (f t) * amplitude)
   where
-    f t = dutyCycles + sum (map (element (t*2*pi/100)) [1..elementCount]) 
+    f t = dutyCycles + sum (map (element t) [1..elementCount]) 
     dutyCycles = pulseTime / period
     element t n = let
       pin = pi * fromIntegral n
-      in (2 * sin (pin * dutyCycles) * cos (2 * pin * dutyCycles * t))/ pin
+      pinDuty = pin * dutyCycles
+      in (2 * sin pinDuty * cos (2 * pinDuty * t))/ pin
 
-plotPulseWave = plotWaveForm (pulseWaveGenerator 100 20 512 25, "Pulse wave")
+plotPulseWave = plotWaveForm ((pulseWaveGenerator (2*pi) pi 1 25 - 0.5) * 1.675, "Pulse wave")
 
 sawtoothWaveGenerator period amplitude = Oscillator $ \t -> let tp = t/period in amplitude*2*(tp-fromIntegral (floor(tp+1/2)))
 
-triangleWaveGenerator :: Double -> Double -> Oscillator
+triangleWaveGenerator :: Double -> Double -> Oscillator Double
 triangleWaveGenerator period = abs . sawtoothWaveGenerator period
 
 plotTriangleWave = plotWaveForm (triangleWaveGenerator 100 200, "Triangle wave")
+
+-- Converts an analog singal between [-a..a] to a digital one between [-a*n..a*n]
+(~>) :: Integral a => Oscillator Double -> a -> Oscillator a
+(~>) (Oscillator f) n = Oscillator $ \t -> round (f t * fromIntegral n)
+
+plotWaves = let
+  p = pulseWaveGenerator (2*pi) pi 1 10
+  s = sineWaveGenerator
+  in plotWaveForms [(p, "Pulse wave"), (s, "Sine wave"), (p+s, "Sum")]
 

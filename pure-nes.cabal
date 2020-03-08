@@ -90,7 +90,8 @@ executable pure-nes
   main-is: Main.hs
   other-modules:
       Paths_pure_nes
-      SDLWindow
+      SDL_Audio
+      SDL_Window
       JoyControls
       Communication
       Timing

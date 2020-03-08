@@ -31,7 +31,7 @@ import           Text.RawString.QQ
 import           Communication
 import           Pipes
 import           System.FilePath.Posix
-import           SDLWindow
+import           SDL_Window
 
 data State = Started (Maybe FilePath)
            | Message { text :: Text, stateAfterOk :: State }
