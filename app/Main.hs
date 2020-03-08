@@ -313,6 +313,9 @@ update _ (Started _) (FileSelectionChanged p)
 update CommResources{..} e@Emulating{saveRomName = ""} SaveButtonPressed 
   = Transition e (return . Just $ MessageText "You need to give a name to your save file.")
 
+update CommResources{..} e@Emulating{savePath = Nothing} SaveButtonPressed
+  = Transition e (return . Just $ MessageText "You need to choose a save folder first.")
+
 update CommResources{..} e@Emulating{savePath = Nothing} QuickSavePressed
   = Transition e (return . Just $ MessageText "You need to choose a save folder first.")
 
