@@ -19,6 +19,7 @@ import           Data.IORef
 import           Data.Time
 import           SDL
 import           System.FilePath.Posix
+import           System.Directory
 import           Foreign hiding (void)
 import           Communication as Comms
 import           JoyControls
@@ -47,19 +48,6 @@ width = 256
 height :: Int
 height = 240
 
-data Command 
-  = Quit
-  | Save FilePath
-  | Load FilePath
-  | PlayerInput Input 
-  | SwitchEmulationMode -- switches between continous and step-by-step emulation
-  | JoyButtonCommand JoyButtonEventData
-  | JoyDeviceCommand JoyDeviceEventData
-  | JoyHatCommand JoyHatEventData
-  | StepOneFrame
-  | StepClockCycle
-  deriving (Eq)
-
 translateSDLEvent :: SDL.EventPayload -> Maybe Command
 translateSDLEvent SDL.QuitEvent = Just Quit
 translateSDLEvent (JoyHatEvent eventData)    = Just $ JoyHatCommand eventData
@@ -74,6 +62,8 @@ translateSDLEvent (SDL.KeyboardEvent (SDL.KeyboardEventData _ motion _ sym)) =
       Pressed  -> Press x
       Released -> Release x
     inputs = case keysymKeycode sym of
+      KeycodeF5    -> onlyOnPress QuickSave
+      KeycodeF9    -> onlyOnPress QuickLoad
       KeycodeSpace -> onlyOnPress SwitchEmulationMode
       KeycodeF     -> onlyOnPress StepOneFrame
       KeycodeC     -> onlyOnPress StepClockCycle
@@ -91,6 +81,7 @@ translateSDLEvent _ = Nothing
 
 translateParentMessage :: ParentMessage -> [Command]
 translateParentMessage Stop = [Quit]
+translateParentMessage (NewSaveFolder s) = [SaveFolder s]
 translateParentMessage (SaveVM p) = [Save p]
 translateParentMessage (LoadVM p) = [Load p]
 translateParentMessage Comms.Switch = [SwitchEmulationMode]
@@ -112,9 +103,11 @@ data AppResources = AppResources {
   screen          :: Texture,
   commRes         :: CommResources,
   nes             :: IORef Nes,
+  reset           :: IORef Bool,
   reboot          :: IORef Bool,
   continousMode   :: IORef Bool,
-  joys            :: IORef JoyControlState
+  joys            :: IORef JoyControlState,
+  saveFolder      :: IORef (Maybe FilePath)
 }
 
 loadErrorMsg = [r|
@@ -134,15 +127,19 @@ runEmulatorWindow romPath comms = do
   bracket (acquireResources romPath comms) releaseResources runApp 
   bye
 
+isSave path = ".purenes" `isExtensionOf` path
+
+loadNes path = do
+  if isSave path then do
+    file <- B.readFile path
+    deserialize $ decodeEx file 
+  else do
+    cartridge <- loadCartridge path
+    powerUpNes cartridge
+
 acquireResources romPath comms = do
-  reboot        <- newIORef False
-  nes       <- do
-    if ".purenes" `isExtensionOf` romPath then do
-      writeIORef reboot True
-      B.readFile romPath <&> decodeEx >>= deserialize >>= newIORef
-    else do
-      cartridge <- loadCartridge romPath `except` (comms, "Error: Failed to load cartridge.")
-      powerUpNes cartridge >>= newIORef
+  reboot    <- newIORef False
+  nes       <- (loadNes romPath >>= newIORef) `except` (comms, "Error: Failed to load cartridge.")
   SDL.initializeAll
   greetings
   let windowConfig = SDL.defaultWindow {
@@ -159,6 +156,8 @@ acquireResources romPath comms = do
   continousMode <- newIORef True
   let buttonMappings = M.fromList [(0, Select), (1, Start), (2, A), (3, B)]
   joys          <- JoyControls.init buttonMappings >>= newIORef
+  saveFolder    <- newIORef Nothing
+  reset         <- newIORef (not $ isSave romPath)
   return AppResources{..}
 
 releaseResources AppResources{..} = do
@@ -169,11 +168,13 @@ releaseResources AppResources{..} = do
   SDL.quit
 
 runApp appResources@AppResources{..} = do
-  nes <- readIORef nes
+  nes           <- readIORef nes
   rebootRequest <- readIORef reboot
   writeIORef reboot False
+
+  shouldReset  <- readIORef reset
   runEmulator nes $ do
-    when (not rebootRequest) $ do CPU.reset; PPU.reset
+    when shouldReset $ CPU.reset; PPU.reset
     updateWindow appResources `cappedAt` 60
 
   shouldReboot <- readIORef reboot
@@ -194,36 +195,60 @@ updateScreen AppResources{..} pixels = liftIO $ do
   copy renderer screen Nothing Nothing
   present renderer
 
+save AppResources{..} path = do
+  let sendEvent = writeChan (fromSDLWindow commRes)
+  pureNes <- serialize
+  liftIO $ do
+    t <- formatResultTime
+    void . forkIO $ (do
+      B.writeFile path (encode pureNes)
+      sendEvent (SaveError (Nothing, t))) `catch` (\(e :: SomeException) -> do print (show e); sendEvent (SaveError (Just $ show e, t)))
+
+load AppResources{..} path = liftIO $ do
+  let 
+    sendEvent = writeChan (fromSDLWindow commRes)
+  t <- formatResultTime
+  (do
+    newNes <- liftIO $ loadNes path
+    writeIORef nes newNes
+    writeIORef reboot True
+    writeIORef reset (not $ isSave path)
+    sendEvent (LoadError (Nothing, t))) `catch` (\(e :: SomeException) -> do print (show e); sendEvent (LoadError (Just $ show e, t)))
 
 executeCommand :: AppResources -> Command -> Emulator ()
 executeCommand appResources@AppResources{..} command = do
-  let sendEvent = writeChan (fromSDLWindow commRes)
-  joys <- liftIO $ readIORef joys
+  let 
+    sendEvent = writeChan (fromSDLWindow commRes)
+  joys       <- liftIO $ readIORef joys
+  maybeSaveFolder <- liftIO $ readIORef saveFolder 
+  let 
+    withQuickSave f = maybe (return ())  (\folder -> f appResources (folder ++ "/quick.purenes")) maybeSaveFolder
   case command of
-    Save path -> do
-      pureNes <- serialize
-      liftIO $ do
-        t <- formatResultTime
-        void . forkIO $ (do
-          B.writeFile path (encode pureNes)
-          sendEvent (SaveError (Nothing, t))) `catch` (\(e :: SomeException) -> do print (show e); sendEvent (SaveError (Just $ show e, t)))
-    Load path -> 
-      liftIO $ do
-        let 
-          loadNes = do
-            file <- B.readFile path
-            (deserialize $ decodeEx file) 
-              `catch` (\(e :: SomeException) -> fail loadErrorMsg)
-        t <- formatResultTime
-        (do
-          newNes <- liftIO $ loadNes
-          writeIORef nes newNes
-          writeIORef reboot True
-          sendEvent (LoadError (Nothing, t))) `catch` (\(e :: SomeException) -> do print (show e); sendEvent (LoadError (Just $ show e, t)))
-    JoyButtonCommand eventData -> liftIO (manageButtonEvent joys eventData) >>= mapM_ (`processInput` 0)
+    SaveFolder s -> liftIO $ writeIORef saveFolder s
+
+    QuickSave -> withQuickSave save
+
+    QuickLoad -> 
+      withQuickSave (\appResources path -> do
+        saveExists <- liftIO $ doesFileExist path
+        if saveExists
+        then load appResources path 
+        else liftIO $ putStrLn "No quicksave file found.")
+
+    Save path -> save appResources path
+
+    Load path -> load appResources path
+
+    JoyButtonCommand eventData -> do
+      commands <- liftIO (manageButtonEvent joys eventData)
+      mapM_ (executeCommand appResources) commands
+
     JoyHatCommand eventData    -> liftIO (manageHatEvent    joys eventData) >>= mapM_ (`processInput` 0)
+
     JoyDeviceCommand eventData -> liftIO (manageDeviceEvent joys eventData)
+
     PlayerInput input   -> processInput input 0
+    
     SwitchEmulationMode -> do
         stepByStep <- liftIO $ do
           modifyIORef' continousMode not
@@ -232,6 +257,7 @@ executeCommand appResources@AppResources{..} command = do
           return $ not continous
         pixels  <- PPU.accessScreen
         liftIO $ VSM.set pixels 0
+
     StepClockCycle -> 
       onlyWhen not continousMode $ do
         replicateM_ 100 clocks
@@ -239,11 +265,13 @@ executeCommand appResources@AppResources{..} command = do
         PPU.drawSprites
         pixels  <- PPU.accessScreen
         updateScreen appResources pixels
+
     StepOneFrame ->
       onlyWhen not continousMode $ do
         emulateFrame
         pixels  <- PPU.accessScreen
         updateScreen appResources pixels
+        
     _ -> pure ()
 
 updateWindow :: AppResources -> Emulator Bool

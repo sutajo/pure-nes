@@ -55,12 +55,14 @@ mkResultTimeLabel (x, t) = prefix x `Text.append` (Text.pack t) `Text.append`  [
 saveLabel = [r|  First, select a folder for your saves.
   Quicksaving creates an anonymous save 
   file that you can access with Quickload.
+  <span weight="bold" foreground="#6FC6AE">Quicksave shortcut:</span><span foreground="blue"> F5</span> or<span foreground="blue"> LB</span>
   You can create unique saves by giving it 
   a name and then hitting the save button. 
   |]
 
 loadLabel = [r|  Quickload loads the quicksave file 
   located in the selected save folder (if one exists).
+  <span weight="bold" foreground="#6FC6AE">Quickload Shortcut:</span><span foreground="blue"> F9</span> or <span foreground="blue">RB</span>
   You can load ordinary save files using the filechooser.
   |]
 
@@ -139,6 +141,7 @@ view' threadCount s = do
               widget Label
               [ 
                 #label := saveLabel,
+                #useMarkup := True,
                 #marginBottom := 5
               ]
           , BoxChild defaultBoxChildProperties { fill = True } $
@@ -200,6 +203,7 @@ view' threadCount s = do
               widget Label
               [ 
                 #label := loadLabel,
+                #useMarkup := True,
                 #marginBottom := 5
               ]
           , BoxChild defaultBoxChildProperties {fill = True} $
@@ -315,14 +319,14 @@ update CommResources{..} e@Emulating{savePath = Nothing} QuickSavePressed
 update CommResources{..} e@Emulating{saveRomName = "quick"} SaveButtonPressed 
   = Transition e (return . Just$ MessageText saveAsQuick)
 
-update CommResources{..} e@Emulating{savePath = Just path, saveRomName = saveName } SaveButtonPressed
-  = Transition e (just . atomically $ writeTChan toSDLWindow (Communication.SaveVM (path ++ "/" ++ saveName ++".purenes")))
+update comms e@Emulating{savePath = Just path, saveRomName = saveName } SaveButtonPressed
+  = Transition e (sendMsg comms (Communication.SaveVM (path ++ "/" ++ saveName ++".purenes")))
 
-update CommResources{..} e@Emulating{savePath = Just path} QuickSavePressed
-  = Transition e (just . atomically $ writeTChan toSDLWindow (Communication.SaveVM (path ++ "/quick.purenes")))
+update comms e@Emulating{savePath = Just path} QuickSavePressed
+  = Transition e (sendMsg comms (Communication.SaveVM (path ++ "/quick.purenes")))
 
-update _ e@Emulating{} (SavePathChanged s)
-  = Transition (e {savePath = s}) noop
+update comms e@Emulating{} (SavePathChanged s)
+  = Transition (e {savePath = s}) (sendMsg comms (NewSaveFolder s))
 
 update _ e@Emulating{} (SaveNameChanged s)
   = Transition e{saveRomName = s} noop
@@ -336,11 +340,11 @@ update _ e@Emulating{} (LoadError b)
 update CommResources{..} e@Emulating{ savePath = Nothing } QuickReloadPressed
   = Transition e (return . Just $ MessageText "You need to choose a save folder first.")
 
-update CommResources{..} e@Emulating{ savePath = Just path } QuickReloadPressed
-  = Transition e (just . atomically $ writeTChan toSDLWindow (Communication.LoadVM (path ++ "/quick.purenes")))
+update comms e@Emulating{ savePath = Just path } QuickReloadPressed
+  = Transition e (sendMsg comms (Communication.LoadVM (path ++ "/quick.purenes")))
 
-update CommResources{..} e@Emulating{} (LoadPathChanged (Just path))
-  = Transition e {loadPath = path} (just . atomically $ writeTChan toSDLWindow (Communication.LoadVM path))
+update comms e@Emulating{} (LoadPathChanged (Just path))
+  = Transition e {loadPath = path} (sendMsg comms (Communication.LoadVM path))
 
 update _  _ Closed 
   = Exit
@@ -355,10 +359,10 @@ update _ (Message _ stateAfterOk) MessageAck
   = Transition stateAfterOk noop
 
 update comms (Emulating{..}) CloseEmulator 
-  = Transition (Started Nothing) (just . atomically $ writeTChan (toSDLWindow comms) Stop)
+  = Transition (Started Nothing) (sendMsg comms Stop)
 
-update CommResources{..} e SwitchMode
-  = Transition (e { running = not (running e) }) (just . atomically $ writeTChan toSDLWindow Communication.Switch)
+update comms e SwitchMode
+  = Transition (e { running = not (running e) }) (sendMsg comms Communication.Switch)
 
 update _ (Emulating{}) SDLWindowClosed 
   = Transition (Started Nothing) noop
@@ -370,6 +374,9 @@ update _ s (MessageText msg)
   = Transition (Message (Text.pack msg) s) noop
 
 update _ s _ = Transition s noop
+
+  
+sendMsg CommResources{..} x = just . atomically $ writeTChan toSDLWindow x
 
 
 

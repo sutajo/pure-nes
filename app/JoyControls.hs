@@ -23,6 +23,7 @@ import qualified Data.Map     as M
 import           SDL.Event
 import           SDL.Input.Joystick
 import           SDL.Input.GameController()
+import           Communication
 
 
 type ButtonMappings = M.Map Word8 Controls.Button
@@ -66,14 +67,16 @@ convertHatState hatPos = case hatPos of
   HatRight    -> Controls.Right
   _           -> error "HatState not convertible"
 
-manageButtonEvent :: JoyControlState -> JoyButtonEventData -> IO [Input]
+manageButtonEvent :: JoyControlState -> JoyButtonEventData -> IO [Command]
+manageButtonEvent _ (JoyButtonEventData _ 4 JoyButtonPressed) = pure [QuickSave]
+manageButtonEvent _ (JoyButtonEventData _ 6 JoyButtonPressed) = pure [QuickLoad]
 manageButtonEvent JoyControlState{..} (JoyButtonEventData _ btn state) = do
   let 
     controllerButton = maybeToList (buttonMappings M.!? btn)
     action = case state of
       JoyButtonPressed  -> Press
       JoyButtonReleased -> Release
-  pure $ map action controllerButton
+  return $ map (PlayerInput . action) controllerButton
 
 
 manageHatEvent :: JoyControlState -> JoyHatEventData -> IO [Input]
