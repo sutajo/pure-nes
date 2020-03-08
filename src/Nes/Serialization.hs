@@ -9,6 +9,7 @@ module Nes.Serialization (
 import           Data.Store
 import           Data.Word
 import qualified Data.Vector                  as V
+import qualified Data.Vector.Mutable          as VM
 import qualified Data.Vector.Unboxed          as VU
 import           GHC.Generics
 import qualified Nes.APU.Memory               as APU
@@ -48,7 +49,7 @@ deserialize Nes{..} = do
     PPU.deserialize ppu             <*>
     newIORef apu                    <*>
     Cartridge.deserialize cartridge <*>
-    V.thaw controllers
+    VM.replicate 2 (Controls.powerUp)
 
 
 
