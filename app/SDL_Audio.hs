@@ -1,6 +1,9 @@
 {-# LANGUAGE GADTs #-}
 
 module SDL_Audio (
+  AudioResources(..),
+  acquireAudioResources,
+  releaseAudioResources,
   play,
   module Nes.APU.Oscillator
 ) where
@@ -18,10 +21,10 @@ data AudioResources = AudioResources {
   device :: AudioDevice
 }
 
-sampleOscillator :: Oscillator Double -> [Int16]
+sampleOscillator :: Oscillator Float -> [Int16]
 sampleOscillator (Oscillator f) =
   map (\n ->
-         let t = fromIntegral n / 44100 :: Double
+         let t = fromIntegral n / 44100 :: Float
              freq = 200 * 2 * pi
          in round (fromIntegral (maxBound `div` 2 :: Int16) * f (t * freq)))
       [0 :: Int32 ..]
@@ -39,7 +42,7 @@ audioCallBack samples format buffer =
                     (drop n samples')
     _ -> error "Unsupported audio format"
 
-acquireResources oscillator = do
+acquireAudioResources oscillator = do
   SDL.initialize [InitAudio]
   samples <- newIORef (sampleOscillator oscillator)
   let 
@@ -48,7 +51,7 @@ acquireResources oscillator = do
           openDeviceFreq     = Desire 44100
         , openDeviceFormat   = Desire Signed16BitNativeAudio
         , openDeviceChannels = Desire Mono
-        , openDeviceSamples  = 4096 * 2
+        , openDeviceSamples  = 4096
         , openDeviceCallback = audioCallBack samples
         , openDeviceUsage    = ForPlayback
         , openDeviceName     = Nothing
@@ -56,12 +59,12 @@ acquireResources oscillator = do
   (device, _) <- SDL.openAudioDevice spec
   return AudioResources{..}
 
-releaseResources AudioResources{..} = do
+releaseAudioResources AudioResources{..} = do
   SDL.closeAudioDevice device
   SDL.quit
 
-play :: Oscillator Double -> IO ()
-play o@(Oscillator f) = bracket (acquireResources o) releaseResources playAudio
+play :: Oscillator Float -> IO ()
+play o@(Oscillator f) = bracket (acquireAudioResources o) releaseAudioResources playAudio
   where
     playAudio AudioResources{..} = do
       setAudioDevicePlaybackState device Play

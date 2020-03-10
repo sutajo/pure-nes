@@ -60,10 +60,11 @@ saveLabel = [r|  First, select a folder for your saves.
   a name and then hitting the save button. 
   |]
 
-loadLabel = [r|  Quickload loads the quicksave file 
-  located in the selected save folder (if one exists).
+loadLabel = [r|  Quickload loads the quicksave file located 
+  in the selected save folder (if one exists).
   <span weight="bold" foreground="#6FC6AE">Quickload Shortcut:</span><span foreground="blue"> F9</span> or <span foreground="blue">RB</span>
-  You can load ordinary save files using the filechooser.
+  You can load unique save files using the
+  filechooser.
   |]
 
 saveAsQuick = [r|
@@ -106,14 +107,35 @@ view' threadCount s = do
           container Box
           [#orientation := OrientationVertical, #valign := AlignCenter, #margin := 10 ]
           [
-            BoxChild defaultBoxChildProperties { padding = 15 } $ 
-              widget Image [ #file := Text.append "resources/GUI/" (if running then "pause.png" else "play.png")]
-          , BoxChild defaultBoxChildProperties { padding = 15 } $ 
-              widget Button
-              [ 
-                #label := Text.append (if running then "Pause " else "Resume ") romName,
-                on #clicked SwitchMode
+            BoxChild defaultBoxChildProperties { fill = True } $ container Box
+            [#orientation := OrientationHorizontal, #valign := AlignCenter, #margin := 10, #expand := True ]
+            [
+              BoxChild defaultBoxChildProperties { fill = True } $ container Box
+              [#orientation := OrientationVertical, #valign := AlignCenter, #margin := 10, #expand := True ]
+              [
+                BoxChild defaultBoxChildProperties { padding = 10 } $ 
+                  widget Image [ #file := Text.append "resources/GUI/" (if running then "pause.png" else "play.png")]
+              , BoxChild defaultBoxChildProperties { padding = 10, fill = True } $ 
+                  widget Button
+                  [ 
+                    #label := Text.append (if running then "Pause " else "Resume ") romName,
+                    on #clicked (SwitchMode False)
+                  ]
               ]
+
+            , BoxChild defaultBoxChildProperties { fill = True } $ container Box
+              [#orientation := OrientationVertical, #valign := AlignCenter, #margin := 10, #expand := True ]
+              [
+                BoxChild defaultBoxChildProperties { padding = 10 } $ 
+                  widget Image [ #file := "resources/GUI/back2.png"]
+              , BoxChild defaultBoxChildProperties { padding = 10, fill = True } $ 
+                  widget Button
+                  [ 
+                    #label := "Return to ROM selection"
+                  , on #clicked CloseEmulator
+                  ]
+              ]
+            ]
           , BoxChild defaultBoxChildProperties { padding = 15, expand = True, fill = True } $
               case saveResultSuccess of
                 Nothing -> 
@@ -225,14 +247,6 @@ view' threadCount s = do
                         [ onM #selectionChanged (fmap LoadPathChanged . fileChooserGetFilename),
                           #action := FileChooserActionOpen, #expand := True ]
                   ]
-              ]
-          , BoxChild defaultBoxChildProperties { padding = 15 } $ 
-              widget Image [ #file := "resources/GUI/back2.png"]
-          , BoxChild defaultBoxChildProperties { padding = 15 } $ 
-              widget Button
-              [ 
-                #label := "Return to ROM selection"
-              , on #clicked CloseEmulator
               ]
           ]
         Started currentFile -> 
@@ -364,8 +378,8 @@ update _ (Message _ stateAfterOk) MessageAck
 update comms (Emulating{..}) CloseEmulator 
   = Transition (Started Nothing) (sendMsg comms Stop)
 
-update comms e SwitchMode
-  = Transition (e { running = not (running e) }) (sendMsg comms Communication.Switch)
+update comms e (SwitchMode fromSDLWindow)
+  = Transition (e { running = not (running e) }) (if fromSDLWindow then noop else sendMsg comms Communication.Switch)
 
 update _ (Emulating{}) SDLWindowClosed 
   = Transition (Started Nothing) noop

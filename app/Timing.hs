@@ -40,11 +40,11 @@ sleepyCappedAt activity fps = getTicks' >>= go
     freq = round $ ((1000000 :: Double) / fromIntegral fps)
     go !lastTime = do
       currentTime <- getTicks'
+      shouldExit  <- activity
       let diff = currentTime - lastTime 
       if diff < freq
       then do
         liftIO $ threadDelay (freq - diff)
-        shouldExit <- activity
         afterActivity <- getTicks'
         when (not shouldExit) (go afterActivity)
       else 

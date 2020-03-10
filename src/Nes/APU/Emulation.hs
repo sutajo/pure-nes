@@ -28,34 +28,7 @@ selectPulse addr
   | otherwise   = channels.chPulse1
 
 read :: Word16 -> APU -> Word8
-read addr apu = readReg `runReader` apu 
-  where
-    readReg
-      | addr <= 0x7 = readPulse
-      | otherwise   = return 0
-    readPulse :: Reader APU Word8
-    readPulse = let
-        pulse :: Functor f => (PulseWave -> f PulseWave) -> APU -> f APU
-        pulse = selectPulse addr
-      in case addr .&. 3 of
-        0 -> do
-          d <- view (pulse.duty)               <&> (`shiftL` 6)
-          l <- view (pulse.loopHalt)           <&> ((`shiftL` 5) . asNum)
-          c <- view (pulse.constVolume)        <&> ((`shiftL` 4) . asNum)
-          v <- view (pulse.envelope.volume)
-          return (d .|. l .|. c .|. v)
-        1 -> do
-          e <- view (pulse.sweep.enabled)      <&> ((`shiftL` 7) . asNum)
-          p <- view (pulse.sweep.period)       <&> (`shiftL` 4)
-          n <- view (pulse.sweep.(APU.negate)) <&> ((`shiftL` 3) . asNum)
-          s <- view (pulse.sweep.(APU.shift))
-          return (e .|. p .|. n .|. s)
-        2 -> do
-          view (pulse.timer.counter)           <&> fromIntegral
-        3 -> do
-          l <- view (pulse.lengthCounter.load) <&> (`shiftL` 3)
-          t <- view (pulse.timer.counter)      <&> (fromIntegral . (`shiftR` 8))
-          return (l .|. t)
+read _ _ = 0
 
 write :: Word16 -> Word8 -> APU -> APU
 write addr byte apu = writeReg `execState` apu

@@ -23,7 +23,7 @@ data Event
   | SDLWindowClosed
   | MessageText String
   | Error String
-  | SwitchMode
+  | SwitchMode { sentFromSDLWindow :: Bool }
   | QuickSavePressed
   | SaveButtonPressed
   | QuickReloadPressed

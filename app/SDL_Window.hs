@@ -29,6 +29,7 @@ import           Timing
 import           Nes.Cartridge.Parser hiding (serialize, deserialize)
 import           Nes.Emulation.Monad
 import qualified Nes.CPU.Emulation as CPU
+import qualified Nes.CPU.Serialization as CPUS
 import qualified Nes.PPU.Emulation as PPU
 import           Nes.Controls as Controls (Input(..), Button(..))
 import           Nes.Emulation.MasterClock
@@ -263,6 +264,7 @@ executeCommand appResources@AppResources{..} command = do
     SwitchEmulationMode -> do
         stepByStep <- liftIO $ do
           modifyIORef' continousMode not
+          sendEvent (SwitchMode True)
           continous <- readIORef continousMode
           putStrLn ("Switched to " ++ (if continous then "continous" else "step-by-step") ++ " mode.")
           return $ not continous
@@ -280,6 +282,7 @@ executeCommand appResources@AppResources{..} command = do
     StepOneFrame ->
       onlyWhen not continousMode $ do
         emulateFrame
+        CPUS.serialize >>= liftIO . print
         pixels  <- PPU.accessScreen
         updateScreen appResources pixels
 

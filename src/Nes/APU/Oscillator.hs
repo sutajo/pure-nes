@@ -12,7 +12,7 @@ import Graphics.Rendering.Chart.Easy
 import Graphics.Rendering.Chart.Backend.Diagrams
 
 newtype Oscillator a = Oscillator { 
-  sample :: Double -> a
+  sample :: Float -> a
 }
 
 instance Num a => Num (Oscillator a) where
@@ -37,12 +37,12 @@ plotWaveForms oscillators = do
 
 plotWaveForm x = plotWaveForms [x]
 
-sineWaveGenerator :: Oscillator Double
+sineWaveGenerator :: Oscillator Float
 sineWaveGenerator = Oscillator sin
 
 plotSine = plotWaveForm (sineWaveGenerator, "sin(t)")
 
-pulseWaveGenerator :: Double -> Double -> Double -> Int -> Oscillator Double
+pulseWaveGenerator :: Float -> Float -> Float -> Int -> Oscillator Float
 pulseWaveGenerator period pulseTime amplitude elementCount = Oscillator (\t -> (f t) * amplitude)
   where
     f t = dutyCycles + sum (map (element t) [1..elementCount]) 
@@ -56,13 +56,13 @@ plotPulseWave = plotWaveForm ((pulseWaveGenerator (2*pi) pi 1 25 - 0.5) * 1.675,
 
 sawtoothWaveGenerator period amplitude = Oscillator $ \t -> let tp = t/period in amplitude*2*(tp-fromIntegral (floor(tp+1/2)))
 
-triangleWaveGenerator :: Double -> Double -> Oscillator Double
+triangleWaveGenerator :: Float -> Float -> Oscillator Float
 triangleWaveGenerator period = abs . sawtoothWaveGenerator period
 
 plotTriangleWave = plotWaveForm (triangleWaveGenerator 100 200, "Triangle wave")
 
 -- Converts an analog singal between [-a..a] to a digital one between [-a*n..a*n]
-(~>) :: Integral a => Oscillator Double -> a -> Oscillator a
+(~>) :: Integral a => Oscillator Float -> a -> Oscillator a
 (~>) (Oscillator f) n = Oscillator $ \t -> round (f t * fromIntegral n)
 
 plotWaves = let
