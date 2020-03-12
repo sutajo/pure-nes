@@ -213,3 +213,20 @@ unrom Cartridge{..} = do
       then VUM.write chr_rom (fromIntegral addr) val
       else pure ()
   return Mapper{..}
+
+
+mmc3 :: Cartridge -> IO Mapper
+mmc3 Cartridge{..} = do
+  bankSelector <- newIORefU (0 :: Int)
+  let
+    even x = (x .&. 0b1) == 0
+    odd  x = (x .&. 0b1) == 1
+
+    cpuRead addr
+      | addr < 0x8000 =  VUM.read prg_ram (fromIntegral (addr .&. 0x1FFF))
+
+    cpuWrite addr val
+      | addr < 0x8000 = VUM.write prg_ram (fromIntegral (addr .&. 0x1FFF)) val
+  
+  return Mapper{..}
+

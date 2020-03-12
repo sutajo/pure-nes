@@ -107,8 +107,8 @@ sequencer stage = do
 
 type Output = (Maybe Interrupt, Maybe ChannelSamples)
 
-clock :: APU -> (Output, APU)
-clock oldState = step `runState` oldState
+clock :: APU -> Int -> (Output, APU)
+clock oldState masterClocks = step `runState` oldState
   where
     step :: Clock Output
     step = do

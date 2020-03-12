@@ -34,7 +34,6 @@ import qualified Nes.PPU.Emulation as PPU
 import           Nes.Controls as Controls (Input(..), Button(..))
 import           Nes.Emulation.MasterClock
 import           Nes.Serialization (serialize, deserialize)
-import           SDL_Audio
 
 formatResultTime :: IO String
 formatResultTime = do
@@ -68,7 +67,7 @@ translateSDLEvent (SDL.KeyboardEvent (SDL.KeyboardEventData _ motion _ sym)) =
       KeycodeG     -> onlyOnPress ToggleJoyMap
       KeycodeF5    -> onlyOnPress QuickSave
       KeycodeF9    -> onlyOnPress QuickLoad
-      KeycodeSpace -> onlyOnPress SwitchEmulationMode
+      KeycodeSpace -> onlyOnPress (SwitchEmulationMode True)
       KeycodeF     -> onlyOnPress StepOneFrame
       KeycodeC     -> onlyOnPress StepClockCycle
       KeycodeUp    -> playerInput Up
@@ -88,7 +87,7 @@ translateParentMessage Stop = [Quit]
 translateParentMessage (NewSaveFolder s) = [SaveFolder s]
 translateParentMessage (SaveVM p) = [Save p]
 translateParentMessage (LoadVM p) = [Load p]
-translateParentMessage Comms.Switch = [SwitchEmulationMode]
+translateParentMessage Comms.Switch = [SwitchEmulationMode False]
 translateParentMessage TraceRequest = []
 
 greetings :: IO ()
@@ -261,10 +260,10 @@ executeCommand appResources@AppResources{..} command = do
 
     PlayerInput input   -> processInput input 0
     
-    SwitchEmulationMode -> do
+    SwitchEmulationMode shouldSendEvent-> do
         stepByStep <- liftIO $ do
           modifyIORef' continousMode not
-          sendEvent (SwitchMode True)
+          when shouldSendEvent $ sendEvent (SwitchMode True)
           continous <- readIORef continousMode
           putStrLn ("Switched to " ++ (if continous then "continous" else "step-by-step") ++ " mode.")
           return $ not continous

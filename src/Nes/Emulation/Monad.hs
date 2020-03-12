@@ -31,10 +31,12 @@ module Nes.Emulation.Monad (
 ) where
 
 import           Control.Monad.Reader
+import           Data.Int
 import qualified Data.Vector.Unboxed.Mutable  as VUM
 import           Data.Primitive(Prim)
 import           Data.Vector.Mutable (IOVector)
 import qualified Data.Vector.Mutable as VM
+import           Data.Mutable
 import           Data.Functor
 import           Nes.APU.Memory         as APU
 import           Nes.CPU.Memory         as CPU
@@ -52,8 +54,9 @@ data Nes =  Nes {
     ram         ::  RAM,
     ppu         ::  PPU,
     apu         ::  IORef APU,
+    audioBuffer ::  UDeque RealWorld Int16,
     cartridge   ::  Cart.Cartridge,
-    controllers ::  IOVector Controls.Controller
+    controllers ::  IOVector Controls.Controller    
 }
 
 powerUpNes :: Cart.Cartridge -> IO Nes
@@ -63,6 +66,7 @@ powerUpNes cart =
     allocateRAM <*>
     PPU.powerUp (Cart.mirror cart) <*>
     newIORef APU.powerUp <*>
+    newColl              <*>
     pure cart            <*>
     VM.replicate 2 Controls.powerUp
 

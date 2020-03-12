@@ -59,7 +59,8 @@ makeLenses ''Channels
 data APU = APU {
     _samples        :: ChannelSamples,
     _channels       :: Channels,
-    _frameCounter   :: Word8
+    _frameCounter   :: Word8,
+    _sampleTimer    :: Int
 } deriving (Generic, Store)
 makeLenses ''APU
 
@@ -77,6 +78,7 @@ powerUp = let
       _samples       = ChannelSamples 0 0 0 0 0
       _channels      = Channels{..}
       _frameCounter  = 0
+      _sampleTimer   = 0
     in APU{..}
 
 lengthTable :: VU.Vector Word8

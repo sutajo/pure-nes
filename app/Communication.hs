@@ -44,7 +44,7 @@ data Command
   | QuickLoad
   | SaveFolder (Maybe FilePath)
   | PlayerInput Input 
-  | SwitchEmulationMode -- switches between continous and step-by-step emulation
+  | SwitchEmulationMode { sendEventToGtkWindow :: Bool } -- switches between continous and step-by-step emulation
   | JoyButtonCommand JoyButtonEventData
   | JoyDeviceCommand JoyDeviceEventData
   | JoyHatCommand JoyHatEventData

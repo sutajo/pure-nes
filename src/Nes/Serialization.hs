@@ -11,6 +11,7 @@ import           Data.Word
 import qualified Data.Vector                  as V
 import qualified Data.Vector.Mutable          as VM
 import qualified Data.Vector.Unboxed          as VU
+import           Data.Mutable
 import           GHC.Generics
 import qualified Nes.APU.Memory               as APU
 import qualified Nes.CPU.Serialization        as CPU
@@ -48,6 +49,7 @@ deserialize Nes{..} = do
     VU.thaw ram                     <*>
     PPU.deserialize ppu             <*>
     newIORef apu                    <*>
+    newColl                         <*>
     Cartridge.deserialize cartridge <*>
     VM.replicate 2 (Controls.powerUp)
 
