@@ -312,29 +312,31 @@ launchEmulator path comms = do
   toSDLWindow' <- atomically $ dupTChan (toSDLWindow comms)
   void . forkOS $ runEmulatorWindow path comms { toSDLWindow = toSDLWindow' }
 
+noop = pure Nothing
+only x = do x; noop
+emit = return . Just 
 
 resultEvent result op = 
   let prefix = "Oops! An exception has occured during " ++ op ++ ":\n" in
   case errorMsg result of
     Nothing  -> noop
-    Just msg -> return . Just . MessageText $ prefix ++ msg
-
+    Just msg -> emit . MessageText $ prefix ++ msg
 
 update :: CommResources -> State -> Event -> Transition State Event
 update _ (Started _) (FileSelectionChanged p) 
   = Transition (Started p) (return Nothing)
 
 update CommResources{..} e@Emulating{saveRomName = ""} SaveButtonPressed 
-  = Transition e (return . Just $ MessageText "You need to give a name to your save file.")
+  = Transition e (emit $ MessageText "You need to give a name to your save file.")
 
 update CommResources{..} e@Emulating{savePath = Nothing} SaveButtonPressed
-  = Transition e (return . Just $ MessageText "You need to choose a save folder first.")
+  = Transition e (emit $ MessageText "You need to choose a save folder first.")
 
 update CommResources{..} e@Emulating{savePath = Nothing} QuickSavePressed
-  = Transition e (return . Just $ MessageText "You need to choose a save folder first.")
+  = Transition e (emit $ MessageText "You need to choose a save folder first.")
 
 update CommResources{..} e@Emulating{saveRomName = "quick"} SaveButtonPressed 
-  = Transition e (return . Just$ MessageText saveAsQuick)
+  = Transition e (emit $ MessageText saveAsQuick)
 
 update comms e@Emulating{savePath = Just path, saveRomName = saveName } SaveButtonPressed
   = Transition e (sendMsg comms (Save (path ++ "/" ++ saveName ++".purenes")))
@@ -355,7 +357,7 @@ update _ e@Emulating{} (LoadResult res)
   = Transition e{loadResultSuccess = Just $ res} $ resultEvent res "loading"
 
 update CommResources{..} e@Emulating{ savePath = Nothing } QuickReloadPressed
-  = Transition e (return . Just $ MessageText "You need to choose a save folder first.")
+  = Transition e (emit $ MessageText "You need to choose a save folder first.")
 
 update comms e@Emulating{ savePath = Just path } QuickReloadPressed
   = Transition e (sendMsg comms (Load (path ++ "/quick.purenes")))
@@ -367,7 +369,7 @@ update _  _ Closed
   = Exit
 
 update comms s@(Started (Just path)) StartEmulator 
-  = Transition (Emulating (Text.pack . dropExtension . takeFileName $ path) True Nothing "" "" Nothing Nothing) (just $ launchEmulator path comms)
+  = Transition (Emulating (Text.pack . dropExtension . takeFileName $ path) True Nothing "" "" Nothing Nothing) (only $ launchEmulator path comms)
 
 update _ s@(Started Nothing) StartEmulator
   = Transition s (return . Just $ MessageText "No ROM selected.")
@@ -377,7 +379,6 @@ update _ (Message _ stateAfterOk) MessageAck
 
 update comms (Emulating{..}) ReturnToSelection 
   = Transition (Started Nothing) (sendMsg comms Quit)
-
 
 update comms e (SwitchMode shouldForward)
   = Transition (e { running = not (running e) }) (if shouldForward then sendMsg comms (SwitchEmulationMode False) else noop)
@@ -394,12 +395,7 @@ update _ s (MessageText msg)
 update _ s _ = Transition s noop
 
   
-sendMsg CommResources{..} x = just . atomically $ writeTChan toSDLWindow x
-
-
-
-noop = pure Nothing
-just x = do x; noop
+sendMsg CommResources{..} x = only . atomically $ writeTChan toSDLWindow x
 
 
 main :: IO ()
