@@ -13,9 +13,7 @@ import           Control.Monad.Trans.Maybe
 import           Control.Monad.Writer.Lazy
 import           Data.Int
 import           Data.IORef
-import qualified Data.Either  as E
 import           Data.Functor()
-import           Data.Maybe
 import           Data.Word
 import           Nes.Controls as Controls
 import qualified Data.List    as L
@@ -68,16 +66,22 @@ convertHatState hatPos = case hatPos of
   HatRight    -> Controls.Right
   _           -> error "HatState not convertible"
 
-manageButtonEvent :: JoyControlState -> JoyButtonEventData -> IO (Either [Input] Command)
-manageButtonEvent _ (JoyButtonEventData _ 4 JoyButtonPressed) = pure $ E.Right QuickSave
-manageButtonEvent _ (JoyButtonEventData _ 6 JoyButtonPressed) = pure $ E.Right QuickLoad
-manageButtonEvent JoyControlState{..} (JoyButtonEventData _ btn state) = do
+manageButtonEvent :: ControllerId -> JoyControlState -> JoyButtonEventData -> Maybe Command
+manageButtonEvent _ _ (JoyButtonEventData _ 4 JoyButtonPressed) = Just QuickSave
+manageButtonEvent _ _ (JoyButtonEventData _ 6 JoyButtonPressed) = Just QuickLoad
+manageButtonEvent cid JoyControlState{..} (JoyButtonEventData _ btn state) =
   let 
-    controllerButton = maybeToList (buttonMappings M.!? btn)
+    command = case cid of
+      0 -> PlayerOneInput
+      1 -> PlayerTwoInput
+      _ -> error "Invalid controller id"
+    mappedButton = buttonMappings M.!? btn
     action = case state of
       JoyButtonPressed  -> Press
       JoyButtonReleased -> Release
-  return . E.Left $ map action controllerButton
+  in do
+    button <- mappedButton
+    return $ command (action button)
 
 
 manageHatEvent :: JoyControlState -> JoyHatEventData -> IO [Input]

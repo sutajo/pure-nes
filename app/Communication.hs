@@ -7,54 +7,50 @@ import Control.Monad.Loops
 import SDL hiding (Error, Event)
 import Nes.Controls as Controls (Input)
 
+type ControllerId = Int
+
+data IOResult = IOResult { errorMsg :: Maybe String, time :: String }
+
 data Event 
   = FileSelectionChanged (Maybe FilePath) -- A new file was selected in the main menu
   | SavePathChanged (Maybe FilePath)      -- A new save folder was selected
-  | LoadPathChanged (Maybe FilePath)      -- New file selected to be loaded
-  | SaveError (Maybe String, String)      -- Save results
-  | LoadError (Maybe String, String)      -- Load results
+  | LoadPathChanged (Maybe FilePath)      -- New file was selected to be loaded
+  | SaveResult IOResult
+  | LoadResult IOResult
   | SaveNameChanged String                -- Name of unique save changed
-  | Closed 
-  | Help 
-  | StartEmulator 
-  | ControllerConfig
-  | MessageAck
-  | CloseEmulator
+  | Closed                                -- Gtk window was closed
+  | StartEmulator                         -- Start button was pressed in main menu
+  | MessageAck                            -- User acknowledged message
+  | ReturnToSelection
   | SDLWindowClosed
   | MessageText String
   | Error String
-  | SwitchMode { sentFromSDLWindow :: Bool }
+  | SwitchMode { forwardToSDLWindow :: Bool }
   | QuickSavePressed
   | SaveButtonPressed
   | QuickReloadPressed
 
-data ParentMessage 
-  = Stop
-  | Switch
-  | TraceRequest
-  | SaveVM FilePath
-  | LoadVM FilePath
-  | NewSaveFolder (Maybe FilePath)
-
+-- The SDL window loop executes the following commands
 data Command 
   = Quit
   | Save FilePath
   | Load FilePath
   | QuickSave
   | QuickLoad
-  | SaveFolder (Maybe FilePath)
-  | PlayerInput Input 
-  | SwitchEmulationMode { sendEventToGtkWindow :: Bool } -- switches between continous and step-by-step emulation
+  | NewSaveFolder (Maybe FilePath)
+  | PlayerOneInput Input
+  | PlayerTwoInput Input
+  | SwitchEmulationMode { forwardToGtkWindow :: Bool }
   | JoyButtonCommand JoyButtonEventData
   | JoyDeviceCommand JoyDeviceEventData
   | JoyHatCommand JoyHatEventData
   | StepOneFrame
   | StepClockCycle
   | ToggleJoyMap
-  deriving (Eq)
+  deriving (Eq) 
 
 data CommResources = CommResources {
-  toSDLWindow   :: TChan ParentMessage,
+  toSDLWindow   :: TChan Command,
   fromSDLWindow :: Chan Event 
 }
 

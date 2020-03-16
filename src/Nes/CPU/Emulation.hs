@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, LambdaCase, RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables, LambdaCase, RecordWildCards, StrictData #-}
 
 module Nes.CPU.Emulation (
   reset,
@@ -26,8 +26,8 @@ data Penalty = None | BoundaryCross deriving (Enum)
 type Opcode = Word8
 
 data DecodedOpcode = DecodedOpcode {
-  instruction   :: !(Emulator ()),
-  cycles        :: !Int
+  instruction   :: Emulator (),
+  cycles        :: Int
 }
 
 op = DecodedOpcode
@@ -307,13 +307,13 @@ eor word = do
   setNegative result
 
 inc :: Word16 -> Emulator ()
-inc addr = change (1+) (read addr) (write addr)
+inc addr = change (+1) (read addr) (write addr)
 
 inx :: Emulator ()
-inx = change (1+) (readReg x) (writeReg x)
+inx = change (+1) (readReg x) (writeReg x)
 
 iny :: Emulator ()
-iny = change (1+) (readReg y) (writeReg y)
+iny = change (+1) (readReg y) (writeReg y)
 
 jmp :: Word16 -> Emulator ()
 jmp = writeReg pc

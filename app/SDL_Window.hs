@@ -5,11 +5,11 @@ module SDL_Window (
 ) where
 
 import           Control.Monad
+import           Control.Monad.Extra
 import           Control.Monad.IO.Class
 import           Control.Concurrent
 import           Control.Concurrent.STM
 import           Control.Exception
-import qualified Data.Either                  as E
 import qualified Data.ByteString              as B
 import qualified Data.Map                     as M
 import qualified Data.Vector.Storable.Mutable as VSM
@@ -60,7 +60,7 @@ translateSDLEvent (SDL.KeyboardEvent (SDL.KeyboardEventData _ motion _ sym)) =
     onlyOnPress = case motion of
       Pressed  -> Just
       Released -> const Nothing
-    playerInput x = Just . PlayerInput $ case motion of
+    playerInput x = Just . PlayerOneInput $ case motion of
       Pressed  -> Press x
       Released -> Release x
     inputs = case keysymKeycode sym of
@@ -81,14 +81,6 @@ translateSDLEvent (SDL.KeyboardEvent (SDL.KeyboardEventData _ motion _ sym)) =
       _            -> Nothing
   in inputs
 translateSDLEvent _ = Nothing
-
-translateParentMessage :: ParentMessage -> [Command]
-translateParentMessage Stop = [Quit]
-translateParentMessage (NewSaveFolder s) = [SaveFolder s]
-translateParentMessage (SaveVM p) = [Save p]
-translateParentMessage (LoadVM p) = [Load p]
-translateParentMessage Comms.Switch = [SwitchEmulationMode False]
-translateParentMessage TraceRequest = []
 
 greetings :: IO ()
 greetings = do
@@ -121,14 +113,8 @@ CPU architecture, or this file is not a valid
 save at all.
 |]
 
-onlyWhen :: MonadIO m => (a -> Bool) -> IORef a -> m () -> m ()
-onlyWhen f ref m = do
-  cond <- liftIO (f <$> readIORef ref)
-  when cond m
-
 runEmulatorWindow :: FilePath -> CommResources -> IO ()
 runEmulatorWindow romPath comms = do
-  --play ((pulseWaveGenerator (2*pi) pi 1 10 - 0.5) * 2)
   bracket (acquireResources romPath comms) releaseResources runApp 
   bye
 
@@ -175,9 +161,8 @@ releaseResources AppResources{..} = do
 
 runApp appResources@AppResources{..} = do
   nes           <- readIORef nes
-  rebootRequest <- readIORef reboot
   writeIORef reboot False
-
+  
   shouldReset  <- readIORef reset
   runEmulator nes $ do
     when shouldReset $ CPU.reset; PPU.reset
@@ -189,7 +174,7 @@ runApp appResources@AppResources{..} = do
 
 pollCommands res@AppResources{..} = do
   sdlCommands <- (catMaybes . map (translateSDLEvent . eventPayload)) <$> SDL.pollEvents
-  gtkCommands <- (concatMap translateParentMessage) <$> (atomically $ readAllTChan (toSDLWindow commRes))
+  gtkCommands <- atomically $ readAllTChan (toSDLWindow commRes)
   return (gtkCommands ++ sdlCommands)
 
 updateScreen :: AppResources -> VSM.IOVector Word8 -> Emulator ()
@@ -206,9 +191,13 @@ save AppResources{..} path = do
   pureNes <- serialize
   liftIO $ do
     t <- formatResultTime
-    void . forkIO $ (do
+    void . forkIO $ 
+      (do
       B.writeFile path (encode pureNes)
-      sendEvent (SaveError (Nothing, t))) `catch` (\(e :: SomeException) -> do print (show e); sendEvent (SaveError (Just $ show e, t)))
+      sendEvent (SaveResult $ IOResult Nothing t)) 
+        `catch` (\(e :: SomeException) -> do 
+          print (show e)
+          sendEvent (SaveResult $ IOResult (Just $ show e) t))
 
 load AppResources{..} path = liftIO $ do
   let 
@@ -219,18 +208,21 @@ load AppResources{..} path = liftIO $ do
     writeIORef nes newNes
     writeIORef reboot True
     writeIORef reset (not $ isSave path)
-    sendEvent (LoadError (Nothing, t))) `catch` (\(e :: SomeException) -> do print (show e); sendEvent (LoadError (Just $ show e, t)))
+    sendEvent (LoadResult $ IOResult Nothing t)) 
+      `catch` (\(e :: SomeException) -> do 
+        print (show e)
+        sendEvent (LoadResult $ IOResult (Just $ show e) t))
 
 executeCommand :: AppResources -> Command -> Emulator ()
 executeCommand appResources@AppResources{..} command = do
+  joys            <- liftIO $ readIORef joys
+  maybeSaveFolder <- liftIO $ readIORef saveFolder 
+
   let 
     sendEvent = writeChan (fromSDLWindow commRes)
-  joys       <- liftIO $ readIORef joys
-  maybeSaveFolder <- liftIO $ readIORef saveFolder 
-  let 
     withQuickSave f = maybe (return ())  (\folder -> f appResources (folder ++ "/quick.purenes")) maybeSaveFolder
   case command of
-    SaveFolder s -> liftIO $ writeIORef saveFolder s
+    NewSaveFolder s -> liftIO $ writeIORef saveFolder s
 
     QuickSave -> withQuickSave save
 
@@ -246,11 +238,10 @@ executeCommand appResources@AppResources{..} command = do
     Load path -> load appResources path
 
     JoyButtonCommand eventData -> do
-      commandOrInputs <- liftIO (manageButtonEvent joys eventData)
-      id <- liftIO $ readIORef joyIsSecondCtrl
-      case commandOrInputs of
-        E.Left inputs   -> forM_  inputs (`processInput` (fromEnum id))
-        E.Right command -> executeCommand appResources command
+      controllerId <- liftIO $ readIORef joyIsSecondCtrl
+      case manageButtonEvent (fromEnum controllerId) joys eventData of
+        Just command -> executeCommand appResources command
+        _            -> pure ()
 
     JoyHatCommand eventData    -> do
       controllerId <- liftIO $ readIORef joyIsSecondCtrl
@@ -258,12 +249,14 @@ executeCommand appResources@AppResources{..} command = do
 
     JoyDeviceCommand eventData -> liftIO (manageDeviceEvent joys eventData)
 
-    PlayerInput input   -> processInput input 0
+    PlayerOneInput input -> input `processInput` 0
+
+    PlayerTwoInput input -> input `processInput` 1
     
-    SwitchEmulationMode shouldSendEvent-> do
+    SwitchEmulationMode shouldForward -> do
         stepByStep <- liftIO $ do
           modifyIORef' continousMode not
-          when shouldSendEvent $ sendEvent (SwitchMode True)
+          when shouldForward $ sendEvent (SwitchMode False)
           continous <- readIORef continousMode
           putStrLn ("Switched to " ++ (if continous then "continous" else "step-by-step") ++ " mode.")
           return $ not continous
@@ -271,7 +264,7 @@ executeCommand appResources@AppResources{..} command = do
         liftIO $ VSM.set pixels 0
 
     StepClockCycle -> 
-      onlyWhen not continousMode $ do
+      whenM (liftIO $ readIORef continousMode <&> not) $ do
         replicateM_ 100 clocks
         PPU.drawPalette
         PPU.drawSprites
@@ -279,7 +272,7 @@ executeCommand appResources@AppResources{..} command = do
         updateScreen appResources pixels
 
     StepOneFrame ->
-      onlyWhen not continousMode $ do
+      whenM (liftIO $ readIORef continousMode <&> not) $ do
         emulateFrame
         CPUS.serialize >>= liftIO . print
         pixels  <- PPU.accessScreen
@@ -297,7 +290,7 @@ updateWindow :: AppResources -> Emulator Bool
 updateWindow appResources@AppResources{..} = do
   commands <- liftIO $ pollCommands appResources
   mapM_ (executeCommand appResources) commands
-  onlyWhen id continousMode $ do
+  whenM (liftIO $ readIORef continousMode) $ do
     emulateFrame
     PPU.accessScreen >>= updateScreen appResources
   reboot <- liftIO $ readIORef reboot

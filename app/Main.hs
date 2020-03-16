@@ -41,13 +41,13 @@ data State = Started (Maybe FilePath)
              savePath :: Maybe FilePath, 
              loadPath :: FilePath, 
              saveRomName :: String,
-             saveResultSuccess :: Maybe (Maybe String, String),
-             loadResultSuccess :: Maybe (Maybe String, String)
+             saveResultSuccess :: Maybe IOResult,
+             loadResultSuccess :: Maybe IOResult
             }
         
 
-mkResultTimeLabel :: (Maybe String, String) -> Text.Text
-mkResultTimeLabel (x, t) = prefix x `Text.append` (Text.pack t) `Text.append`  [r| </span> |]
+mkResultTimeLabel :: IOResult -> Text.Text
+mkResultTimeLabel (IOResult x t) = prefix x `Text.append` (Text.pack t) `Text.append`  [r| </span> |]
   where
     prefix Nothing  = [r| <span size="larger" foreground="#6FC6AE"> |]
     prefix (Just _) = [r| <span size="larger" foreground="#E24C4B"> |]
@@ -119,7 +119,7 @@ view' threadCount s = do
                   widget Button
                   [ 
                     #label := Text.append (if running then "Pause " else "Resume ") romName,
-                    on #clicked (SwitchMode False)
+                    on #clicked (SwitchMode True)
                   ]
               ]
 
@@ -132,7 +132,7 @@ view' threadCount s = do
                   widget Button
                   [ 
                     #label := "Return to ROM selection"
-                  , on #clicked CloseEmulator
+                  , on #clicked ReturnToSelection
                   ]
               ]
             ]
@@ -143,9 +143,9 @@ view' threadCount s = do
                     [BoxChild defaultBoxChildProperties $ widget Image [ #file := "resources/GUI/save.png"]]
                 Just result -> 
                   let 
-                    img = case result of
-                      (Nothing,  _)  -> "tick.png"
-                      (Just err, _) -> "cross.png"
+                    img = case errorMsg result of
+                      Nothing -> "tick.png"
+                      Just _  -> "cross.png"
                   in
                     container Box [#orientation := OrientationVertical, #halign := AlignCenter] $
                     [
@@ -206,9 +206,9 @@ view' threadCount s = do
                   Just result ->
                     container Box [#orientation := OrientationVertical, #halign := AlignCenter] $
                       let 
-                        img = case result of
-                          (Nothing, _)  -> "tick.png"
-                          (Just err,_) -> "cross.png"
+                        img = case errorMsg result of
+                          Nothing -> "tick.png"
+                          Just _  -> "cross.png"
                       in 
                         [
                           container Box [#orientation := OrientationHorizontal, #halign := AlignCenter] $
@@ -313,11 +313,11 @@ launchEmulator path comms = do
   void . forkOS $ runEmulatorWindow path comms { toSDLWindow = toSDLWindow' }
 
 
-resultEvent b op = 
+resultEvent result op = 
   let prefix = "Oops! An exception has occured during " ++ op ++ ":\n" in
-  case b of
-    (Nothing,  _) -> noop
-    (Just err, _) -> return . Just . MessageText $ prefix ++ err
+  case errorMsg result of
+    Nothing  -> noop
+    Just msg -> return . Just . MessageText $ prefix ++ msg
 
 
 update :: CommResources -> State -> Event -> Transition State Event
@@ -337,10 +337,10 @@ update CommResources{..} e@Emulating{saveRomName = "quick"} SaveButtonPressed
   = Transition e (return . Just$ MessageText saveAsQuick)
 
 update comms e@Emulating{savePath = Just path, saveRomName = saveName } SaveButtonPressed
-  = Transition e (sendMsg comms (Communication.SaveVM (path ++ "/" ++ saveName ++".purenes")))
+  = Transition e (sendMsg comms (Save (path ++ "/" ++ saveName ++".purenes")))
 
 update comms e@Emulating{savePath = Just path} QuickSavePressed
-  = Transition e (sendMsg comms (Communication.SaveVM (path ++ "/quick.purenes")))
+  = Transition e (sendMsg comms (Load (path ++ "/quick.purenes")))
 
 update comms e@Emulating{} (SavePathChanged s)
   = Transition (e {savePath = s}) (sendMsg comms (NewSaveFolder s))
@@ -348,20 +348,20 @@ update comms e@Emulating{} (SavePathChanged s)
 update _ e@Emulating{} (SaveNameChanged s)
   = Transition e{saveRomName = s} noop
 
-update _ e@Emulating{} (SaveError b)
-  = Transition e{saveResultSuccess = Just $ b} $ resultEvent b "saving"
+update _ e@Emulating{} (SaveResult res)
+  = Transition e{saveResultSuccess = Just $ res} $ resultEvent res "saving"
 
-update _ e@Emulating{} (LoadError b)
-  = Transition e{loadResultSuccess = Just $ b} $ resultEvent b "loading"
+update _ e@Emulating{} (LoadResult res)
+  = Transition e{loadResultSuccess = Just $ res} $ resultEvent res "loading"
 
 update CommResources{..} e@Emulating{ savePath = Nothing } QuickReloadPressed
   = Transition e (return . Just $ MessageText "You need to choose a save folder first.")
 
 update comms e@Emulating{ savePath = Just path } QuickReloadPressed
-  = Transition e (sendMsg comms (Communication.LoadVM (path ++ "/quick.purenes")))
+  = Transition e (sendMsg comms (Load (path ++ "/quick.purenes")))
 
 update comms e@Emulating{} (LoadPathChanged (Just path))
-  = Transition e {loadPath = path} (sendMsg comms (Communication.LoadVM path))
+  = Transition e {loadPath = path} (sendMsg comms (Load path))
 
 update _  _ Closed 
   = Exit
@@ -375,11 +375,12 @@ update _ s@(Started Nothing) StartEmulator
 update _ (Message _ stateAfterOk) MessageAck 
   = Transition stateAfterOk noop
 
-update comms (Emulating{..}) CloseEmulator 
-  = Transition (Started Nothing) (sendMsg comms Stop)
+update comms (Emulating{..}) ReturnToSelection 
+  = Transition (Started Nothing) (sendMsg comms Quit)
 
-update comms e (SwitchMode fromSDLWindow)
-  = Transition (e { running = not (running e) }) (if fromSDLWindow then noop else sendMsg comms Communication.Switch)
+
+update comms e (SwitchMode shouldForward)
+  = Transition (e { running = not (running e) }) (if shouldForward then sendMsg comms (SwitchEmulationMode False) else noop)
 
 update _ (Emulating{}) SDLWindowClosed 
   = Transition (Started Nothing) noop
