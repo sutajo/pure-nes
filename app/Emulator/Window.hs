@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, RecordWildCards, ScopedTypeVariables, GADTs, QuasiQuotes #-}
 
-module SDL_Window (
+module Emulator.Window (
   runEmulatorWindow
 ) where
 
