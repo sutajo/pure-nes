@@ -342,7 +342,7 @@ update comms e@Emulating{savePath = Just path, saveRomName = saveName } SaveButt
   = Transition e (sendMsg comms (Save (path ++ "/" ++ saveName ++".purenes")))
 
 update comms e@Emulating{savePath = Just path} QuickSavePressed
-  = Transition e (sendMsg comms (Load (path ++ "/quick.purenes")))
+  = Transition e (sendMsg comms (Save (path ++ "/quick.purenes")))
 
 update comms e@Emulating{} (SavePathChanged s)
   = Transition (e {savePath = s}) (sendMsg comms (NewSaveFolder s))
