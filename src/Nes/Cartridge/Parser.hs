@@ -21,7 +21,6 @@ import qualified Data.Vector.Unboxed         as VU
 import qualified Data.Vector.Unboxed.Mutable as VUM
 import qualified Data.Map                    as M
 import           Data.IORef.Unboxed
-import           Data.Store
 import           GHC.Generics
 import           Data.Functor
 import           Data.Word
@@ -87,10 +86,10 @@ data Mirroring
   = Horizontal
   | Vertical
   | FourScreen
-  deriving (Show, Enum, Generic, Store)
+  deriving (Show, Enum, Generic)
 
 newtype MapperState = MapperState [Word8] 
-  deriving (Generic, Store)
+  deriving (Generic)
     
 data Cartridge = Cartridge {
     hasChrRam    :: Bool,
@@ -215,18 +214,5 @@ unrom Cartridge{..} = do
   return Mapper{..}
 
 
-mmc3 :: Cartridge -> IO Mapper
-mmc3 Cartridge{..} = do
-  bankSelector <- newIORefU (0 :: Int)
-  let
-    even x = (x .&. 0b1) == 0
-    odd  x = (x .&. 0b1) == 1
 
-    cpuRead addr
-      | addr < 0x8000 =  VUM.read prg_ram (fromIntegral (addr .&. 0x1FFF))
-
-    cpuWrite addr val
-      | addr < 0x8000 = VUM.write prg_ram (fromIntegral (addr .&. 0x1FFF)) val
-  
-  return Mapper{..}
 

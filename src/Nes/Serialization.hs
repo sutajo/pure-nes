@@ -6,7 +6,6 @@ module Nes.Serialization (
     deserialize
 ) where
 
-import           Data.Store
 import           Data.Word
 import qualified Data.Vector                  as V
 import qualified Data.Vector.Mutable          as VM
@@ -28,30 +27,12 @@ data Nes = Nes {
     apu         :: APU.APU,
     cartridge   :: Cartridge.Cartridge,
     controllers :: V.Vector (Controls.Controller)
-} deriving (Generic, Store)
+} deriving (Generic)
 
 serialize :: Emulator Nes
-serialize = do
-  ram         <- ask <&> M.ram
-  controllers <- ask <&> M.controllers
-  Nes                      <$>
-    CPU.serialize          <*>
-    liftIO (VU.freeze ram) <*>
-    PPU.serialize          <*>
-    getApu                 <*>
-    Cartridge.serialize    <*>
-    liftIO (V.freeze controllers)
+serialize = undefined
 
 deserialize :: Nes -> IO M.Nes
-deserialize Nes{..} = do
-  M.Nes                             <$>
-    CPU.deserialize cpu             <*>
-    VU.thaw ram                     <*>
-    PPU.deserialize ppu             <*>
-    newIORef apu                    <*>
-    newColl                         <*>
-    Cartridge.deserialize cartridge <*>
-    VM.replicate 2 (Controls.powerUp)
-
+deserialize Nes{..} = undefined
 
 

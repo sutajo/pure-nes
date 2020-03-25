@@ -15,7 +15,14 @@ import Data.Time.Clock.System
 import SDL.Raw.Timer
 
 uncapped :: MonadIO m => m Bool -> m ()
-uncapped m = void $ iterateUntil id $ m
+uncapped m = getTicks >>= go (0 :: Double) 0
+ where
+   go !dt !frameCount !lastTime = do
+    exit         <- m
+    currentTime  <- getTicks
+    let (newDt, newFrameCount) = if dt > 1.0 then (0, 0) else (fromIntegral (currentTime - lastTime) / 1000 + dt, frameCount+1)
+    liftIO $ when (newDt == 0) $ putStrLn $ "FPS: " ++ show frameCount
+    when (not exit) $ go newDt newFrameCount currentTime
 
 picoToMicro t = round (realToFrac t * 10^6)
 

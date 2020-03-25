@@ -42,7 +42,6 @@ library
       src
   ghc-options:       
       -fno-warn-name-shadowing
-      -Wno-unsupported-llvm-version
       -fwarn-unused-imports
       -O2
       -fllvm
@@ -74,7 +73,6 @@ library
      , extra
      , Chart
      , Chart-diagrams
-     , store
      , filepath
      , colour
      , mutable-containers
@@ -133,7 +131,6 @@ executable pure-nes
     , filepath
     , template-haskell
     , raw-strings-qq
-    , store
     , bytestring
     , directory
     , mutable-containers

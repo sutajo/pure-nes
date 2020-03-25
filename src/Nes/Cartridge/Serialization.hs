@@ -7,7 +7,6 @@ module Nes.Cartridge.Serialization (
 ) where
 
 
-import           Data.Store
 import qualified Data.Map                    as M
 import qualified Data.Vector.Unboxed         as VU
 import           Data.Word
@@ -24,30 +23,10 @@ data Cartridge = Cartridge {
   schr_rom      :: VU.Vector Word8,
   sprg_rom      :: VU.Vector Word8,
   sprg_ram      :: VU.Vector Word8
-} deriving (Generic, Store)
+} deriving (Generic)
 
 serialize :: Emulator Cartridge
-serialize = do
-  P.Cartridge{..} <- ask <&> cartridge
-  let shasChrRam = hasChrRam
-  let smapperId = mapperId
-  let smirror   = mirror
-  schr_rom <- liftIO $ VU.freeze chr_rom
-  sprg_rom <- liftIO $ VU.freeze prg_rom
-  sprg_ram <- liftIO $ VU.freeze prg_ram
-  smapperState <- liftIO $ P.serialize mapper
-  return Cartridge{..}
+serialize = undefined
 
 deserialize :: Cartridge -> IO P.Cartridge
-deserialize Cartridge{..} = do
-  let hasChrRam = shasChrRam
-  let mapperId = smapperId
-  let mirror   = smirror
-  chr_rom <- VU.thaw schr_rom
-  prg_rom <- VU.thaw sprg_rom
-  prg_ram <- VU.thaw sprg_ram
-  let mapper = dummyMapper
-  let cart   = P.Cartridge{..}
-  assembledMapper <- (mappersById M.! mapperId) cart
-  P.deserialize assembledMapper smapperState
-  return cart { mapper = assembledMapper } 
+deserialize Cartridge{..} = undefined

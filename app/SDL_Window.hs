@@ -13,7 +13,6 @@ import           Control.Exception
 import qualified Data.ByteString              as B
 import qualified Data.Map                     as M
 import qualified Data.Vector.Storable.Mutable as VSM
-import           Data.Store
 import           Data.Maybe
 import           Data.Word
 import           Data.IORef
@@ -121,10 +120,6 @@ runEmulatorWindow romPath comms = do
 isSave path = ".purenes" `isExtensionOf` path
 
 loadNes path = do
-  if isSave path then do
-    file <- B.readFile path
-    deserialize $ decodeEx file 
-  else do
     cartridge <- loadCartridge path
     powerUpNes cartridge
 
@@ -193,7 +188,6 @@ save AppResources{..} path = do
     t <- formatResultTime
     void . forkIO $ 
       (do
-      B.writeFile path (encode pureNes)
       sendEvent (SaveResult $ IOResult Nothing t)) 
         `catch` (\(e :: SomeException) -> do 
           print (show e)

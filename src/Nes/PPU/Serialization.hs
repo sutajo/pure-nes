@@ -6,7 +6,6 @@ module Nes.PPU.Serialization (
     deserialize
 ) where
 
-import           Data.Store
 import           GHC.Generics
 import           Data.IORef
 import           Data.IORef.Unboxed
@@ -59,7 +58,7 @@ data PPU = PPU {
     semuAttrShifterHi  :: Word16,
     -- Mirroring function
     smirroringType :: Mirroring
-} deriving (Generic, Store)
+} deriving (Generic)
 
 serialize :: Emulator PPU
 serialize = do
