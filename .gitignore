@@ -5,3 +5,5 @@ roms/games
 bench/results
 waveform
 *~
+opt.exe
+llc.exe

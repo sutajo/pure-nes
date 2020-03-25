@@ -27,7 +27,7 @@ import           GI.Gtk.Objects.Image(Image(..))
 import           GI.Gtk.Interfaces.Editable
 import           GI.Gtk.Declarative.App.Simple as DAS
 import           System.Info
-import           System.FilePath.Posix
+import           System.FilePath
 import           Text.RawString.QQ
 import           Communication
 import           Pipes
@@ -369,7 +369,7 @@ update _  _ Closed
   = Exit
 
 update comms s@(Started (Just path)) StartEmulator 
-  = Transition (Emulating (Text.pack . takeBaseName . dropDrive $ path) True Nothing "" "" Nothing Nothing) (only $ launchEmulator path comms)
+  = Transition (Emulating (Text.pack . takeBaseName $ path) True Nothing "" "" Nothing Nothing) (only $ launchEmulator path comms)
 
 update _ s@(Started Nothing) StartEmulator
   = Transition s (return . Just $ MessageText "No ROM selected.")

@@ -19,7 +19,7 @@ import           Data.Word
 import           Data.IORef
 import           Data.Time
 import           SDL
-import           System.FilePath.Posix
+import           System.FilePath
 import           System.Directory
 import           Foreign hiding (void)
 import           Communication as Comms
