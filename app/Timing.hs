@@ -9,7 +9,6 @@ module Timing (
 import Control.Concurrent
 import Control.Monad.IO.Class
 import Control.Monad
-import Control.Monad.Loops
 import Data.Word
 import Data.Time.Clock.System
 import SDL.Raw.Timer
