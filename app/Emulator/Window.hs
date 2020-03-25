@@ -221,7 +221,7 @@ executeCommand appResources@AppResources{..} command = do
 
   let 
     sendEvent = writeChan (fromSDLWindow commRes)
-    withQuickSave f = maybe (return ())  (\folder -> f appResources (folder ++ "/quick.purenes")) maybeSaveFolder
+    withQuickSave f = maybe (return ())  (\folder -> f appResources (folder </> "quick.purenes")) maybeSaveFolder
   case command of
     NewSaveFolder s -> liftIO $ writeIORef saveFolder s
 

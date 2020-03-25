@@ -27,10 +27,10 @@ import           GI.Gtk.Objects.Image(Image(..))
 import           GI.Gtk.Interfaces.Editable
 import           GI.Gtk.Declarative.App.Simple as DAS
 import           System.Info
+import           System.FilePath.Posix
 import           Text.RawString.QQ
 import           Communication
 import           Pipes
-import           System.FilePath.Posix
 import           Emulator.Window
 
 data State = Started (Maybe FilePath)
@@ -339,10 +339,10 @@ update CommResources{..} e@Emulating{saveRomName = "quick"} SaveButtonPressed
   = Transition e (emit $ MessageText saveAsQuick)
 
 update comms e@Emulating{savePath = Just path, saveRomName = saveName } SaveButtonPressed
-  = Transition e (sendMsg comms (Save (path ++ "/" ++ saveName ++".purenes")))
+  = Transition e (sendMsg comms (Save (path </> saveName <.> "purenes")))
 
 update comms e@Emulating{savePath = Just path} QuickSavePressed
-  = Transition e (sendMsg comms (Save (path ++ "/quick.purenes")))
+  = Transition e (sendMsg comms (Save (path </> "quick.purenes")))
 
 update comms e@Emulating{} (SavePathChanged s)
   = Transition (e {savePath = s}) (sendMsg comms (NewSaveFolder s))
@@ -360,7 +360,7 @@ update CommResources{..} e@Emulating{ savePath = Nothing } QuickReloadPressed
   = Transition e (emit $ MessageText "You need to choose a save folder first.")
 
 update comms e@Emulating{ savePath = Just path } QuickReloadPressed
-  = Transition e (sendMsg comms (Load (path ++ "/quick.purenes")))
+  = Transition e (sendMsg comms (Load (path </> "quick.purenes")))
 
 update comms e@Emulating{} (LoadPathChanged (Just path))
   = Transition e {loadPath = path} (sendMsg comms (Load path))
