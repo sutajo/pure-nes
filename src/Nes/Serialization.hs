@@ -31,9 +31,25 @@ data Nes = Nes {
 } deriving (Generic, Serialize)
 
 serialize :: Emulator Nes
-serialize = undefined
+serialize = do
+  ram         <- ask <&> M.ram
+  controllers <- ask <&> M.controllers
+  Nes                      <$>
+    CPU.serialize          <*>
+    liftIO (VU.freeze ram) <*>
+    PPU.serialize          <*>
+    getApu                 <*>
+    Cartridge.serialize    <*>
+    liftIO (V.freeze controllers)
 
 deserialize :: Nes -> IO M.Nes
-deserialize Nes{..} = undefined
-
+deserialize Nes{..} = do
+  M.Nes                             <$>
+    CPU.deserialize cpu             <*>
+    VU.thaw ram                     <*>
+    PPU.deserialize ppu             <*>
+    newIORef apu                    <*>
+    newColl                         <*>
+    Cartridge.deserialize cartridge <*>
+    VM.replicate 2 (Controls.powerUp)
 
