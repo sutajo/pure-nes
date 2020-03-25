@@ -44,8 +44,6 @@ library
       -fno-warn-name-shadowing
       -fwarn-unused-imports
       -O2
-      -fllvm
-      -optlc -O3
       -funbox-strict-fields
       -foptimal-applicative-do
       -fexpose-all-unfoldings
@@ -106,8 +104,6 @@ executable pure-nes
       -with-rtsopts=-N
       -funbox-strict-fields
       -O2
-      -fllvm
-      -dynamic
       -fexcess-precision
   build-depends:
       base >=4.7 && <5

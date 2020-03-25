@@ -369,7 +369,7 @@ update _  _ Closed
   = Exit
 
 update comms s@(Started (Just path)) StartEmulator 
-  = Transition (Emulating (Text.pack . dropExtension . takeFileName $ path) True Nothing "" "" Nothing Nothing) (only $ launchEmulator path comms)
+  = Transition (Emulating (Text.pack . takeBaseName . dropDrive $ path) True Nothing "" "" Nothing Nothing) (only $ launchEmulator path comms)
 
 update _ s@(Started Nothing) StartEmulator
   = Transition s (return . Just $ MessageText "No ROM selected.")

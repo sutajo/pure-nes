@@ -195,6 +195,7 @@ save AppResources{..} path = do
     t <- formatResultTime
     void . forkIO $ 
       (do
+      B.writeFile path (encode pureNes)
       sendEvent (SaveResult $ IOResult Nothing t)) 
         `catch` (\(e :: SomeException) -> do 
           print (show e)
