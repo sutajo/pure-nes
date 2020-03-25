@@ -6,6 +6,7 @@ module Nes.Serialization (
     deserialize
 ) where
 
+import           Data.Serialize
 import           Data.Word
 import qualified Data.Vector                  as V
 import qualified Data.Vector.Mutable          as VM
@@ -27,7 +28,7 @@ data Nes = Nes {
     apu         :: APU.APU,
     cartridge   :: Cartridge.Cartridge,
     controllers :: V.Vector (Controls.Controller)
-} deriving (Generic)
+} deriving (Generic, Serialize)
 
 serialize :: Emulator Nes
 serialize = undefined

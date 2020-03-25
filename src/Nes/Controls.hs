@@ -13,6 +13,7 @@ module Nes.Controls (
 import Prelude hiding (read)
 import Data.Word
 import Data.Bits
+import Data.Serialize
 import GHC.Generics
 
 -- http://wiki.nesdev.com/w/index.php/Standard_controller
@@ -36,7 +37,7 @@ data Input
 data Controller = Controller {
     activeButtons :: !Word8,
     index         :: !Int
-} deriving (Show, Generic)
+} deriving (Show, Generic, Serialize)
 
 modify :: (Word8 -> Int -> Word8) -> Button -> Controller -> Controller
 modify f k c@Controller {activeButtons = btns} = c { activeButtons = btns `f` (fromEnum k) }

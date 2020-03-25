@@ -21,6 +21,7 @@ import qualified Data.Vector.Unboxed         as VU
 import qualified Data.Vector.Unboxed.Mutable as VUM
 import qualified Data.Map                    as M
 import           Data.IORef.Unboxed
+import           Data.Serialize (Serialize)
 import           GHC.Generics
 import           Data.Functor
 import           Data.Word
@@ -86,10 +87,10 @@ data Mirroring
   = Horizontal
   | Vertical
   | FourScreen
-  deriving (Show, Enum, Generic)
+  deriving (Show, Enum, Generic, Serialize)
 
 newtype MapperState = MapperState [Word8] 
-  deriving (Generic)
+  deriving (Generic, Serialize)
     
 data Cartridge = Cartridge {
     hasChrRam    :: Bool,

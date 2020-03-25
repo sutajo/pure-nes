@@ -13,6 +13,7 @@ import           Control.Exception
 import qualified Data.ByteString              as B
 import qualified Data.Map                     as M
 import qualified Data.Vector.Storable.Mutable as VSM
+import           Data.Serialize
 import           Data.Maybe
 import           Data.Word
 import           Data.IORef
@@ -30,7 +31,7 @@ import           Nes.Emulation.Monad
 import qualified Nes.CPU.Emulation as CPU
 import qualified Nes.CPU.Serialization as CPUS
 import qualified Nes.PPU.Emulation as PPU
-import           Nes.Controls as Controls (Input(..), Button(..))
+import qualified Nes.Controls as Controls (Input(..), Button(..))
 import           Nes.Emulation.MasterClock
 import           Nes.Serialization (serialize, deserialize)
 
@@ -60,8 +61,8 @@ translateSDLEvent (SDL.KeyboardEvent (SDL.KeyboardEventData _ motion _ sym)) =
       Pressed  -> Just
       Released -> const Nothing
     playerInput x = Just . PlayerOneInput $ case motion of
-      Pressed  -> Press x
-      Released -> Release x
+      Pressed  -> Controls.Press x
+      Released -> Controls.Release x
     inputs = case keysymKeycode sym of
       KeycodeG     -> onlyOnPress ToggleJoyMap
       KeycodeF5    -> onlyOnPress QuickSave
@@ -69,14 +70,14 @@ translateSDLEvent (SDL.KeyboardEvent (SDL.KeyboardEventData _ motion _ sym)) =
       KeycodeSpace -> onlyOnPress (SwitchEmulationMode True)
       KeycodeF     -> onlyOnPress StepOneFrame
       KeycodeC     -> onlyOnPress StepClockCycle
-      KeycodeUp    -> playerInput Up
-      KeycodeDown  -> playerInput Down
+      KeycodeUp    -> playerInput Controls.Up
+      KeycodeDown  -> playerInput Controls.Down
       KeycodeLeft  -> playerInput Controls.Left
       KeycodeRight -> playerInput Controls.Right
-      Keycode1     -> playerInput A
-      Keycode2     -> playerInput B
-      Keycode3     -> playerInput Select
-      Keycode4     -> playerInput Start
+      Keycode1     -> playerInput Controls.A
+      Keycode2     -> playerInput Controls.B
+      Keycode3     -> playerInput Controls.Select
+      Keycode4     -> playerInput Controls.Start
       _            -> Nothing
   in inputs
 translateSDLEvent _ = Nothing
@@ -120,6 +121,12 @@ runEmulatorWindow romPath comms = do
 isSave path = ".purenes" `isExtensionOf` path
 
 loadNes path = do
+  if isSave path then do
+    file <- B.readFile path
+    case decode file of
+      Left  err -> fail err
+      Right nes -> deserialize nes 
+  else do
     cartridge <- loadCartridge path
     powerUpNes cartridge
 
@@ -140,7 +147,7 @@ acquireResources romPath comms = do
   renderer      <- SDL.createRenderer window (-1) rendererConfig
   screen        <- SDL.createTexture renderer SDL.RGB24 SDL.TextureAccessStreaming (V2 256 240)
   continousMode <- newIORef True
-  let buttonMappings = M.fromList [(0, Select), (1, Start), (2, A), (3, B)]
+  let buttonMappings = M.fromList [(0, Controls.Select), (1, Controls.Start), (2, Controls.A), (3, Controls.B)]
   joys          <- JoyControls.init buttonMappings >>= newIORef
   saveFolder    <- newIORef Nothing
   reset         <- newIORef (not $ isSave romPath)

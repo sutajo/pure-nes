@@ -7,8 +7,10 @@ module Nes.Cartridge.Serialization (
 ) where
 
 
+import           Data.Serialize
 import qualified Data.Map                    as M
 import qualified Data.Vector.Unboxed         as VU
+import           Data.Vector.Serialize ()
 import           Data.Word
 import           GHC.Generics
 import           Nes.Emulation.Monad
@@ -23,7 +25,7 @@ data Cartridge = Cartridge {
   schr_rom      :: VU.Vector Word8,
   sprg_rom      :: VU.Vector Word8,
   sprg_ram      :: VU.Vector Word8
-} deriving (Generic)
+} deriving (Generic, Serialize)
 
 serialize :: Emulator Cartridge
 serialize = undefined
