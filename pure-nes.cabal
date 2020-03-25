@@ -74,10 +74,11 @@ library
      , extra
      , Chart
      , Chart-diagrams
-     , store
      , filepath
      , colour
      , mutable-containers
+     , cereal
+     , cereal-vector
   default-extensions: 
        ApplicativeDo
      , RecordWildCards
@@ -133,11 +134,11 @@ executable pure-nes
     , filepath
     , template-haskell
     , raw-strings-qq
-    , store
     , bytestring
     , directory
     , mutable-containers
     , extra
+    , cereal
   default-extensions: RecordWildCards
   default-language: Haskell2010
 

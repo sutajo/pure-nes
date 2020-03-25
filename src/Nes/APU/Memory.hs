@@ -5,7 +5,7 @@ module Nes.APU.Memory where
 import           Control.Lens
 import qualified Data.Vector.Unboxed          as VU
 import           Data.Word
-import           Data.Store
+import           Data.Serialize
 import           GHC.Generics
 
 data ChannelSamples = ChannelSamples {
@@ -14,11 +14,11 @@ data ChannelSamples = ChannelSamples {
     triangle :: !Double,
     noise    :: !Double,
     dmc      :: !Double
-} deriving (Generic, Store)
+} deriving (Generic, Serialize)
 
 newtype Envelope = Envelope {
     _volume :: Word8
-} deriving (Generic, Store)
+} deriving (Generic, Serialize)
 makeLenses ''Envelope
 
 data Sweep = Sweep {
@@ -26,17 +26,17 @@ data Sweep = Sweep {
     _period  :: Word8,
     _negate  :: Bool,
     _shift   :: Word8
-} deriving (Generic, Store)
+} deriving (Generic, Serialize)
 makeLenses ''Sweep
 
 newtype Timer = Timer {
     _counter :: Word16
-} deriving (Generic, Store)
+} deriving (Generic, Serialize)
 makeLenses ''Timer
 
 newtype LengthCounter = LengthCounter {
     _load :: Word8
-} deriving (Generic, Store)
+} deriving (Generic, Serialize)
 makeLenses ''LengthCounter
 
 data PulseWave = PulseWave {
@@ -47,13 +47,13 @@ data PulseWave = PulseWave {
     _sweep         :: Sweep,
     _timer         :: Timer,
     _lengthCounter :: LengthCounter
-} deriving (Generic, Store)
+} deriving (Generic, Serialize)
 makeLenses ''PulseWave
 
 data Channels = Channels {
     _chPulse0 :: !PulseWave,
     _chPulse1 :: !PulseWave
-} deriving (Generic, Store)
+} deriving (Generic, Serialize)
 makeLenses ''Channels
 
 data APU = APU {
@@ -61,7 +61,7 @@ data APU = APU {
     _channels       :: Channels,
     _frameCounter   :: Word8,
     _sampleTimer    :: Int
-} deriving (Generic, Store)
+} deriving (Generic, Serialize)
 makeLenses ''APU
 
 powerUp :: APU

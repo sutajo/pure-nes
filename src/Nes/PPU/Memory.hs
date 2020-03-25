@@ -19,9 +19,10 @@ module Nes.PPU.Memory (
 import qualified Data.Vector.Unboxed          as VU
 import qualified Data.Vector.Unboxed.Mutable  as VUM
 import qualified Data.Vector.Storable.Mutable as VSM
+import           Data.Vector.Serialize()
 import qualified Data.Attoparsec.ByteString.Char8 as A
 import qualified Data.ByteString as B
-import           Data.Store
+import           Data.Serialize
 import           GHC.Generics
 import           Data.Bits
 import           Data.Functor
@@ -32,7 +33,7 @@ import           Nes.CPU.Memory (Register8, Register16)
 import           Nes.Cartridge.Parser
 
 type    Pixel = (Word8, Word8, Word8)
-newtype Palette = Palette (VU.Vector Pixel) deriving (Show, Generic, Store)
+newtype Palette = Palette (VU.Vector Pixel) deriving (Show, Generic, Serialize)
 
 loadPalette :: FilePath -> IO B.ByteString
 loadPalette path = do 
@@ -52,7 +53,7 @@ data Sprite = Sprite {
     behindBgd  :: !Bool,
     flipHori   :: !Bool,
     spriteZero :: !Bool
-} deriving (Show, Generic, Store)
+} deriving (Show, Generic, Serialize)
 
 data PPU = PPU {
     palette         :: Palette,

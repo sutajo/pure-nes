@@ -7,7 +7,7 @@ module Nes.CPU.Serialization (
 ) where
 
 import           Data.IORef.Unboxed
-import           Data.Store
+import           Data.Serialize
 import           GHC.Generics
 import           Text.Printf
 import           Nes.Emulation.Monad
@@ -24,7 +24,7 @@ data CPU = CPU {
   cyc       ::  Int,
   irqTimer  ::  Word8,
   nmiTimer  ::  Word8
-} deriving (Eq, Generic, Store)
+} deriving (Eq, Generic, Serialize)
 
 instance Show CPU where
   show CPU{..} = printf "Cpu { a = 0x%X, x = 0x%X, y = 0x%X, pc = 0x%X, s = 0x%X, p = 0x%X, cycles = %d }" a x y pc s p cyc
