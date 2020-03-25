@@ -15,6 +15,7 @@ module Nes.CPU.Emulation (
 
 import           Prelude hiding (read, cycle, and)
 import           Control.Applicative
+import           Control.Monad.Extra
 import           Control.Monad.Loops
 import           Nes.Emulation.Monad hiding (bit)
 import           Nes.CPU.Memory
@@ -200,21 +201,22 @@ aslM :: Word16 -> Emulator ()
 aslM addr = asl (read addr) (write addr)
 
 -- if(pred) pc = addr
-jumpWhen :: Word16 -> Bool -> Emulator ()
-jumpWhen relativeAddr pred = when pred $ do
-  pc <- readReg pc
-  let absoluteAddr = pc + relativeAddr
-  cycle (if absoluteAddr `onDifferentPage` pc then 2 else 1)
-  jmp absoluteAddr
+jumpWhen :: Emulator Bool -> Word16 -> Emulator ()
+jumpWhen condition relativeAddr = 
+  whenM condition $ do
+    pc <- readReg pc
+    let absoluteAddr = pc + relativeAddr
+    cycle (if absoluteAddr `onDifferentPage` pc then 2 else 1)
+    jmp absoluteAddr
 
 bcc :: Word16 -> Emulator ()
-bcc addr = testFlag Carry <&> not >>= jumpWhen addr
+bcc = jumpWhen (testFlag Carry <&> not)
 
 bcs :: Word16 -> Emulator ()
-bcs addr = testFlag Carry >>= jumpWhen addr
+bcs = jumpWhen (testFlag Carry)
 
 beq :: Word16 -> Emulator ()
-beq addr = testFlag Zero >>= jumpWhen addr
+beq = jumpWhen (testFlag Zero)
 
 bit :: Word16 -> Emulator ()
 bit addr = do
@@ -225,13 +227,13 @@ bit addr = do
   setOverflow byte
 
 bmi :: Word16 -> Emulator ()
-bmi addr = testFlag Negative >>= jumpWhen addr
+bmi = jumpWhen (testFlag Negative)
 
 bne :: Word16 -> Emulator ()
-bne addr = testFlag Zero <&> not >>= jumpWhen addr
+bne = jumpWhen (testFlag Zero <&> not)
 
 bpl :: Word16 -> Emulator ()
-bpl addr = testFlag Negative <&> not >>= jumpWhen addr
+bpl = jumpWhen (testFlag Negative <&> not)
 
 
 -- http://forums.nesdev.com/viewtopic.php?p=7365#7365
@@ -243,10 +245,10 @@ brk = do
   readAddress 0xFFFE >>= jmp
 
 bvc :: Word16 -> Emulator ()
-bvc addr = testFlag Overflow >>= jumpWhen addr . not
+bvc = jumpWhen (testFlag Overflow <&> not)
 
 bvs :: Word16 -> Emulator ()
-bvs addr = testFlag Overflow >>= jumpWhen addr
+bvs = jumpWhen (testFlag Overflow)
 
 clc :: Emulator ()
 clc = clearFlag Carry
@@ -261,9 +263,9 @@ clv :: Emulator ()
 clv = clearFlag Overflow
 
 cmpWords :: (Emulator Word8) -> (Emulator Word8) -> Emulator ()
-cmpWords a' b' = do
-  a <- a'
-  b <- b' 
+cmpWords getA getB = do
+  a <- getA
+  b <- getB
   let res = a - b
   setZero res
   setNegative res

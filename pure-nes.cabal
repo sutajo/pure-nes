@@ -86,11 +86,11 @@ library
   default-language: Haskell2010
 
 executable pure-nes
-  main-is: Main.hs
+  main-is: GUI.hs
   other-modules:
       Paths_pure_nes
-      SDL_Audio
-      SDL_Window
+      Emulator.Audio
+      Emulator.Window
       JoyControls
       Communication
       Timing

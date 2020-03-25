@@ -1,6 +1,6 @@
 {-# LANGUAGE GADTs #-}
 
-module SDL_Audio (
+module Emulator.Audio (
   AudioResources(..),
   acquireAudioResources,
   releaseAudioResources,
