@@ -20,20 +20,6 @@ packages:
     hackage: gi-gtk-declarative-app-simple-0.6.3@sha256:2b201371acd292ef8d980be02809787293f7c30e505c84910b57e307af999cc9,1818
 - completed:
     cabal-file:
-      size: 1433
-      sha256: df03cdc7ed25fb72f74f80f1e0cd66f9cfa05b73bf94aa27ee3ad7ff0349ae2e
-    name: sdl2-image
-    version: 2.0.0
-    git: https://github.com/haskell-game/sdl2-image.git
-    pantry-tree:
-      size: 545
-      sha256: 3f8d686c74dd577de885ef34703859efb2a8d543183ba1ccb71b77868cc052f9
-    commit: 382395c763b473032721c71921b5c9241142178f
-  original:
-    git: https://github.com/haskell-game/sdl2-image.git
-    commit: 382395c763b473032721c71921b5c9241142178f
-- completed:
-    cabal-file:
       size: 15551
       sha256: 6bbc0b145b037537d468b0810ea2a560beda999f89444fe4101061c7892cd596
     name: lens
