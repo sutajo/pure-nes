@@ -47,6 +47,7 @@ data Command
   | StepOneFrame
   | StepClockCycle
   | ToggleJoyMap
+  | SwitchWindowMode
   deriving (Eq) 
 
 data CommResources = CommResources {

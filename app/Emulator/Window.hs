@@ -70,6 +70,7 @@ translateSDLEvent (SDL.KeyboardEvent (SDL.KeyboardEventData _ motion _ sym)) =
       KeycodeSpace -> onlyOnPress (SwitchEmulationMode True)
       KeycodeF     -> onlyOnPress StepOneFrame
       KeycodeC     -> onlyOnPress StepClockCycle
+      KeycodeR     -> onlyOnPress SwitchWindowMode
       KeycodeUp    -> playerInput Controls.Up
       KeycodeDown  -> playerInput Controls.Down
       KeycodeLeft  -> playerInput Controls.Left
@@ -103,7 +104,8 @@ data AppResources = AppResources {
   continousMode   :: IORef Bool,
   joyIsSecondCtrl :: IORef Bool,
   joys            :: IORef JoyControlState,
-  saveFolder      :: IORef (Maybe FilePath)
+  saveFolder      :: IORef (Maybe FilePath),
+  fullscreen      :: IORef Bool
 }
 
 loadErrorMsg = [r|
@@ -136,7 +138,8 @@ acquireResources romPath comms = do
   SDL.initializeAll
   greetings
   let windowConfig = SDL.defaultWindow {
-    windowInitialSize = V2 (fromIntegral $ width * scale) (fromIntegral $ height * scale)
+    windowInitialSize = V2 (fromIntegral $ width * scale) (fromIntegral $ height * scale),
+    windowPosition = Absolute $ P $ V2 0 20
   }
   window    <- SDL.createWindow "Pure-Nes Emulator" windowConfig
   let commRes = comms
@@ -152,6 +155,7 @@ acquireResources romPath comms = do
   saveFolder    <- newIORef Nothing
   reset         <- newIORef (not $ isSave romPath)
   joyIsSecondCtrl <- newIORef False
+  fullscreen      <- newIORef False
   return AppResources{..}
 
 releaseResources AppResources{..} = do
@@ -285,7 +289,12 @@ executeCommand appResources@AppResources{..} command = do
       id <- readIORef joyIsSecondCtrl
       putStr "Joy has been remapped as controller "
       print (fromEnum id)
-        
+
+    SwitchWindowMode -> liftIO $ do
+      inFullScreen <- readIORef fullscreen
+      setWindowMode window (if inFullScreen then Windowed else Fullscreen)
+      modifyIORef' fullscreen not
+      
     _ -> pure ()
 
 updateWindow :: AppResources -> Emulator Bool
