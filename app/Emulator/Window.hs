@@ -292,7 +292,7 @@ executeCommand appResources@AppResources{..} command = do
 
     SwitchWindowMode -> liftIO $ do
       inFullScreen <- readIORef fullscreen
-      setWindowMode window (if inFullScreen then Windowed else Fullscreen)
+      setWindowMode window (if inFullScreen then Windowed else FullscreenDesktop)
       modifyIORef' fullscreen not
       
     _ -> pure ()
