@@ -139,6 +139,7 @@ acquireResources romPath comms = do
   greetings
   let windowConfig = SDL.defaultWindow {
     windowInitialSize = V2 (fromIntegral $ width * scale) (fromIntegral $ height * scale),
+    windowResizable = True,
     windowPosition = Absolute $ P $ V2 0 20
   }
   window    <- SDL.createWindow "Pure-Nes Emulator" windowConfig

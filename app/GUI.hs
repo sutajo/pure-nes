@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedLabels, OverloadedLists, OverloadedStrings, FlexibleContexts, NamedFieldPuns, TemplateHaskell, QuasiQuotes #-}
+{-# LANGUAGE OverloadedLabels, OverloadedLists, OverloadedStrings, FlexibleContexts, NamedFieldPuns, TemplateHaskell, QuasiQuotes, GADTs #-}
 
 module Main where
 
@@ -10,6 +10,7 @@ import           Data.Char (toUpper)
 import           Data.Time
 import           Data.List (intercalate)
 import           Data.Version
+import qualified Data.Vector as V
 import           Language.Haskell.TH
 import           Data.Text (Text)
 import qualified Data.Text                     as Text
@@ -18,6 +19,7 @@ import           GI.Gtk                         ( Box(..)
                                                 , FileChooserButton(..)
                                                 , Label(..)
                                                 , Window(..)
+                                                , Grid(..)
                                                 , fileChooserGetFilename
                                                 )
 import           GI.Gtk.Enums
@@ -26,6 +28,7 @@ import           GI.Gtk.Objects.Entry
 import           GI.Gtk.Objects.Image(Image(..))
 import           GI.Gtk.Interfaces.Editable
 import           GI.Gtk.Declarative.App.Simple as DAS
+import           GI.Gtk.Declarative.Container.Grid
 import           System.Info
 import           System.FilePath
 import           Text.RawString.QQ
@@ -35,6 +38,7 @@ import           Emulator.Window
 
 data State = Started (Maybe FilePath)
            | Message { text :: Text, stateAfterOk :: State }
+           | ShowControls
            | Emulating { 
              romName :: Text, 
              running :: Bool,
@@ -45,9 +49,22 @@ data State = Started (Maybe FilePath)
              loadResultSuccess :: Maybe IOResult
             }
         
+mkControlHelpBox controls =
+  container 
+  Grid
+  [#orientation := OrientationVertical, #valign := AlignCenter, #marginBottom := 20] (V.fromList $ concat $ zipWith mkHelpRow [1..] controls)
+  where
+    orange x = [r|<span weight="bold" foreground="#eb660e">|] <> x <> [r|</span>|]
+    blue x   = [r|<span weight="bold" foreground="#033b94">|] <> x <> [r|</span>|]
+    mkHelpRow index (action, button) = [
+        GridChild defaultGridChildProperties { leftAttach = 1, topAttach = index } $ 
+          widget Label [#label := orange action, #useMarkup := True, #xalign := 0, #marginRight := 25, #marginBottom := 15]
+      , GridChild defaultGridChildProperties { leftAttach = 2, topAttach = index } $ 
+          widget Label [#label := blue button, #useMarkup := True, #xalign := 0, #marginBottom := 15]
+      ]
 
 mkResultTimeLabel :: IOResult -> Text.Text
-mkResultTimeLabel (IOResult x t) = prefix x `Text.append` (Text.pack t) `Text.append`  [r| </span> |]
+mkResultTimeLabel (IOResult x t) = prefix x <> (Text.pack t) <>  [r| </span> |]
   where
     prefix Nothing  = [r| <span size="larger" foreground="#6FC6AE"> |]
     prefix (Just _) = [r| <span size="larger" foreground="#E24C4B"> |]
@@ -72,22 +89,25 @@ You can't name your save as 'quick'
 as it would overwrite the previous quicksave.
   |]
 
-runs :: Int -> [a] -> [[a]]
-runs n [] = []
-runs n l = x : runs n y
- where (x,y) = splitAt n l
+supportedMappers = [r|Mapper 0 - NROM
+Mapper 2 - UNROM
+|]
 
 view' :: Int -> State -> AppView Window Event
 view' threadCount s = do
   let 
+    height = case s of
+      ShowControls -> 400
+      _            -> 700
     title = case s of
-      Message _ _ -> "Message"
-      _           -> "Pure-Nes Menu"
+      Message _ _  -> "Message"
+      ShowControls -> "Controls"
+      _            -> "Pure-Nes Menu"
   bin
       Window
       [ #title := title
       , on #deleteEvent (const (True, Closed))
-      , #heightRequest := 700
+      , #heightRequest := height
       , #widthRequest := 400
       , #windowPosition := WindowPositionCenter
       ]
@@ -257,7 +277,7 @@ view' threadCount s = do
               widget Image [#file := "resources/GUI/logo2.png", #marginTop := 30, #marginBottom := 25, #halign := AlignCenter]
           , BoxChild defaultBoxChildProperties { padding = 15 } $ 
               widget Label
-              [#label := maybe "Please select the ROM you wish to run." ((Text.append "...") . Text.takeEnd 30 . Text.pack) currentFile]
+              [#label := "Please select the ROM you wish to run."]
           , BoxChild defaultBoxChildProperties { padding = 10 } $ 
               widget FileChooserButton
               [ 
@@ -271,6 +291,8 @@ view' threadCount s = do
             [
               BoxChild defaultBoxChildProperties { padding = 15 } $ 
                 widget Button [#label := "Start Emulator", on #clicked StartEmulator]
+            , BoxChild defaultBoxChildProperties { padding = 15 } $ 
+                widget Button [#label := "Show controls", on #clicked ShowControlsPressed]
             ]
           , BoxChild defaultBoxChildProperties $ 
               widget Label
@@ -282,13 +304,13 @@ view' threadCount s = do
           , BoxChild defaultBoxChildProperties $ 
               widget Label
               [
-                #label := "Mapper 0"
+                #label := supportedMappers
               ]
           , BoxChild defaultBoxChildProperties $ 
               widget Label
               [
-                #marginTop := 40,
-                #label := ("Available OS threads: " `Text.append` (Text.pack (show threadCount)))
+                #marginTop := 10,
+                #label := ("Available OS threads: " <> (Text.pack (show threadCount)))
               ]
           , container Box
             [#orientation := OrientationVertical, #halign := AlignEnd, #marginRight := 10, #marginTop := 70, #marginBottom := 10 ]
@@ -306,6 +328,29 @@ view' threadCount s = do
                 ]
             ]
           ]
+        ShowControls ->
+          container Box
+          [#orientation := OrientationVertical, #valign := AlignCenter, #halign := AlignCenter, #margin := 10 ]
+          [
+            BoxChild defaultBoxChildProperties $
+              mkControlHelpBox [ 
+                ("Up", "Up arrow"),
+                ("Down", "Down arrow"),
+                ("Left", "Left arrow"),
+                ("Right", "Right arrow"),
+                ("A", "1"),
+                ("B", "2"),
+                ("Select", "3"),
+                ("Start", "4"),
+                ("Fullscreen toggle", "R"),
+                ("Pause", "Space"),
+                ("Step 100 cpu instructions (when paused)", "C"),
+                ("Step one frame (when paused)", "F")
+              ]
+          , BoxChild defaultBoxChildProperties { padding = 15 } $ 
+              widget Button [#label := "Ok", on #clicked MessageAck]
+          ]
+
 
 launchEmulator :: FilePath -> CommResources -> IO ()
 launchEmulator path comms = do
@@ -391,6 +436,10 @@ update _ s (Error msg)
 
 update _ s (MessageText msg) 
   = Transition (Message (Text.pack msg) s) noop
+
+update _ ShowControls MessageAck = Transition (Started Nothing) noop
+
+update _ (Started _) ShowControlsPressed = Transition ShowControls noop 
 
 update _ s _ = Transition s noop
 

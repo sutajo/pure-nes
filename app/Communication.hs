@@ -29,6 +29,7 @@ data Event
   | QuickSavePressed
   | SaveButtonPressed
   | QuickReloadPressed
+  | ShowControlsPressed
 
 -- The SDL window loop executes the following commands
 data Command 
