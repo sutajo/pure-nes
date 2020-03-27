@@ -39,11 +39,11 @@ toWord8 = fromIntegral . fromEnum
 toWord16 :: Bool -> Word16
 toWord16 = fromIntegral . fromEnum
 
-word16toWord8 :: Word16 -> (Word8, Word8)
-word16toWord8 word = (fromIntegral (word `shiftR` 8) , fromIntegral (word .&. 0x00FF))
+splitWord16 :: Word16 -> (Word8, Word8)
+splitWord16 word = (fromIntegral (word `shiftR` 8) , fromIntegral (word .&. 0x00FF))
 
-word8toWord16 :: Word8 -> Word8 -> Word16
-word8toWord16 low high = (fromIntegral high `shiftL` 8) .|. fromIntegral low
+mergeWord8 :: Word8 -> Word8 -> Word16
+mergeWord8 low high = (fromIntegral high `shiftL` 8) .|. fromIntegral low
 
 -- 0x0100     0x01FF
 -- [  <--GROWTH--- ]
@@ -80,14 +80,14 @@ readNullTerminatedString addr = map (toEnum.fromEnum) <$> unfoldrM go addr
         ___ -> Just (byte, addr + 1)
 
 readAddress :: Word16 -> Emulator Word16
-readAddress addr = liftA2 word8toWord16 (read addr) (read (addr+1))
+readAddress addr = liftA2 mergeWord8 (read addr) (read (addr+1))
 
 readAddressWithBug :: Word16 -> Emulator Word16
 readAddressWithBug addr = do
   lo <- read addr
   hi <- read (addr+1)
-  let addr = word8toWord16 lo hi
-  liftA2 word8toWord16 (read addr) $
+  let addr = mergeWord8 lo hi
+  liftA2 mergeWord8 (read addr) $
     read (
       case lo of
         0xFF -> addr .&. 0xFF00
@@ -146,12 +146,12 @@ pop = do
 
 pushAddress :: Word16 -> Emulator ()
 pushAddress addr = do
-  let (high, low) = word16toWord8 addr 
+  let (high, low) = splitWord16 addr 
   push high
   push low
 
 popAddress :: Emulator Word16
-popAddress = liftA2 word8toWord16 pop pop
+popAddress = liftA2 mergeWord8 pop pop
 
 fetch :: Emulator Opcode
 fetch = readReg pc >>= read
@@ -547,7 +547,7 @@ indirect :: Emulator Word16
 indirect = (readReg pc >>= readAddressWithBug) <* modifyReg pc (+2)
 
 readZeroPageAddress :: Word16 -> Emulator Word16
-readZeroPageAddress x = liftA2 word8toWord16 (read x) $ read ((x+1) .&. 0xFF)
+readZeroPageAddress x = liftA2 mergeWord8 (read x) $ read ((x+1) .&. 0xFF)
 
 indirectX :: Emulator Word16
 indirectX = do
@@ -779,11 +779,11 @@ sax addr = liftA2 (.&.) (readReg x) (readReg a) >>= write addr
 
 -- http://forums.nesdev.com/viewtopic.php?f=3&t=3831&start=30
 sh reg addr = do
-  let (hi, lo) = word16toWord8 addr
+  let (hi, lo) = splitWord16 addr
   reg <- readReg reg 
   let 
     result     = (fromIntegral (addr `shiftR` 8) + 1) .&. reg
-    targetAddr = word8toWord16 lo result
+    targetAddr = mergeWord8 lo result
   write targetAddr result
 
 shx = sh x
