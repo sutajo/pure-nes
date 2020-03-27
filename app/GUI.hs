@@ -274,7 +274,7 @@ view' threadCount s = do
           [#orientation := OrientationVertical, #valign := AlignCenter]
           [ 
             BoxChild defaultBoxChildProperties { padding = 10 } $ 
-              widget Image [#file := "resources/GUI/logo2.png", #marginTop := 30, #marginBottom := 25, #halign := AlignCenter]
+              widget Image [#file := "resources/GUI/logo.png", #marginTop := 30, #marginBottom := 25, #halign := AlignCenter]
           , BoxChild defaultBoxChildProperties { padding = 15 } $ 
               widget Label
               [#label := "Please select the ROM you wish to run."]
