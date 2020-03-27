@@ -1,5 +1,7 @@
 # pure-nes
 
+[![Build Status](https://dev.azure.com/tufh3g/Build/_apis/build/status/sutajo.pure-nes?branchName=master)](https://dev.azure.com/tufh3g/Build/_build/latest?definitionId=1&branchName=master)
+
 <img align="center" src="showcase/menu.png" alt="Menu">
 
 # Build instructions for Ubuntu
