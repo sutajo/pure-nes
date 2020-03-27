@@ -101,7 +101,7 @@ executable pure-nes
       -fwarn-unused-imports
       -threaded
       -rtsopts
-      -with-rtsopts=-N
+      "-with-rtsopts=-xn -N"
       -funbox-strict-fields
       -O2
       -fexcess-precision
