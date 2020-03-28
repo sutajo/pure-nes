@@ -19,7 +19,7 @@ tests = localOption (mkTimeout $ 2 * 10^7) $  -- no test run can take longer tha
       testGroup "Exhaustive tests" CPU.Exhaustive.tests
     ],
 
-    testGroup "PPU" PPU.tests,
+    testGroup "PPU" PPU.tests
 
-    testGroup "APU" APU.tests
+    --testGroup "APU" APU.tests
   ]
