@@ -83,6 +83,7 @@ library
      , ScopedTypeVariables
      , DeriveGeneric
      , UnboxedSums
+     , LambdaCase
   default-language: Haskell2010
 
 executable pure-nes
@@ -134,7 +135,10 @@ executable pure-nes
     , mutable-containers
     , extra
     , cereal
-  default-extensions: RecordWildCards, LambdaCase
+  default-extensions: 
+    RecordWildCards, 
+    LambdaCase, 
+    ScopedTypeVariables
   default-language: Haskell2010
 
 test-suite pure-nes-test

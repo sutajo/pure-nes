@@ -362,7 +362,7 @@ only x = do x; noop
 emit = return . Just 
 
 resultEvent result op = 
-  let prefix = "Oops! An exception has occured during " ++ op ++ ":\n" in
+  let prefix = "Oops! Something went wrong during " ++ op ++ ":\n" in
   case errorMsg result of
     Nothing  -> noop
     Just msg -> emit . MessageText $ prefix ++ msg
@@ -419,6 +419,9 @@ update comms s@(Started (Just path)) StartEmulator
 update _ s@(Started Nothing) StartEmulator
   = Transition s (return . Just $ MessageText "No ROM selected.")
 
+update _ m@Message{} (MessageText newMsg)
+  = Transition (m {text = Text.pack newMsg}) noop
+
 update _ (Message _ stateAfterOk) MessageAck 
   = Transition stateAfterOk noop
 
@@ -439,7 +442,7 @@ update _ s (MessageText msg)
 
 update _ ShowControls MessageAck = Transition (Started Nothing) noop
 
-update _ (Started _) ShowControlsPressed = Transition ShowControls noop 
+update _ (Started _) ShowControlsPressed = Transition ShowControls noop
 
 update _ s _ = Transition s noop
 

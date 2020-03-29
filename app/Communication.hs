@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass #-}
+
 module Communication where
 
 import Control.Concurrent.STM
@@ -58,8 +60,22 @@ data CommResources = CommResources {
   fromSDLWindow :: Chan Event 
 }
 
+data EmulationException
+  = QuickSaveNotFound
+  | Other { message :: String }
+  deriving (Exception)
+
+instance Show EmulationException where
+  show = \case
+    QuickSaveNotFound -> unlines $ ["Could not find a quicksave file", "in the selected folder."]
+    Other msg -> msg
+
+failure :: String -> IO a
+failure = throw . Other
+
 readAllTChan :: TChan a -> STM [a]
 readAllTChan tchan = unfoldM (tryReadTChan tchan)
 
-except op (comms, msg) = op `onException` do
-  writeChan (fromSDLWindow comms) (Error msg)
+sendMessageOnException op comms = op `catch` \(e :: SomeException) -> do
+  writeChan (fromSDLWindow comms) (Error $ show e)
+  throw e

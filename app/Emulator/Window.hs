@@ -18,9 +18,8 @@ import           Data.Maybe
 import           Data.Word
 import           Data.IORef
 import           Data.Time
-import           SDL
+import           SDL hiding (Error)
 import           SDL.Raw.Haptic
-import           SDL.Raw.Types (Haptic)
 import           System.FilePath
 import           System.Directory
 import           Foreign hiding (void)
@@ -131,7 +130,7 @@ loadNes path = do
   if isSave path then do
     file <- B.readFile path
     case decode file of
-      Left  err -> fail err
+      Left  err -> failure err
       Right nes -> deserialize nes 
   else do
     cartridge <- loadCartridge path
@@ -139,7 +138,7 @@ loadNes path = do
 
 acquireResources romPath comms = do
   reboot    <- newIORef False
-  nes       <- (loadNes romPath >>= newIORef) `except` (comms, "Error: Failed to load cartridge.")
+  nes       <- (loadNes romPath >>= newIORef) `sendMessageOnException` comms
   SDL.initializeAll
   greetings
   let windowConfig = SDL.defaultWindow {
@@ -242,7 +241,11 @@ executeCommand appResources@AppResources{..} command = do
 
   let 
     sendEvent = writeChan (fromSDLWindow commRes)
-    withQuickSave f = maybe (return ())  (\folder -> f appResources (folder </> "quick.purenes")) maybeSaveFolder
+    withQuickSave f = 
+      maybe 
+      (sendEvent $ MessageText "Please select a save folder.")  
+      (\folder -> f appResources (folder </> "quick.purenes")) 
+      maybeSaveFolder
   case command of
     NewSaveFolder s -> liftIO $ writeIORef saveFolder s
 
@@ -256,7 +259,7 @@ executeCommand appResources@AppResources{..} command = do
           if saveExists
           then load haptic appResources path 
           else do
-            putStrLn "No quicksave file found."
+            sendEvent =<< (LoadResult . IOResult (Just . show $ QuickSaveNotFound) <$> formatResultTime)
 
     Save path -> do
       nes <- serialize
