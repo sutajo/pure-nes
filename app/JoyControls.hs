@@ -6,7 +6,8 @@ module JoyControls (
   manageButtonEvent,
   manageDeviceEvent,
   manageHatEvent,
-  listJoys
+  listJoys,
+  disconnectAllJoys
 ) where
 
 import           Control.Monad.Trans.Maybe
@@ -15,10 +16,11 @@ import           Control.Monad.Extra
 import           Data.Int
 import           Data.IORef
 import           Data.Functor
+import           Data.Function
 import           Data.Maybe
 import           Data.Word
+import           Data.Text
 import           Nes.Controls as Controls
-import qualified Data.List    as L
 import qualified Data.Vector  as V
 import qualified Data.Map     as M
 import           SDL.Event
@@ -26,6 +28,7 @@ import           SDL.Input.Joystick
 import           SDL.Internal.Types
 import           SDL.Raw.Haptic
 import           SDL.Raw.Types (Haptic)
+import           SDL.Raw.Event (joystickGetAttached, joystickFromInstanceID)
 import           Communication
 
 
@@ -41,10 +44,13 @@ data ConnectedJoy = ConnectedJoy {
 instance Eq ConnectedJoy where
   (ConnectedJoy {id = id1}) == (ConnectedJoy {id = id2}) = id1 == id2
 
+instance Ord ConnectedJoy where
+  compare = compare `on` JoyControls.id
+
 
 data JoyControlState = JoyControlState {
   previousHatState :: IORef JoyHatPosition,
-  connectedJoys    :: IORef [ConnectedJoy],
+  connectedJoys    :: IORef (M.Map Int32 ConnectedJoy),
   buttonMappings   :: ButtonMappings
 }
 
@@ -53,7 +59,7 @@ init :: ButtonMappings -> IO JoyControlState
 init mappings = 
     JoyControlState <$>
     newIORef HatCentered <*>
-    newIORef [] <*>
+    newIORef M.empty <*>
     pure mappings
 
 listJoys :: JoyControlState -> IO ()
@@ -71,8 +77,8 @@ convertHatState hatPos = case hatPos of
   HatRight    -> Controls.Right
   _           -> error "HatState not convertible"
 
-getEventJoy :: Int32 -> [ConnectedJoy] -> Maybe ConnectedJoy
-getEventJoy searchedId = L.find (\(ConnectedJoy { id = joyId }) -> joyId == searchedId)
+getEventJoy :: Int32 -> M.Map Int32 ConnectedJoy -> Maybe ConnectedJoy
+getEventJoy searchedId map = map M.!? searchedId  
 
 getEventJoyHaptic :: JoyControlState -> JoyButtonEventData -> IO (Maybe Haptic)
 getEventJoyHaptic JoyControlState { connectedJoys = joys } (JoyButtonEventData id _ _) = do
@@ -116,30 +122,44 @@ initHaptic joy = do
   if isHaptic then do
     haptic <- hapticOpenFromJoystick ptr 
     success <- hapticRumbleInit haptic <&> ( == 0)
-    return $
-      if success 
-      then Just haptic 
-      else Nothing
+    if success 
+    then return $ Just haptic 
+    else hapticClose haptic >> return Nothing
   else return Nothing
 
 closeHaptic :: ConnectedJoy -> IO ()
 closeHaptic ConnectedJoy{..} = whenJust haptic $ hapticClose
 
+disconnectJoy :: ConnectedJoy -> JoyControlState -> IO ()
+disconnectJoy c@ConnectedJoy{joy,haptic,id}  JoyControlState{connectedJoys} = do
+  putStrLn "Controller disconnected."
+  modifyIORef' connectedJoys (M.delete id)
+  whenJust haptic $ \h -> do
+    hapticRumbleStop h
+    hapticClose h
+  whenM (joystickGetAttached (joystickPtr joy)) $
+    closeJoystick joy
+
+disconnectAllJoys :: JoyControlState -> IO ()
+disconnectAllJoys s@JoyControlState{connectedJoys} = do
+  putStrLn "Disconnecting all joysticks."
+  readIORef connectedJoys >>= mapM_ (flip disconnectJoy s)
+
 manageDeviceEvent :: JoyControlState -> JoyDeviceEventData -> IO ()
-manageDeviceEvent JoyControlState{..} (JoyDeviceEventData conn id) = do
+manageDeviceEvent s@JoyControlState{..} (JoyDeviceEventData conn instanceId) = do
   case conn of
     JoyDeviceAdded -> void $ runMaybeT $ do
-      joyDevice <- MaybeT $ V.find (\joy -> joystickDeviceId joy == fromIntegral id) <$> availableJoysticks
+      joyDevice <- MaybeT $ V.find (\joy -> joystickDeviceId joy == fromIntegral instanceId) <$> availableJoysticks
       liftIO $ do
         joy <- openJoystick joyDevice
+        let deviceName = unpack $ joystickDeviceName joyDevice
+        joyID  <- getJoystickID joy
         haptic <- initHaptic joy
-        putStrLn ("Controller" <> (if isJust haptic then " (with haptic feedback support)" else "") <> " connected.")
-        modifyIORef' connectedJoys (ConnectedJoy joy id haptic :) 
+        putStrLn (deviceName <> " connected" <> (if isJust haptic then " with haptic feedback support." else "."))
+        modifyIORef' connectedJoys (M.insert joyID (ConnectedJoy joy joyID haptic))
     JoyDeviceRemoved -> void $ runMaybeT $ do
       connections <- liftIO $ readIORef connectedJoys
-      c@ConnectedJoy { joy, haptic }  <- MaybeT . pure . getEventJoy id $ connections
-      liftIO $ do
-        putStrLn "Controller disconnected."
-        modifyIORef' connectedJoys (L.delete c)
-        whenJust haptic $ hapticClose
-        closeJoystick joy 
+      joy   <- Joystick <$> joystickFromInstanceID instanceId
+      joyID <- getJoystickID joy
+      connectedJoy <- MaybeT . pure . getEventJoy joyID $ connections
+      liftIO $ disconnectJoy connectedJoy s

@@ -31,6 +31,7 @@ data Event
   | SaveButtonPressed
   | QuickReloadPressed
   | ShowControlsPressed
+  | Noop
 
 -- The SDL window loop executes the following commands
 data Command 

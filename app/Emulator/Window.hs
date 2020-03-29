@@ -165,6 +165,7 @@ acquireResources romPath comms = do
   return AppResources{..}
 
 releaseResources AppResources{..} = do
+  readIORef joys >>= disconnectAllJoys
   writeChan (fromSDLWindow commRes) SDLWindowClosed
   destroyTexture screen
   destroyRenderer renderer
@@ -200,24 +201,21 @@ updateScreen AppResources{..} pixels = liftIO $ do
 
 sendEvent AppResources{..} = writeChan (fromSDLWindow commRes)
 
-save appRes path = do
+save haptic nes appRes path = do
   let 
-    tryToSave nes t = do
+    tryToSave t = do
       B.writeFile path (encode nes)
       sendEvent appRes (SaveResult $ IOResult Nothing t)
-      return True
+      rumble haptic
 
     onError (e :: SomeException) t = do
       print (show e)
       sendEvent appRes (SaveResult $ IOResult (Just $ show e) t)
-      return False
-
-  nes <- serialize
   liftIO $ do
     t <- formatResultTime 
-    tryToSave nes t `catch` (\ e -> onError e t) 
+    tryToSave t `catch` (\ e -> onError e t) 
 
-load appRes@AppResources{..} path = liftIO $ do
+load haptic appRes@AppResources{..} path = do
   let 
     tryToLoad t = do
       newNes <- liftIO $ loadNes path
@@ -225,21 +223,17 @@ load appRes@AppResources{..} path = liftIO $ do
       writeIORef reboot True
       writeIORef reset (not $ isSave path)
       sendEvent appRes (LoadResult $ IOResult Nothing t)
-      return True
+      rumble haptic   
 
     onError (e :: SomeException) t = do 
       print (show e)
       sendEvent appRes (LoadResult $ IOResult (Just $ show e) t)
-      return False
 
   t <- formatResultTime
   tryToLoad t `catch` (\ e -> onError e t)
 
-rumbleOnSuccess :: Maybe Haptic -> Emulator Bool -> Emulator ()
-rumbleOnSuccess (Just haptic) cond = whenM cond $ do
-  ret <- hapticRumblePlay haptic 3.0 100  
-  when (ret /= 0) (liftIO $ putStrLn "Rumble failed")
-rumbleOnSuccess _ cond = void cond
+rumble (Just haptic) = void $ hapticRumblePlay haptic 3.0 100
+rumble Nothing = pure ()
 
 executeCommand :: AppResources -> Command -> Emulator ()
 executeCommand appResources@AppResources{..} command = do
@@ -248,27 +242,27 @@ executeCommand appResources@AppResources{..} command = do
 
   let 
     sendEvent = writeChan (fromSDLWindow commRes)
-    withQuickSave f = maybe (return False)  (\folder -> f appResources (folder </> "quick.purenes")) maybeSaveFolder
+    withQuickSave f = maybe (return ())  (\folder -> f appResources (folder </> "quick.purenes")) maybeSaveFolder
   case command of
     NewSaveFolder s -> liftIO $ writeIORef saveFolder s
 
-    QuickSave haptic ->
-      rumbleOnSuccess haptic $ 
-        withQuickSave save
+    QuickSave haptic -> do
+      nes <- serialize
+      liftIO . void . forkIO $ withQuickSave (save haptic nes)
 
-    QuickLoad haptic ->
-      rumbleOnSuccess haptic $  
+    QuickLoad haptic -> liftIO $
         withQuickSave $ \appResources path -> do
           saveExists <- liftIO $ doesFileExist path
           if saveExists
-          then load appResources path 
+          then load haptic appResources path 
           else do
-            liftIO $ putStrLn "No quicksave file found."
-            return False
+            putStrLn "No quicksave file found."
 
-    Save path -> void $ save appResources path
+    Save path -> do
+      nes <- serialize
+      liftIO $ save Nothing nes appResources path
 
-    Load path -> void $ load appResources path
+    Load path -> liftIO $ load Nothing appResources path
 
     JoyButtonCommand eventData -> do
       controllerId <- liftIO $ readIORef joyIsSecondCtrl
