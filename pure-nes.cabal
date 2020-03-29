@@ -134,7 +134,7 @@ executable pure-nes
     , mutable-containers
     , extra
     , cereal
-  default-extensions: RecordWildCards
+  default-extensions: RecordWildCards, LambdaCase
   default-language: Haskell2010
 
 test-suite pure-nes-test

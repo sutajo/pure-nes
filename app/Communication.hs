@@ -5,6 +5,7 @@ import Control.Concurrent.Chan
 import Control.Exception
 import Control.Monad.Loops
 import SDL hiding (Error, Event)
+import SDL.Raw.Types (Haptic)
 import Nes.Controls as Controls (Input)
 
 type ControllerId = Int
@@ -36,8 +37,8 @@ data Command
   = Quit
   | Save FilePath
   | Load FilePath
-  | QuickSave
-  | QuickLoad
+  | QuickSave (Maybe Haptic)
+  | QuickLoad (Maybe Haptic)
   | NewSaveFolder (Maybe FilePath)
   | PlayerOneInput Input
   | PlayerTwoInput Input
