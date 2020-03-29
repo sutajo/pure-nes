@@ -62,12 +62,14 @@ init mappings =
     newIORef M.empty <*>
     pure mappings
 
+
 listJoys :: JoyControlState -> IO ()
 listJoys JoyControlState{..} = do
   putStr "Available joys:"
   availableJoysticks >>= print
   putStr "Opened joysticks:"
   readIORef connectedJoys >>= print 
+
 
 convertHatState :: JoyHatPosition -> Button
 convertHatState hatPos = case hatPos of
@@ -77,13 +79,16 @@ convertHatState hatPos = case hatPos of
   HatRight    -> Controls.Right
   _           -> error "HatState not convertible"
 
+
 getEventJoy :: Int32 -> M.Map Int32 ConnectedJoy -> Maybe ConnectedJoy
 getEventJoy searchedId map = map M.!? searchedId  
+
 
 getEventJoyHaptic :: JoyControlState -> JoyButtonEventData -> IO (Maybe Haptic)
 getEventJoyHaptic JoyControlState { connectedJoys = joys } (JoyButtonEventData id _ _) = do
   joy <- readIORef joys <&> getEventJoy id
   return $ joy >>= haptic
+
 
 manageButtonEvent :: ControllerId -> JoyControlState -> JoyButtonEventData -> IO (Maybe Command)
 manageButtonEvent _ s e@(JoyButtonEventData _ 4 JoyButtonPressed) = getEventJoyHaptic s e <&> Just . QuickSave
@@ -114,6 +119,7 @@ manageHatEvent JoyControlState{..} (JoyHatEventData _ _ newState) = execWriterT 
     when (newState /= HatCentered) $ do 
       tell [Press $ convertHatState newState]
 
+
 initHaptic :: Joystick -> IO (Maybe Haptic)
 initHaptic joy = do
   let ptr = joystickPtr joy
@@ -127,8 +133,10 @@ initHaptic joy = do
     else hapticClose haptic >> return Nothing
   else return Nothing
 
+
 closeHaptic :: ConnectedJoy -> IO ()
 closeHaptic ConnectedJoy{..} = whenJust haptic $ hapticClose
+
 
 disconnectJoy :: ConnectedJoy -> JoyControlState -> IO ()
 disconnectJoy c@ConnectedJoy{joy,haptic,id}  JoyControlState{connectedJoys} = do
@@ -140,10 +148,12 @@ disconnectJoy c@ConnectedJoy{joy,haptic,id}  JoyControlState{connectedJoys} = do
   whenM (joystickGetAttached (joystickPtr joy)) $
     closeJoystick joy
 
+
 disconnectAllJoys :: JoyControlState -> IO ()
 disconnectAllJoys s@JoyControlState{connectedJoys} = do
   putStrLn "Disconnecting all joysticks."
   readIORef connectedJoys >>= mapM_ (flip disconnectJoy s)
+
 
 manageDeviceEvent :: JoyControlState -> JoyDeviceEventData -> IO ()
 manageDeviceEvent s@JoyControlState{..} (JoyDeviceEventData conn instanceId) = do

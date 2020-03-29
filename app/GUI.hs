@@ -352,14 +352,17 @@ view' threadCount s = do
           ]
 
 
+-- | Launch the emulator on a new, bound thread
 launchEmulator :: FilePath -> CommResources -> IO ()
 launchEmulator path comms = do
   toSDLWindow' <- atomically $ dupTChan (toSDLWindow comms)
   void . forkOS $ runEmulatorWindow path comms { toSDLWindow = toSDLWindow' }
 
+
 noop = pure Nothing
 only x = do x; noop
 emit = return . Just 
+
 
 resultEvent result op = 
   let prefix = "Oops! Something went wrong during " ++ op ++ ":\n" in
@@ -367,7 +370,10 @@ resultEvent result op =
     Nothing  -> noop
     Just msg -> emit . MessageText $ prefix ++ msg
 
+
+-- | GUI state transition function
 update :: CommResources -> State -> Event -> Transition State Event
+
 update _ (Started _) (FileSelectionChanged p) 
   = Transition (Started p) (return Nothing)
 

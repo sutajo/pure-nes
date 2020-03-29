@@ -36,21 +36,17 @@ import qualified Nes.Controls as Controls (Input(..), Button(..))
 import           Nes.Emulation.MasterClock
 import           Nes.Serialization (serialize, deserialize)
 
+
+-- | Used to create timestamps for save and load actions.
 formatResultTime :: IO String
 formatResultTime = do
   tz <- getCurrentTimeZone
   t  <- getCurrentTime
   return $ formatTime defaultTimeLocale "%H:%M:%S" (utcToLocalTime tz t)
 
-scale :: Int
-scale = 4
 
-width :: Int
-width = 256
 
-height :: Int
-height = 240
-
+-- | Convert the SDL event to the internal command type
 translateSDLEvent :: SDL.EventPayload -> Maybe Command
 translateSDLEvent SDL.QuitEvent = Just Quit
 translateSDLEvent (JoyHatEvent eventData)    = Just $ JoyHatCommand eventData
@@ -84,6 +80,8 @@ translateSDLEvent (SDL.KeyboardEvent (SDL.KeyboardEventData _ motion _ sym)) =
   in inputs
 translateSDLEvent _ = Nothing
 
+
+
 greetings :: IO ()
 greetings = do
   putStrLn "Starting Pure-Nes Emulator."
@@ -94,6 +92,9 @@ greetings = do
 
 bye = putStrLn "Emulator closed successfully."
 
+
+
+-- | Window resources
 data AppResources = AppResources {
   window          :: Window,
   renderer        :: Renderer,
@@ -109,59 +110,77 @@ data AppResources = AppResources {
   fullscreen      :: IORef Bool
 }
 
-loadErrorMsg = [r|
+
+
+deserializeErrorMsg = [r|
 Could not deserialize Nes from the save file.
 You may have created this save on a different
 CPU architecture, or this file is not a valid 
 save at all.
 |]
 
+
+
+-- | Main entry point of the window
 runEmulatorWindow :: FilePath -> CommResources -> IO ()
 runEmulatorWindow romPath comms = do
   bracket (acquireResources romPath comms) releaseResources runApp 
   bye
 
-isSave path = ".purenes" `isExtensionOf` path
 
-rumbleJoy :: Joystick -> IO ()
-rumbleJoy joy = return ()
+
+isSave path = ".purenes" `isExtensionOf` path
 
 loadNes path = do
   if isSave path then do
     file <- B.readFile path
     case decode file of
-      Left  err -> failure err
+      Left  err -> failure deserializeErrorMsg
       Right nes -> deserialize nes 
   else do
     cartridge <- loadCartridge path
     powerUpNes cartridge
 
+
+
 acquireResources romPath comms = do
   reboot    <- newIORef False
   nes       <- (loadNes romPath >>= newIORef) `sendMessageOnException` comms
+
   SDL.initializeAll
   greetings
-  let windowConfig = SDL.defaultWindow {
-    windowInitialSize = V2 (fromIntegral $ width * scale) (fromIntegral $ height * scale),
-    windowResizable = True,
-    windowPosition = Absolute $ P $ V2 0 20
+
+  let 
+    width  = 256
+    height = 240
+    scale  = 3
+    windowConfig = SDL.defaultWindow {
+      windowInitialSize = V2 (fromIntegral $ width * scale) (fromIntegral $ height * scale),
+      windowResizable = True,
+      windowPosition = Absolute $ P $ V2 0 20
   }
+
   window    <- SDL.createWindow "Pure-Nes Emulator" windowConfig
-  let commRes = comms
-  let rendererConfig = RendererConfig {
-    rendererType          = AcceleratedRenderer,
-    rendererTargetTexture = True
-  }
+
+  let 
+    buttonMappings = M.fromList [(0, Controls.Select), (1, Controls.Start), (2, Controls.A), (3, Controls.B)]
+    commRes = comms
+    rendererConfig = RendererConfig {
+      rendererType          = AcceleratedRenderer,
+      rendererTargetTexture = True
+    }
+
   renderer      <- SDL.createRenderer window (-1) rendererConfig
   screen        <- SDL.createTexture renderer SDL.RGB24 SDL.TextureAccessStreaming (V2 256 240)
   continousMode <- newIORef True
-  let buttonMappings = M.fromList [(0, Controls.Select), (1, Controls.Start), (2, Controls.A), (3, Controls.B)]
   joys          <- JoyControls.init buttonMappings >>= newIORef
   saveFolder    <- newIORef Nothing
   reset         <- newIORef (not $ isSave romPath)
   joyIsSecondCtrl <- newIORef False
   fullscreen      <- newIORef False
   return AppResources{..}
+
+
 
 releaseResources AppResources{..} = do
   readIORef joys >>= disconnectAllJoys
@@ -171,6 +190,8 @@ releaseResources AppResources{..} = do
   destroyWindow window
   SDL.quit
 
+
+-- | Main loop
 runApp appResources@AppResources{..} = do
   nes           <- readIORef nes
   writeIORef reboot False
@@ -184,11 +205,15 @@ runApp appResources@AppResources{..} = do
   when shouldReboot $ do
     runApp appResources
 
+
+-- | Poll events from both the SDL Window and the GUI
 pollCommands res@AppResources{..} = do
   sdlCommands <- (catMaybes . map (translateSDLEvent . eventPayload)) <$> SDL.pollEvents
   gtkCommands <- atomically $ readAllTChan (toSDLWindow commRes)
   return (gtkCommands ++ sdlCommands)
 
+
+-- | Update the pixels on the screen
 updateScreen :: AppResources -> VSM.IOVector Word8 -> Emulator ()
 updateScreen AppResources{..} pixels = liftIO $ do
   (texPtr, _) <- SDL.lockTexture screen Nothing
@@ -198,8 +223,12 @@ updateScreen AppResources{..} pixels = liftIO $ do
   copy renderer screen Nothing Nothing
   present renderer
 
+
+-- | Send an event to the GUI through a Chan
 sendEvent AppResources{..} = writeChan (fromSDLWindow commRes)
 
+
+-- | Write the NES state to a file
 save haptic nes appRes path = do
   let 
     tryToSave t = do
@@ -214,6 +243,8 @@ save haptic nes appRes path = do
     t <- formatResultTime 
     tryToSave t `catch` (\ e -> onError e t) 
 
+
+-- | Read the NES state from a file
 load haptic appRes@AppResources{..} path = do
   let 
     tryToLoad t = do
@@ -231,9 +262,13 @@ load haptic appRes@AppResources{..} path = do
   t <- formatResultTime
   tryToLoad t `catch` (\ e -> onError e t)
 
+
+-- | Rumble the joystick if it has haptic feedback
 rumble (Just haptic) = void $ hapticRumblePlay haptic 3.0 100
 rumble Nothing = pure ()
 
+
+-- | Execute a single command
 executeCommand :: AppResources -> Command -> Emulator ()
 executeCommand appResources@AppResources{..} command = do
   joys            <- liftIO $ readIORef joys
@@ -241,31 +276,36 @@ executeCommand appResources@AppResources{..} command = do
 
   let 
     sendEvent = writeChan (fromSDLWindow commRes)
+
     withQuickSave f = 
       maybe 
       (sendEvent $ MessageText "Please select a save folder.")  
       (\folder -> f appResources (folder </> "quick.purenes")) 
       maybeSaveFolder
+
   case command of
-    NewSaveFolder s -> liftIO $ writeIORef saveFolder s
+
+    NewSaveFolder s -> liftIO $ do
+      writeIORef saveFolder s
 
     QuickSave haptic -> do
       nes <- serialize
       liftIO . void . forkIO $ withQuickSave (save haptic nes)
 
     QuickLoad haptic -> liftIO $
-        withQuickSave $ \appResources path -> do
-          saveExists <- liftIO $ doesFileExist path
-          if saveExists
-          then load haptic appResources path 
-          else do
-            sendEvent =<< (LoadResult . IOResult (Just . show $ QuickSaveNotFound) <$> formatResultTime)
+      withQuickSave $ \appResources path -> do
+        saveExists <- liftIO $ doesFileExist path
+        if saveExists
+        then load haptic appResources path 
+        else do
+          sendEvent =<< (LoadResult . IOResult (Just . show $ QuickSaveNotFound) <$> formatResultTime)
 
     Save path -> do
       nes <- serialize
       liftIO $ save Nothing nes appResources path
 
-    Load path -> liftIO $ load Nothing appResources path
+    Load path -> do
+      liftIO $ load Nothing appResources path
 
     JoyButtonCommand eventData -> do
       controllerId <- liftIO $ readIORef joyIsSecondCtrl
@@ -273,27 +313,30 @@ executeCommand appResources@AppResources{..} command = do
         Just command -> executeCommand appResources command
         _            -> pure ()
 
-    JoyHatCommand eventData    -> do
+    JoyHatCommand eventData -> do
       controllerId <- liftIO $ readIORef joyIsSecondCtrl
       liftIO (manageHatEvent    joys eventData) >>= mapM_ (`processInput` fromEnum controllerId)
 
-    JoyDeviceCommand eventData -> liftIO (manageDeviceEvent joys eventData)
+    JoyDeviceCommand eventData -> do
+      liftIO (manageDeviceEvent joys eventData)
 
-    PlayerOneInput input -> input `processInput` 0
+    PlayerOneInput input -> do
+      input `processInput` 0
 
-    PlayerTwoInput input -> input `processInput` 1
+    PlayerTwoInput input -> do
+      input `processInput` 1
     
     SwitchEmulationMode shouldForward -> do
-        stepByStep <- liftIO $ do
-          modifyIORef' continousMode not
-          when shouldForward $ sendEvent (SwitchMode False)
-          continous <- readIORef continousMode
-          putStrLn ("Switched to " ++ (if continous then "continous" else "step-by-step") ++ " mode.")
-          return $ not continous
-        pixels  <- PPU.accessScreen
-        liftIO $ VSM.set pixels 0
+      stepByStep <- liftIO $ do
+        modifyIORef' continousMode not
+        when shouldForward $ sendEvent (SwitchMode False)
+        continous <- readIORef continousMode
+        putStrLn ("Switched to " ++ (if continous then "continous" else "step-by-step") ++ " mode.")
+        return $ not continous
+      pixels  <- PPU.accessScreen
+      liftIO $ VSM.set pixels 0
 
-    StepClockCycle -> 
+    StepClockCycle -> do
       whenM (liftIO $ readIORef continousMode <&> not) $ do
         replicateM_ 100 clocks
         PPU.drawPalette
@@ -301,7 +344,7 @@ executeCommand appResources@AppResources{..} command = do
         pixels  <- PPU.accessScreen
         updateScreen appResources pixels
 
-    StepOneFrame ->
+    StepOneFrame -> do
       whenM (liftIO $ readIORef continousMode <&> not) $ do
         emulateFrame
         CPUS.serialize >>= liftIO . print
@@ -321,6 +364,8 @@ executeCommand appResources@AppResources{..} command = do
       
     _ -> pure ()
 
+
+-- | Main loop body
 updateWindow :: AppResources -> Emulator Bool
 updateWindow appResources@AppResources{..} = do
   commands <- liftIO $ pollCommands appResources

@@ -76,6 +76,7 @@ failure = throw . Other
 readAllTChan :: TChan a -> STM [a]
 readAllTChan tchan = unfoldM (tryReadTChan tchan)
 
+sendMessageOnException :: IO a -> CommResources -> IO a
 sendMessageOnException op comms = op `catch` \(e :: SomeException) -> do
   writeChan (fromSDLWindow comms) (Error $ show e)
   throw e
