@@ -13,6 +13,7 @@ import Data.Word
 import Data.Time.Clock.System
 import SDL.Raw.Timer
 
+
 uncapped :: MonadIO m => m Bool -> m ()
 uncapped m = getTicks >>= go (0 :: Double) 0
  where
@@ -23,7 +24,9 @@ uncapped m = getTicks >>= go (0 :: Double) 0
     liftIO $ when (newDt == 0) $ putStrLn $ "FPS: " ++ show frameCount
     when (not exit) $ go newDt newFrameCount currentTime
 
+
 picoToMicro t = round (realToFrac t * 10^6)
+
 
 cappedAt :: MonadIO m => m Bool -> Word32 -> m ()
 cappedAt activity fps = getTicks >>= go
@@ -37,6 +40,7 @@ cappedAt activity fps = getTicks >>= go
         when (not shouldExit) (go currentTime)
       else 
         go lastTime
+
 
 sleepyCappedAt :: MonadIO m => m Bool -> Word32 -> m ()
 sleepyCappedAt activity fps = getTicks' >>= go
