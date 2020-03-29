@@ -15,6 +15,7 @@ import           Prelude hiding (read)
 import           Nes.APU.Memory              as APU
 import           Nes.CPU.Memory
 import           Nes.Emulation.Monad
+import           Nes.APU.Oscillator
 
 type Clock = State APU
 
