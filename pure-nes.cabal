@@ -34,6 +34,8 @@ library
       Nes.PPU.Serialization
       Nes.Cartridge.Parser
       Nes.Cartridge.Serialization
+      Nes.Cartridge.Memory
+      Nes.Cartridge.Mappers
       Nes.Serialization
       Nes.Controls
   other-modules:
@@ -94,7 +96,7 @@ executable pure-nes
       Emulator.Window
       JoyControls
       Communication
-      Timing
+      Framerate
   hs-source-dirs:
       app
   ghc-options: 

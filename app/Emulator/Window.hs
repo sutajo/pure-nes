@@ -26,7 +26,7 @@ import           Foreign hiding (void)
 import           Communication as Comms
 import           JoyControls
 import           Text.RawString.QQ
-import           Timing
+import           Framerate
 import           Nes.Cartridge.Parser hiding (serialize, deserialize)
 import           Nes.Emulation.Monad
 import qualified Nes.CPU.Emulation as CPU

@@ -1,6 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 
-module Timing (
+module Framerate (
   uncapped,
   cappedAt,
   sleepyCappedAt
