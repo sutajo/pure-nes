@@ -14,6 +14,8 @@ type ControllerId = Int
 
 data IOResult = IOResult { errorMsg :: Maybe String, time :: String }
 
+data MessageIcon = Info | Alert | Cross
+
 data Event 
   = FileSelectionChanged (Maybe FilePath) -- A new file was selected in the main menu
   | SavePathChanged (Maybe FilePath)      -- A new save folder was selected
@@ -26,7 +28,7 @@ data Event
   | MessageAck                            -- User acknowledged message
   | ReturnToSelection
   | SDLWindowClosed
-  | MessageText String
+  | MessageText String MessageIcon
   | Error String
   | SwitchMode { forwardToSDLWindow :: Bool }
   | QuickSavePressed

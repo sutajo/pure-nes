@@ -37,7 +37,7 @@ import           Pipes
 import           Emulator.Window
 
 data State = Started (Maybe FilePath)
-           | Message { text :: Text, stateAfterOk :: State }
+           | Message { text :: Text, icon :: MessageIcon, stateAfterOk :: State }
            | ShowControls
            | Emulating { 
              romName :: Text, 
@@ -100,7 +100,7 @@ view' threadCount s = do
       ShowControls -> 400
       _            -> 700
     title = case s of
-      Message _ _  -> "Message"
+      Message _ _ _ -> "Message"
       ShowControls -> "Controls"
       _            -> "Pure-Nes Menu"
   bin
@@ -114,11 +114,20 @@ view' threadCount s = do
     $ windowContent s
   where
     windowContent s = case s of
-        Message text _ -> 
+        Message text icon _ -> 
           container Box
           [#orientation := OrientationVertical, #valign := AlignCenter, #margin := 10 ]
           [
-            BoxChild defaultBoxChildProperties { padding = 15 } $ 
+            let 
+              path = Text.append "resources/GUI/" $ 
+                case icon of
+                  Alert -> "alert.png"
+                  Info  -> "info.png"
+                  Cross -> "cross.png"
+            in
+            BoxChild defaultBoxChildProperties { padding = 25 } $
+              widget Image [#file := path]
+          , BoxChild defaultBoxChildProperties { padding = 15 } $ 
               widget Label [#label := text]
           , BoxChild defaultBoxChildProperties { padding = 15 } $ 
               widget Button [#label := "Ok", on #clicked MessageAck]
@@ -332,7 +341,9 @@ view' threadCount s = do
           container Box
           [#orientation := OrientationVertical, #valign := AlignCenter, #halign := AlignCenter, #margin := 10 ]
           [
-            BoxChild defaultBoxChildProperties $
+            BoxChild defaultBoxChildProperties $ 
+              widget Image [#file := "resources/GUI/info.png", #marginBottom := 35]
+          , BoxChild defaultBoxChildProperties $
               mkControlHelpBox [ 
                 ("Up", "Up arrow"),
                 ("Down", "Down arrow"),
@@ -368,8 +379,9 @@ resultEvent result op =
   let prefix = "Oops! Something went wrong during " ++ op ++ ":\n" in
   case errorMsg result of
     Nothing  -> noop
-    Just msg -> emit . MessageText $ prefix ++ msg
+    Just msg -> emit $ MessageText (prefix ++ msg) Cross
 
+chooseSaveFolderFirst = MessageText "You need to choose a save folder first." Alert
 
 -- | GUI state transition function
 update :: CommResources -> State -> Event -> Transition State Event
@@ -378,16 +390,16 @@ update _ (Started _) (FileSelectionChanged p)
   = Transition (Started p) (return Nothing)
 
 update CommResources{..} e@Emulating{saveRomName = ""} SaveButtonPressed 
-  = Transition e (emit $ MessageText "You need to give a name to your save file.")
+  = Transition e (emit $ MessageText "You need to give a name to your save file." Alert)
 
 update CommResources{..} e@Emulating{savePath = Nothing} SaveButtonPressed
-  = Transition e (emit $ MessageText "You need to choose a save folder first.")
+  = Transition e (emit $ chooseSaveFolderFirst)
 
 update CommResources{..} e@Emulating{savePath = Nothing} QuickSavePressed
-  = Transition e (emit $ MessageText "You need to choose a save folder first.")
+  = Transition e (emit $ chooseSaveFolderFirst)
 
 update CommResources{..} e@Emulating{saveRomName = "quick"} SaveButtonPressed 
-  = Transition e (emit $ MessageText saveAsQuick)
+  = Transition e (emit $ MessageText saveAsQuick Alert)
 
 update comms e@Emulating{savePath = Just path, saveRomName = saveName } SaveButtonPressed
   = Transition e (sendMsg comms (Save (path </> saveName <.> "purenes")))
@@ -408,7 +420,7 @@ update _ e@Emulating{} (LoadResult res)
   = Transition e{loadResultSuccess = Just $ res} $ resultEvent res "loading"
 
 update CommResources{..} e@Emulating{ savePath = Nothing } QuickReloadPressed
-  = Transition e (emit $ MessageText "You need to choose a save folder first.")
+  = Transition e (emit $ chooseSaveFolderFirst)
 
 update comms e@Emulating{ savePath = Just path } QuickReloadPressed
   = Transition e (sendMsg comms (QuickLoad Nothing))
@@ -423,12 +435,12 @@ update comms s@(Started (Just path)) StartEmulator
   = Transition (Emulating (Text.pack . takeBaseName $ path) True Nothing "" "" Nothing Nothing) (only $ launchEmulator path comms)
 
 update _ s@(Started Nothing) StartEmulator
-  = Transition s (return . Just $ MessageText "No ROM selected.")
+  = Transition s (return . Just $ MessageText "No ROM selected." Alert)
 
-update _ m@Message{} (MessageText newMsg)
-  = Transition (m {text = Text.pack newMsg}) noop
+update _ m@Message{} (MessageText newMsg newIcon)
+  = Transition (m {text = Text.pack newMsg, icon = newIcon}) noop
 
-update _ (Message _ stateAfterOk) MessageAck 
+update _ (Message _ _ stateAfterOk) MessageAck 
   = Transition stateAfterOk noop
 
 update comms (Emulating{..}) ReturnToSelection 
@@ -441,10 +453,10 @@ update _ (Emulating{}) SDLWindowClosed
   = Transition (Started Nothing) noop
 
 update _ s (Error msg) 
-  = Transition (Message (Text.pack msg) (Started Nothing)) noop
+  = Transition (Message (Text.pack msg) Cross (Started Nothing)) noop
 
-update _ s (MessageText msg) 
-  = Transition (Message (Text.pack msg) s) noop
+update _ s (MessageText msg icon) 
+  = Transition (Message (Text.pack msg) icon s) noop
 
 update _ ShowControls MessageAck = Transition (Started Nothing) noop
 

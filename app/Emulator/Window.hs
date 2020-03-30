@@ -277,7 +277,7 @@ executeCommand appResources@AppResources{..} command = do
 
     withQuickSave f = 
       maybe 
-      (sendEvent $ MessageText "Please select a save folder.")  
+      (sendEvent $ MessageText "Please select a save folder." Info)  
       (\folder -> f appResources (folder </> "quick.purenes")) 
       maybeSaveFolder
 
