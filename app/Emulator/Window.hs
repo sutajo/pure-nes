@@ -114,9 +114,7 @@ data AppResources = AppResources {
 
 deserializeErrorMsg = [r|
 Could not deserialize Nes from the save file.
-You may have created this save on a different
-CPU architecture, or this file is not a valid 
-save at all.
+This is not a save file or it may have been corrupted.
 |]
 
 
@@ -294,7 +292,7 @@ executeCommand appResources@AppResources{..} command = do
 
     QuickLoad haptic -> liftIO $
       withQuickSave $ \appResources path -> do
-        saveExists <- liftIO $ doesFileExist path
+        saveExists <- doesFileExist path
         if saveExists
         then load haptic appResources path 
         else do

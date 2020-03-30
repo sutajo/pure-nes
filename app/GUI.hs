@@ -393,7 +393,7 @@ update comms e@Emulating{savePath = Just path, saveRomName = saveName } SaveButt
   = Transition e (sendMsg comms (Save (path </> saveName <.> "purenes")))
 
 update comms e@Emulating{savePath = Just path} QuickSavePressed
-  = Transition e (sendMsg comms (Save (path </> "quick.purenes")))
+  = Transition e (sendMsg comms (QuickSave Nothing))
 
 update comms e@Emulating{} (SavePathChanged s)
   = Transition (e {savePath = s}) (sendMsg comms (NewSaveFolder s))
@@ -411,7 +411,7 @@ update CommResources{..} e@Emulating{ savePath = Nothing } QuickReloadPressed
   = Transition e (emit $ MessageText "You need to choose a save folder first.")
 
 update comms e@Emulating{ savePath = Just path } QuickReloadPressed
-  = Transition e (sendMsg comms (Load (path </> "quick.purenes")))
+  = Transition e (sendMsg comms (QuickLoad Nothing))
 
 update comms e@Emulating{} (LoadPathChanged (Just path))
   = Transition e {loadPath = path} (sendMsg comms (Load path))
