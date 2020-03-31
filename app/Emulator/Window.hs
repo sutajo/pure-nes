@@ -27,7 +27,7 @@ import           Communication as Comms
 import           JoyControls
 import           Text.RawString.QQ
 import           Framerate
-import           Nes.Cartridge.Parser hiding (serialize, deserialize)
+import           Nes.Cartridge.INES.Parser hiding (serialize, deserialize)
 import           Nes.Emulation.Monad
 import qualified Nes.CPU.Emulation as CPU
 import qualified Nes.CPU.Serialization as CPUS

@@ -18,7 +18,7 @@ import           Nes.CPU.Emulation
 import           Nes.PPU.Memory
 import qualified Nes.PPU.Emulation as PPU
 import           Nes.Emulation.MasterClock
-import           Nes.Cartridge.Parser hiding (readCartridge)
+import           Nes.Cartridge.INES.Parser hiding (readCartridge)
 
 
 assertMatch :: (Word8, CPU, PPUState, Int) -> (Word8, CPU, PPUState) -> Assertion

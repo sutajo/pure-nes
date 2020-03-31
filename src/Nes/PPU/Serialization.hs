@@ -16,7 +16,7 @@ import qualified Data.Vector.Storable.Mutable as VSM
 import           Data.Vector.Serialize()
 import           Nes.Emulation.Monad hiding (PPU)
 import qualified Nes.PPU.Memory as M
-import           Nes.Cartridge.Parser hiding (serialize, deserialize)
+import           Nes.Cartridge.Memory hiding (serialize, deserialize)
 
 data PPU = PPU {
     spalette           :: M.Palette,

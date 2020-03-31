@@ -17,7 +17,7 @@ import           Nes.CPU.Memory hiding (intr)
 import           Nes.CPU.Emulation as CPU
 import qualified Nes.PPU.Emulation as PPU
 import           Nes.Emulation.MasterClock
-import           Nes.Cartridge.Parser hiding (readCartridge)
+import           Nes.Cartridge.INES.Parser hiding (readCartridge)
 import           CPU.Exhaustive.Spec (runTestWith)
 
 

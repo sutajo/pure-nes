@@ -1,38 +1,17 @@
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass, StandaloneDeriving, FlexibleInstances #-}
-
 import Control.DeepSeq
 import Control.Monad.Loops
 import Criterion.Main
 import Criterion.Types
-import Data.Vector.Mutable
 import Data.Time
-import GHC.Generics
 import qualified System.CPU as Info
-import Nes.Controls
-import Nes.Cartridge.Parser
+import Nes.Cartridge.INES.Parser
 import Nes.Emulation.Monad
 import Nes.Emulation.MasterClock
-import Nes.CPU.Memory
 import Nes.CPU.Emulation as CPU
 import Nes.PPU.Emulation as PPU
 
-instance NFData (IOVector Controller) where
+instance NFData Nes where
   rnf x = x `seq` ()
-
-instance NFData CPU where
-  rnf x = x `seq` ()
-
-instance NFData PPU where
-  rnf x = x `seq` ()
-
-deriving instance NFData Mirroring
-
-instance NFData Mapper where
-  rnf x = x `seq` ()
-
-deriving instance NFData Cartridge
-deriving instance Generic Nes
-deriving instance NFData Nes
 
 loadNesFrom :: FilePath -> IO Nes
 loadNesFrom path = loadCartridge path >>= powerUpNes 

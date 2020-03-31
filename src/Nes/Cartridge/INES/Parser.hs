@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings, TypeFamilies, DeriveAnyClass #-}
 
-module Nes.Cartridge.Parser (
+module Nes.Cartridge.INES.Parser (
   Cartridge(..),
   Mirroring(..),
   Mapper(..),
@@ -32,25 +32,28 @@ import           Control.Monad
 import           Nes.Cartridge.Memory
 import           Nes.Cartridge.Mappers
 
+
 data CartridgeException
   = UnsupportedMapper Word8
   | ParsingFailed String
   deriving (Exception)
+
 
 instance Show CartridgeException where
   show = \case
     UnsupportedMapper id -> "Mapper " ++ show id ++ " is currently not supported."
     ParsingFailed msg -> msg
 
--- https://wiki.nesdev.com/w/index.php/Mapper
 
 prg_rom_page_size = 16384
 chr_rom_page_size = 8192
 prg_ram_page_size = 8192
 
+
 header :: Get [Word8]
 header = replicateM 7 getWord8
-  
+
+
 iNESloader :: Get INES
 iNESloader = do
   magicNumbersMatch <- getByteString 4 <&> (== "NES\SUB")
@@ -82,17 +85,10 @@ tryLoadingINES path = do
       Right (_,_,cartridge) -> 
         pure cartridge 
 
+
 toVector :: ByteString -> IO (VUM.IOVector Word8)
 toVector bs = VU.thaw $ VU.fromList (BS.unpack bs)
 
-mappersById :: M.Map Word8 (Cartridge -> IO Mapper)
-mappersById = M.fromList [
-    (0, nrom),
-    (2, unrom)
-  ]
-
-dummyMapper = Mapper dummyRead dummyWrite dummyRead dummyWrite (pure $ MapperState []) (\_ -> undefined)
- where dummyRead = const (pure 0); dummyWrite _ _ = pure ()
 
 assembleCartridge :: INES -> IO Cartridge
 assembleCartridge INES{..} = do

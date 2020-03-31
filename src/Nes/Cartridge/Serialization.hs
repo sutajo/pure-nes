@@ -13,32 +13,35 @@ import qualified Data.Vector.Unboxed         as VU
 import           Data.Word
 import           GHC.Generics
 import           Nes.Emulation.Monad
-import           Nes.Cartridge.Parser hiding (Cartridge, serialize, deserialize)
-import qualified Nes.Cartridge.Parser as P
+import qualified Nes.Cartridge.Memory as CM
+import           Nes.Cartridge.Mappers hiding (serialize, deserialize)
+
 
 data Cartridge = Cartridge {
   shasChrRam    :: Bool,
   smapperId     :: Word8,
-  smapperState  :: MapperState,
-  smirror       :: Mirroring,
+  smapperState  :: CM.MapperState,
+  smirror       :: CM.Mirroring,
   schr_rom      :: VU.Vector Word8,
   sprg_rom      :: VU.Vector Word8,
   sprg_ram      :: VU.Vector Word8
 } deriving (Generic, Serialize)
 
+
 serialize :: Emulator Cartridge
 serialize = do
-  P.Cartridge{..} <- ask <&> cartridge
+  CM.Cartridge{..} <- ask <&> cartridge
   let shasChrRam = hasChrRam
   let smapperId = mapperId
   let smirror   = mirror
   schr_rom <- liftIO $ VU.freeze chr_rom
   sprg_rom <- liftIO $ VU.freeze prg_rom
   sprg_ram <- liftIO $ VU.freeze prg_ram
-  smapperState <- liftIO $ P.serialize mapper
+  smapperState <- liftIO $ CM.serialize mapper
   return Cartridge{..}
 
-deserialize :: Cartridge -> IO P.Cartridge
+
+deserialize :: Cartridge -> IO CM.Cartridge
 deserialize Cartridge{..} = do
   let hasChrRam = shasChrRam
   let mapperId = smapperId
@@ -46,9 +49,9 @@ deserialize Cartridge{..} = do
   chr_rom <- VU.thaw schr_rom
   prg_rom <- VU.thaw sprg_rom
   prg_ram <- VU.thaw sprg_ram
-  let mapper = dummyMapper
-  let cart   = P.Cartridge{..}
+  let mapper = CM.dummyMapper
+  let cart   = CM.Cartridge{..}
   assembledMapper <- (mappersById M.! mapperId) cart
-  P.deserialize assembledMapper smapperState
-  return cart { mapper = assembledMapper }
+  CM.deserialize assembledMapper smapperState
+  return cart { CM.mapper = assembledMapper }
 

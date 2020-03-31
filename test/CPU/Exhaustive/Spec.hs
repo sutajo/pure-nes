@@ -19,7 +19,7 @@ import           Nes.Emulation.Monad
 import           Nes.CPU.Memory hiding (intr)
 import           Nes.CPU.Emulation as CPU
 import qualified Nes.PPU.Emulation as PPU
-import           Nes.Cartridge.Parser hiding (readCartridge)
+import           Nes.Cartridge.INES.Parser hiding (readCartridge)
 
 instr_v5 :: FilePath
 instr_v5 = "roms/tests/cpu/instr_test-v5/"

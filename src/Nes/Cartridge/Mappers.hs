@@ -2,6 +2,7 @@
 
 module Nes.Cartridge.Mappers (
     Mapper(..),
+    mappersById,
     nrom,
     unrom
 ) where
@@ -10,9 +11,17 @@ module Nes.Cartridge.Mappers (
 import           Data.Bits
 import           Data.Functor
 import           Data.IORef.Unboxed
+import qualified Data.Map as M
 import qualified Data.Vector.Unboxed.Mutable as VUM
 import           Data.Word
 import           Nes.Cartridge.Memory
+
+
+mappersById :: M.Map Word8 (Cartridge -> IO Mapper)
+mappersById = M.fromList [
+    (0, nrom),
+    (2, unrom)
+  ]
 
 
 nrom :: Cartridge -> IO Mapper

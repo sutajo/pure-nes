@@ -52,6 +52,16 @@ data Cartridge = Cartridge {
     prg_ram      :: VUM.IOVector Word8
 } deriving (Generic)
 
+dummyMapper = 
+  Mapper 
+  dummyRead 
+  dummyWrite 
+  dummyRead 
+  dummyWrite 
+  (pure $ MapperState []) 
+  (\_ -> undefined)
+ where dummyRead = const (pure 0); dummyWrite _ _ = pure ()
+
 cpuReadCartridge :: Cartridge -> Word16 -> IO Word8
 cpuReadCartridge cart = cpuRead (mapper cart)
 

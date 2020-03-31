@@ -41,7 +41,7 @@ import           Data.Functor
 import           Nes.APU.Memory         as APU
 import           Nes.CPU.Memory         as CPU
 import           Nes.PPU.Memory         as PPU
-import qualified Nes.Cartridge.Parser   as Cart
+import qualified Nes.Cartridge.Memory   as Cart
 import qualified Nes.Controls           as Controls
 
 type RAM = VUM.IOVector Word8

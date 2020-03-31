@@ -14,9 +14,12 @@ clocks :: Emulator ()
 clocks = do
   masterClocks <- CPU.processInterrupt >> CPU.clock
   replicateM_ (masterClocks * 3) PPU.clock
-  apuState <- getApu
-  let (output, newApuState) = APU.clock apuState masterClocks
-  setApu newApuState
+  {-
+  replicateM_ masterclocks $ do
+    apuState <- getApu
+    let (output, newApuState) = APU.clock apuState masterClocks
+    setApu newApuState
+  -}
 
 emulateFrame :: Emulator ()
 emulateFrame = do
