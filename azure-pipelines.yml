@@ -1,8 +1,3 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
-
 trigger:
 - master
 
@@ -10,6 +5,10 @@ pool:
   vmImage: 'ubuntu-latest'
 
 steps:
+- task: CacheBeta@1
+  inputs:
+    key: 'stackcache'
+    path: '.stack-work'
 - script: |
     sudo apt-get update
     sudo apt-get install libgirepository1.0-dev libwebkit2gtk-4.0-dev libgtksourceview-3.0-dev
