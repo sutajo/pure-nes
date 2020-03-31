@@ -30,7 +30,7 @@ import           Data.Word
 import           Data.IORef
 import           Data.IORef.Unboxed
 import           Nes.CPU.Memory (Register8, Register16)
-import           Nes.Cartridge.Parser
+import           Nes.Cartridge.Memory
 
 type    Pixel = (Word8, Word8, Word8)
 newtype Palette = Palette (VU.Vector Pixel) deriving (Show, Generic, Serialize)

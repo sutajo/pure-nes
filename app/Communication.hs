@@ -69,7 +69,7 @@ data EmulationException
 
 instance Show EmulationException where
   show = \case
-    QuickSaveNotFound -> unlines $ ["Could not find a quicksave file", "in the selected folder."]
+    QuickSaveNotFound -> unlines $ ["Could not find a quicksave file in the selected","folder."]
     Other msg -> msg
 
 failure :: String -> IO a
