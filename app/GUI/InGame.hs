@@ -60,26 +60,26 @@ inGame Emulating{..} =
             [#orientation := OrientationVertical, #valign := AlignCenter, #margin := 10, #expand := True ]
             [
                 BoxChild defaultBoxChildProperties { padding = 10 } $ 
-                widget Image [ #file := Text.append "resources/GUI/" (if running then "pause.png" else "play.png")]
-            , BoxChild defaultBoxChildProperties { padding = 10, fill = True } $ 
-                widget Button
-                [ 
-                    #label := Text.append (if running then "Pause " else "Resume ") romName,
-                    on #clicked (SwitchMode True)
-                ]
+                    widget Image [ #file := Text.append "resources/GUI/" (if running then "pause.png" else "play.png")]
+            ,   BoxChild defaultBoxChildProperties { padding = 10, fill = True } $ 
+                    widget Button
+                    [ 
+                        #label := Text.append (if running then "Pause " else "Resume ") romName,
+                        on #clicked (SwitchMode True)
+                    ]
             ]
 
         ,   BoxChild defaultBoxChildProperties { fill = True } $ container Box
             [#orientation := OrientationVertical, #valign := AlignCenter, #margin := 10, #expand := True ]
             [
                 BoxChild defaultBoxChildProperties { padding = 10 } $ 
-                widget Image [ #file := "resources/GUI/back2.png"]
-            , BoxChild defaultBoxChildProperties { padding = 10, fill = True } $ 
-                widget Button
-                [ 
-                    #label := "Return to ROM selection"
-                ,   on #clicked ReturnToSelection
-                ]
+                    widget Image [ #file := "resources/GUI/back2.png"]
+            ,   BoxChild defaultBoxChildProperties { padding = 10, fill = True } $ 
+                    widget Button
+                    [ 
+                        #label := "Return to ROM selection"
+                    ,   on #clicked ReturnToSelection
+                    ]
             ]
         ]
 
@@ -126,30 +126,31 @@ inGame Emulating{..} =
             container Box [#orientation := OrientationHorizontal, #valign := AlignCenter, #marginTop := 15, #marginBottom := 15] $
             [
                 BoxChild defaultBoxChildProperties $
-                widget Button
-                [ 
-                    #label := "Quick save",
-                    #marginLeft  := 30,
-                    #marginRight := 10,
-                    on #clicked QuickSavePressed
-                ]
-            , BoxChild defaultBoxChildProperties { fill = True } $ 
-                widget FileChooserButton
-                [ onM #selectionChanged (fmap SavePathChanged . fileChooserGetFilename),
-                #action := FileChooserActionSelectFolder, #expand := True, #createFolders := True]
+                    widget Button
+                    [ 
+                        #label := "Quick save",
+                        #marginLeft  := 30,
+                        #marginRight := 10,
+                        on #clicked QuickSavePressed
+                    ]
+            ,   BoxChild defaultBoxChildProperties { fill = True } $ 
+                    widget FileChooserButton
+                    [   onM #selectionChanged (fmap SavePathChanged . fileChooserGetFilename),
+                        #action := FileChooserActionSelectFolder, #expand := True, #createFolders := True
+                    ]
             ]
 
     ,   BoxChild defaultBoxChildProperties { fill = True } $
             container Box [#orientation := OrientationHorizontal, #valign := AlignCenter, #marginTop := 15, #marginBottom := 15] $
             [
                 BoxChild defaultBoxChildProperties $
-                widget Button
-                [ 
-                    #label := "Save progress",
-                    #marginLeft  := 5,
-                    #marginRight := 10,
-                    on #clicked SaveButtonPressed
-                ]
+                    widget Button
+                    [ 
+                        #label := "Save progress",
+                        #marginLeft  := 5,
+                        #marginRight := 10,
+                        on #clicked SaveButtonPressed
+                    ]
 
     ,   BoxChild defaultBoxChildProperties { fill = True } $ 
             widget Entry
@@ -199,15 +200,15 @@ inGame Emulating{..} =
                 container Box [#orientation := OrientationHorizontal, #valign := AlignCenter, #marginTop := 15, #marginBottom := 15] $
                 [
                     BoxChild defaultBoxChildProperties $
-                    widget Button
-                    [ 
-                        #label := "Quick load",
-                        #marginLeft  := 5,
-                        #marginRight := 10,
-                        on #clicked QuickReloadPressed
-                    ]
-                , BoxChild defaultBoxChildProperties {fill = True} $ 
-                    widget FileChooserButton 
+                        widget Button
+                        [ 
+                            #label := "Quick load",
+                            #marginLeft  := 5,
+                            #marginRight := 10,
+                            on #clicked QuickReloadPressed
+                        ]
+                ,   BoxChild defaultBoxChildProperties {fill = True} $ 
+                        widget FileChooserButton 
                         [ 
                             onM #selectionChanged (fmap LoadPathChanged . fileChooserGetFilename),
                             #action := FileChooserActionOpen, #expand := True 

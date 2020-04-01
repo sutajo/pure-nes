@@ -143,8 +143,8 @@ update _ (Emulating{}) SDLWindowClosed
 update _ s (MessageText msg icon) 
   = Transition (Message (Text.pack msg) icon s) noop
 
-update _ (Message _ _ stateBefore) MessageAck 
-  = Transition stateBefore noop
+update comms (Message _ _ stateBefore) MessageAck 
+  = Transition stateBefore (sendMsg comms (NewSaveFolder Nothing))
 
 
 -- Display error messages with a cross

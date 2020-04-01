@@ -45,8 +45,8 @@ as it would overwrite the previous quicksave.
 
 
 supportedMappers :: Text
-supportedMappers = [r|
-Mapper 0 - NROM
+supportedMappers = 
+ [r|Mapper 0 - NROM
 Mapper 2 - UNROM
 |]
 
