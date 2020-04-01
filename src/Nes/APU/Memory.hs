@@ -2,7 +2,7 @@
 
 module Nes.APU.Memory where
 
-import           Control.Lens
+import           Lens.Micro.Platform
 import qualified Data.Vector.Unboxed          as VU
 import           Data.Word
 import           Data.Serialize

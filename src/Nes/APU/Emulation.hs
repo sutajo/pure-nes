@@ -8,7 +8,7 @@ module Nes.APU.Emulation (
     linearApproxMixer
 ) where
 
-import           Control.Lens
+import           Lens.Micro.Platform
 import           Control.Monad.Reader
 import           Control.Monad.State.Strict
 import           Prelude hiding (read)
