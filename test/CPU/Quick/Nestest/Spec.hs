@@ -15,7 +15,6 @@ import           Nes.Emulation.Monad
 import           Nes.CPU.Memory (pc, p)
 import           Nes.CPU.Serialization as CPU hiding (pc, p)
 import           Nes.CPU.Emulation
-import           Nes.PPU.Memory
 import qualified Nes.PPU.Emulation as PPU
 import           Nes.Emulation.MasterClock
 import           Nes.Cartridge.INES.Parser hiding (readCartridge)

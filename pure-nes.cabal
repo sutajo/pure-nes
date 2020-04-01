@@ -21,25 +21,25 @@ source-repository head
 
 library
   exposed-modules:
+      Nes.Emulation.Monad
+      Nes.Emulation.MasterClock
+      Nes.CPU.Memory
+      Nes.CPU.Serialization
+      Nes.CPU.Emulation
+      Nes.PPU.Emulation
+      Nes.Cartridge.INES.Parser
       Emulator.Window
       Communication
   other-modules:
       Nes.Cartridge.Memory
       Nes.Cartridge.Mappers
-      Nes.PPU.Serialization
       Nes.Cartridge.Serialization
-      Nes.CPU.Memory
-      Nes.CPU.Emulation
       Nes.APU.Memory
       Nes.APU.Oscillator
       Nes.APU.Emulation
       Nes.PPU.Memory
-      Nes.PPU.Emulation
-      Nes.Emulation.Monad
-      Nes.Emulation.MasterClock
-      Nes.Cartridge.INES.Parser
+      Nes.PPU.Serialization
       Nes.Serialization
-      Nes.CPU.Serialization
       Nes.Controls
       Emulator.Audio
       Emulator.Framerate

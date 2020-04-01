@@ -2,7 +2,6 @@ module Main where
 
 
 import Control.Concurrent.STM
-import Control.Concurrent.STM.TChan
 import Control.Concurrent.Chan
 import System.Environment
 import Emulator.Window
