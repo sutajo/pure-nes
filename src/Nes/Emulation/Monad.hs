@@ -72,7 +72,7 @@ powerUpNes cart =
 
 
 newtype Emulator a = Emulator (ReaderT Nes IO a) 
-  deriving (Functor, Applicative, Monad, MonadIO, MonadReader Nes, MonadFail)
+  deriving (Functor, Applicative, Monad, MonadIO, MonadReader Nes)
 
 
 runEmulator :: Nes -> Emulator a -> IO a

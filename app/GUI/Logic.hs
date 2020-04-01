@@ -39,90 +39,132 @@ resultEvent result op =
     Nothing  -> noop
     Just msg -> emit $ MessageText (prefix ++ msg) Cross
 
+sendMsg :: CommResources -> Command -> IO (Maybe Event)
+sendMsg CommResources{toSDLWindow} = only . atomically . writeTChan toSDLWindow
+
 
 -- | GUI state transition function
 update :: CommResources -> State -> Event -> Transition State Event
 
+-- New filepath selected in the main menu
+
 update _ (Started _) (FileSelectionChanged p) 
   = Transition (Started p) (return Nothing)
 
-update CommResources{..} e@Emulating{savePath = Nothing} SaveButtonPressed
-  = Transition e (emit $ chooseSaveFolderFirst)
 
-update CommResources{..} e@Emulating{saveRomName = ""} SaveButtonPressed 
-  = Transition e (emit $ MessageText "You need to give a name to your save file." Alert)
+-- Show controls and then return if Ok was pressed
 
-update CommResources{..} e@Emulating{savePath = Nothing} QuickSavePressed
-  = Transition e (emit $ chooseSaveFolderFirst)
+update _ (Started _) ShowControlsPressed = Transition ShowControls noop
 
-update CommResources{..} e@Emulating{saveRomName = "quick"} SaveButtonPressed 
-  = Transition e (emit $ MessageText saveAsQuick Alert)
+update _ ShowControls MessageAck = Transition (Started Nothing) noop
 
-update comms e@Emulating{savePath = Just path, saveRomName = saveName } SaveButtonPressed
-  = Transition e (sendMsg comms (Save (path </> saveName <.> "purenes")))
 
-update comms e@Emulating{savePath = Just path} QuickSavePressed
-  = Transition e (sendMsg comms (QuickSave Nothing))
-
-update comms e@Emulating{} (SavePathChanged s)
-  = Transition (e {savePath = s}) (sendMsg comms (NewSaveFolder s))
-
-update _ e@Emulating{} (SaveNameChanged s)
-  = Transition e{saveRomName = s} noop
-
-update _ e@Emulating{} (SaveResult res)
-  = Transition e{saveResultSuccess = Just $ res} $ resultEvent res "saving"
-
-update _ e@Emulating{} (LoadResult res)
-  = Transition e{loadResultSuccess = Just $ res} $ resultEvent res "loading"
-
-update CommResources{..} e@Emulating{ savePath = Nothing } QuickReloadPressed
-  = Transition e (emit $ chooseSaveFolderFirst)
-
-update comms e@Emulating{ savePath = Just path } QuickReloadPressed
-  = Transition e (sendMsg comms (QuickLoad Nothing))
-
-update comms e@Emulating{} (LoadPathChanged (Just path))
-  = Transition e {loadPath = path} (sendMsg comms (Load path))
-
-update _  _ Closed 
-  = Exit
+-- Start the emulator thread
 
 update comms s@(Started (Just path)) StartEmulator 
-  = Transition (Emulating (Text.pack . takeBaseName $ path) True Nothing "" "" Nothing Nothing) (only $ launchEmulator path comms)
+  = Transition 
+    (Emulating (Text.pack . takeBaseName $ path) True Nothing "" "" Nothing Nothing) 
+    (only $ launchEmulator path comms)
+
+
+-- Warnings related to saving and loading
 
 update _ s@(Started Nothing) StartEmulator
   = Transition s (return . Just $ MessageText "No ROM selected." Alert)
 
+update _ e@Emulating{savePath = Nothing} SaveButtonPressed
+  = Transition e (emit $ chooseSaveFolderFirst)
+
+update _ e@Emulating{saveRomName = ""} SaveButtonPressed 
+  = Transition e (emit $ MessageText "You need to give a name to your save file." Alert)
+
+update _ e@Emulating{savePath = Nothing} QuickSavePressed
+  = Transition e (emit $ chooseSaveFolderFirst)
+
+update _ e@Emulating{saveRomName = "quick"} SaveButtonPressed 
+  = Transition e (emit $ MessageText saveAsQuick Alert)
+
+update _ e@Emulating{ savePath = Nothing } QuickReloadPressed
+  = Transition e (emit $ chooseSaveFolderFirst)
+
+
+-- Send commands to the SDL event loop
+
+update comms e@Emulating{savePath = Just path} QuickSavePressed
+  = Transition e (sendMsg comms (QuickSave Nothing))
+
+update comms e@Emulating{savePath = Just path, saveRomName} SaveButtonPressed
+  = Transition e (sendMsg comms (Save (path </> saveRomName <.> "purenes")))
+
+update comms e@Emulating{ savePath = Just path } QuickReloadPressed
+  = Transition e (sendMsg comms (QuickLoad Nothing))
+
+update comms e (LoadPathChanged (Just path))
+  = Transition e {loadPath = path} (sendMsg comms (Load path))
+
+update comms e (SavePathChanged s)
+  = Transition (e {savePath = s}) (sendMsg comms (NewSaveFolder s))
+
+update comms Emulating{} ReturnToSelection 
+  = Transition (Started Nothing) (sendMsg comms Quit)
+
+
+-- Update record fields
+
+update _ e (SaveNameChanged s)
+  = Transition e{saveRomName = s} noop
+
+update _ e (SaveResult res)
+  = Transition e{saveResultSuccess = Just $ res} $ resultEvent res "saving"
+
+update _ e (LoadResult res)
+  = Transition e{loadResultSuccess = Just $ res} $ resultEvent res "loading"
+
 update _ m@Message{} (MessageText newMsg newIcon)
   = Transition (m {text = Text.pack newMsg, icon = newIcon}) noop
 
-update _ (Message _ _ stateAfterOk) MessageAck 
-  = Transition stateAfterOk noop
 
-update comms (Emulating{..}) ReturnToSelection 
-  = Transition (Started Nothing) (sendMsg comms Quit)
+-- Pause and resume
 
 update comms e (SwitchMode shouldForward)
-  = Transition (e { running = not (running e) }) (if shouldForward then sendMsg comms (SwitchEmulationMode False) else noop)
+  = Transition 
+    (e { running = not (running e) }) 
+    (if shouldForward then sendMsg comms (SwitchEmulationMode False) else noop)
+
+
+-- Return to main menu if the SDL window was closed
 
 update _ (Emulating{}) SDLWindowClosed 
   = Transition (Started Nothing) noop
 
-update _ s (Error msg) 
-  = Transition (Message (Text.pack msg) Cross (Started Nothing)) noop
+
+-- Displaying messages
 
 update _ s (MessageText msg icon) 
   = Transition (Message (Text.pack msg) icon s) noop
 
-update _ ShowControls MessageAck = Transition (Started Nothing) noop
+update _ (Message _ _ stateBefore) MessageAck 
+  = Transition stateBefore noop
 
-update _ (Started _) ShowControlsPressed = Transition ShowControls noop
+
+-- Display error messages with a cross
+-- and then return to the main menu
+
+update _ s (Error msg) 
+  = Transition (Message (Text.pack msg) Cross (Started Nothing)) noop
+
+
+-- Exit the application
+
+update _  _ Closed 
+  = Exit
+
+
+-- Ignore event if it was not handled above
 
 update _ s _ = Transition s noop
 
-  
-sendMsg CommResources{..} x = only . atomically $ writeTChan toSDLWindow x
+
 
 
 main :: IO ()

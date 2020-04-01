@@ -165,12 +165,12 @@ inGame Emulating{..} =
                     container Box [#orientation := OrientationHorizontal, #halign := AlignCenter] $
                     [BoxChild defaultBoxChildProperties $ widget Image [ #file := "resources/GUI/reload.png"]]
                 Just result ->
-                    container Box [#orientation := OrientationVertical, #halign := AlignCenter] $
                     let 
                         img = case errorMsg result of
                             Nothing -> "tick.png"
                             Just _  -> "cross.png"
                     in 
+                    container Box [#orientation := OrientationVertical, #halign := AlignCenter] $
                     [
                         container Box [#orientation := OrientationHorizontal, #halign := AlignCenter] $
                         [
@@ -178,9 +178,10 @@ inGame Emulating{..} =
                                 widget Image [ #file := Text.append "resources/GUI/" img, #marginRight := 40]
                         ,   BoxChild defaultBoxChildProperties $ 
                                 widget Image [ #file := "resources/GUI/reload.png"]
-                        ,   BoxChild defaultBoxChildProperties $
-                                widget Label [#label := mkResultTimeLabel result, #useMarkup := True, #marginTop := 5]
                         ]
+                    
+                    ,   BoxChild defaultBoxChildProperties $
+                            widget Label [#label := mkResultTimeLabel result, #useMarkup := True, #marginTop := 5]
                     ]
 
     ,   BoxChild defaultBoxChildProperties $

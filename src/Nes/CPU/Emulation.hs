@@ -22,7 +22,7 @@ import           Nes.CPU.Memory
 import qualified Nes.APU.Emulation as APU
 import qualified Nes.PPU.Emulation as PPU hiding (clock)
 
-data Penalty = None | BoundaryCross deriving (Enum)
+data Penalty = None | BoundaryCross
 
 type Opcode = Word8
 
@@ -68,7 +68,7 @@ read addr
   | addr <= 0x3FFF = PPU.cpuReadRegister (0x2000 .|. addr .&. 7)
   | addr <= 0x4015 = getApu <&> APU.read (addr .&. 0x3FFF)
   | addr <= 0x4017 = readController (fromIntegral $ addr - 0x4016)
-  | addr <= 0xFFFF = cpuReadCartridge addr
+  | otherwise = cpuReadCartridge addr
 
 readNullTerminatedString :: Word16 -> Emulator String
 readNullTerminatedString addr = map (toEnum.fromEnum) <$> unfoldrM go addr
@@ -102,7 +102,7 @@ write addr val
   | addr <= 0x4015 = getApu >>= setApu . APU.write (addr .&. 0x3FFF) val
   | addr == 0x4016 = forM_ [0..1] (writeController val) -- writing to 0x4016 polls both controllers
   | addr == 0x4017 = pure ()
-  | addr <= 0xFFFF = cpuWriteCartridge addr val
+  | otherwise = cpuWriteCartridge addr val
 
 setFlag :: Flag -> Bool -> Emulator ()
 setFlag flag cond = modifyReg p (setFlag' flag cond)

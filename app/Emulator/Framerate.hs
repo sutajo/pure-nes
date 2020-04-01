@@ -1,6 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 
-module Framerate (
+module Emulator.Framerate (
   uncapped,
   cappedAt,
   sleepyCappedAt

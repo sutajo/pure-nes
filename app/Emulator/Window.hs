@@ -24,9 +24,9 @@ import           System.FilePath
 import           System.Directory
 import           Foreign hiding (void)
 import           Communication as Comms
-import           JoyControls
 import           Text.RawString.QQ
-import           Framerate
+import           Emulator.JoyControls as JoyControls
+import           Emulator.Framerate
 import           Nes.Cartridge.INES.Parser hiding (serialize, deserialize)
 import           Nes.Emulation.Monad
 import qualified Nes.CPU.Emulation as CPU

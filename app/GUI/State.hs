@@ -5,8 +5,12 @@ import           Communication
 
 data State
   = Started (Maybe FilePath)
-  | Message { text :: Text, icon :: MessageIcon, stateAfterOk :: State }
   | ShowControls
+  | Message { 
+      text :: Text, 
+      icon :: MessageIcon, 
+      stateBefore :: State 
+    }
   | Emulating { 
       romName :: Text, 
       running :: Bool,

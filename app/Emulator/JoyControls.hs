@@ -1,8 +1,8 @@
 {-# LANGUAGE RecordWildCards, NamedFieldPuns #-}
 
-module JoyControls (
+module Emulator.JoyControls (
   JoyControlState(..),
-  JoyControls.init,
+  Emulator.JoyControls.init,
   manageButtonEvent,
   manageDeviceEvent,
   manageHatEvent,
@@ -45,7 +45,7 @@ instance Eq ConnectedJoy where
   (ConnectedJoy {id = id1}) == (ConnectedJoy {id = id2}) = id1 == id2
 
 instance Ord ConnectedJoy where
-  compare = compare `on` JoyControls.id
+  compare = compare `on` Emulator.JoyControls.id
 
 
 data JoyControlState = JoyControlState {
