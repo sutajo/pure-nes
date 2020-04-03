@@ -798,6 +798,14 @@ tas _ = pure ()
 
 xaa _ = pure ()
 
+
+elapsedCycles :: Emulator a -> Emulator Int
+elapsedCycles operation = do
+  cyclesBefore <- readReg cyc
+  operation
+  readReg cyc <&> (\cyclesAfter -> cyclesAfter - cyclesBefore)
+
+
 nmi :: Emulator ()
 nmi = do
   readReg pc >>= pushAddress
@@ -805,6 +813,7 @@ nmi = do
   readReg p <&> (`clearBit` 4) >>= push
   readAddress 0xFFFA >>= jmp
   cycle 8
+
 
 irq :: Emulator ()
 irq = do
@@ -816,15 +825,18 @@ irq = do
     readAddress 0xFFFE >>= jmp
     cycle 7
 
+
 processInterruptTimer timer intr = do
   remainingClocks <- readReg timer
   when (remainingClocks == 1) intr
   when (remainingClocks > 0) $ timer `modifyReg` decrement
 
+
 processInterrupt = do
   processInterruptTimer nmiTimer nmi
   processInterruptTimer irqTimer irq
   setFlag Unused True
+
 
 oamDma :: Word8 -> Emulator ()
 oamDma pageId = do
@@ -835,6 +847,7 @@ oamDma pageId = do
   cycles <- readReg cyc <&> fromIntegral
   cycle (513 + cycles .&. 0x1)
 
+
 -- https://forums.nesdev.com/viewtopic.php?f=3&t=14231
 reset :: Emulator ()
 reset = do
@@ -843,22 +856,22 @@ reset = do
   writeReg s 0xFD
   cycle 7
 
-clock :: Emulator Int
-clock = do
-  DecodedOpcode 
-    instruction
-      cycles <- do
-        fetch <&> decodeOpcode
 
-  cyclesBefore <- readReg cyc
-  cycle cycles
-
+runInstruction :: Emulator () -> Int -> Emulator ()
+runInstruction instruction cycles = do
   modifyReg pc (+1)
-  instruction          -- run the instruction
+  instruction
+  cycle cycles
   setFlag Unused True
 
-  cyclesAfter  <- readReg cyc
-  return (cyclesAfter - cyclesBefore)
+
+clock :: Emulator Int
+clock = do
+  DecodedOpcode{instruction, cycles} <- do
+    fetch <&> decodeOpcode
+
+  elapsedCycles $ runInstruction instruction cycles
+    
 
 
 
