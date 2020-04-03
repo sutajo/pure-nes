@@ -419,12 +419,12 @@ rorM addr = ror (read addr) (write addr)
 rti :: Emulator ()
 rti = do
   pop >>= writeReg p
-  popAddress >>= writeReg pc
+  popAddress >>= jmp
 
 rts :: Emulator ()
 rts = do
   addr <- popAddress
-  writeReg pc (addr+1)
+  jmp (addr+1)
 
 sbc :: Word16 -> Emulator ()
 sbc addr = do 
@@ -803,7 +803,7 @@ nmi = do
   readReg pc >>= pushAddress
   setFlag InterruptDisable True
   readReg p <&> (`clearBit` 4) >>= push
-  readAddress 0xFFFA >>= writeReg pc
+  readAddress 0xFFFA >>= jmp
   cycle 8
 
 irq :: Emulator ()
@@ -813,7 +813,7 @@ irq = do
     readReg pc >>= pushAddress
     setFlag InterruptDisable True
     readReg p <&> (`clearBit` 4) >>= push
-    readAddress 0xFFFE >>= writeReg pc
+    readAddress 0xFFFE >>= jmp
     cycle 7
 
 processInterruptTimer timer intr = do
@@ -838,7 +838,7 @@ oamDma pageId = do
 -- https://forums.nesdev.com/viewtopic.php?f=3&t=14231
 reset :: Emulator ()
 reset = do
-  readAddress 0xFFFC >>= writeReg pc
+  readAddress 0xFFFC >>= jmp
   writeReg p 0x34
   writeReg s 0xFD
   cycle 7
