@@ -125,11 +125,8 @@ executable pure-nes
       base >=4.7 && <5
     , pure-nes
     , gi-gtk
-    , gi-gdk
     , gi-gtk-declarative
     , gi-gtk-declarative-app-simple
-    , haskell-gi-base
-    , gi-gobject
     , text
     , vector
     , stm

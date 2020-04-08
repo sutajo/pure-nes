@@ -351,8 +351,8 @@ isSpriteRenderingEnabled = do
   return ((mask `testBit` 4 && cycle > 8) || (cycle <= 8 && mask `testBit` 2))
 
 
-getSpritePixel :: (Word8, Word8) -> Emulator Pixel
-getSpritePixel (bgPalette, bgPixel) = do
+overlaySpriteColor :: (Word8, Word8) -> Emulator Pixel
+overlaySpriteColor (bgPalette, bgPixel) = do
   enabled <- isSpriteRenderingEnabled
   cycle   <- readReg emuCycle
 
@@ -368,7 +368,7 @@ getSpritePixel (bgPalette, bgPixel) = do
           spPixel s@Sprite{..}  = 
             let fineX = getFineX s 
             in fromIntegral $ ((pattMsb `get` fineX) `shiftL` 1) .|. (pattLsb `get` fineX)
-          activeSprite s@Sprite{cycleTimer = t} = t >= 0 && spPixel s /= 0
+          activeSprite s@Sprite{cycleTimer} = cycleTimer >= 0 && spPixel s /= 0
           activeSprites = filter activeSprite secondaryOam
         case activeSprites of
           []               -> defaultSpriteValues
@@ -382,13 +382,13 @@ getSpritePixel (bgPalette, bgPixel) = do
       when (isSpriteZero && enabled && cycle /= 256) $
         modifyReg ppuStatus (`setBit` 6)
 
-    getSpritePixel     = getColor spPalette spPixel
+    overlaySpriteColor = getColor spPalette spPixel
     getBackgroundPixel = getColor bgPalette bgPixel
 
     combine 0 0 _____ = getColor 0 0
-    combine 0 _ _____ = getSpritePixel
+    combine 0 _ _____ = overlaySpriteColor
     combine _ 0 _____ = getBackgroundPixel
-    combine _ _ False = do checkSpriteZeroHit; getSpritePixel
+    combine _ _ False = do checkSpriteZeroHit; overlaySpriteColor
     combine _ _ _____ = do checkSpriteZeroHit; getBackgroundPixel
 
   combine bgPixel spPixel behindBgd  
@@ -398,7 +398,7 @@ drawPixel :: Emulator ()
 drawPixel = do
   cycle    <- readReg emuCycle
   scanline <- readReg emuScanLine
-  getBackgroundColor >>= getSpritePixel >>= setPixel (cycle - 1) scanline 
+  getBackgroundColor >>= overlaySpriteColor >>= setPixel (cycle - 1) scanline 
 
 
 updateShiftregisters :: Emulator ()
@@ -499,6 +499,23 @@ incrementVertical = whenRendering $ do
 resetOamAddr :: Emulator ()
 resetOamAddr = ppuOamAddr .= 0
 
+
+findCandidateSpritesThat :: 
+  (Word8  -> Bool) ->  -- Filter function
+  Int     ->           -- Max number of candidates needed
+  [Word8] ->           -- Base address of all sprites
+  Emulator [Word8]
+findCandidateSpritesThat filter = go
+  where
+    go 0 _  = return []
+    go _ [] = return []
+    go count (addr : rest) = do
+      byte <- readOam addr
+      if filter byte 
+      then (addr:) <$> go (count - 1) rest
+      else go count rest
+
+
 reloadSecondaryOam :: Emulator ()
 reloadSecondaryOam = do
   resetOamAddr
@@ -512,8 +529,8 @@ reloadSecondaryOam = do
   oamAddr <- readReg ppuOamAddr
 
   candidateAddresses <- do
-    let fallsOnCurrentScanline y = y /= 0xFF && between 0 spriteHeight (scanLine - fromIntegral y)
-    take 9 <$> filterM (\addr -> readOam addr <&> fallsOnCurrentScanline) [oamAddr, oamAddr+0x4 .. 0xFC]
+    let fallOnCurrentScanline y = y /= 0xFF && between 0 spriteHeight (scanLine - fromIntegral y)
+    findCandidateSpritesThat fallOnCurrentScanline 9 [oamAddr, oamAddr+0x4 .. 0xFC]
  
   enabled <- isRenderingEnabled
   when (length candidateAddresses == 9 && enabled) $ do
@@ -543,8 +560,8 @@ reloadSecondaryOam = do
 
 updateSecondaryOam :: Emulator ()
 updateSecondaryOam = do
-  let tickTimer s@Sprite{cycleTimer = t} = s {cycleTimer = t + 1}
-  let notExpired  Sprite{cycleTimer = t} = t < 8
+  let tickTimer s@Sprite{cycleTimer} = s {cycleTimer = cycleTimer + 1}
+  let notExpired  Sprite{cycleTimer} = cycleTimer < 8
   usePPU (`modifyIORef` (filter notExpired . map tickTimer)) secondaryOam
 
 

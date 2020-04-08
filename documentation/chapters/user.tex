@@ -1,0 +1,187 @@
+\chapter{Felhasználói dokumentáció} % User guide
+\label{ch:user}
+
+\section{A feladat ismertetése}
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[scale=0.13]{nes.jpg}
+	\caption{Nintendo Entertainment System (1985)}
+	\label{fig:nes}
+\end{figure}
+
+A program feladata a NES kazetták futtatása. A felhasználó grafikus felület segítségével kiválaszthatja a futtatni kívánt, iNES formátumú kazetta fájlt, majd annak betöltése után az emulátor belekezd a videókimenet előállításába. Bemeneti eszközként billentyűzet vagy kontroller használható. A futtatás során lehetőség van az emulátor állapotának fájlként való mentésére és betöltésére. Az emulációt többféle módon is befolyásolhatja a felhasználó, amikbe beletartozik a játék szüneteltetése, adott mennyiségű CPU utasítás végrehajtása, valamint a teljes képkockánként történő léptetés.
+
+A programot azoknak ajánlom, akik egy letisztult kezelőfelülettel rendelkező, több platformon is elérhető NES emulátorral szeretnék játszani kedvenc játékaikat.
+
+\section{Minimum rendszerkövetelmények}
+
+\begin{description}
+	\item[Processzor:] Intel Core 2 Duo E8400 @ 3.0 GHz
+	\item[Videókártya:] NVIDIA Geforce 7300 SE vagy 
+	\newline vagy más OpenGL/DirectX kompatibilis videókártya
+	\item[Memória:] 2 GB DDR2 @ 800 MHz
+	\item[Tárhely:] 150 MB
+	\item[Operációs rendszer:] Linux, Windows
+\end{description}
+
+A program a fenti konfiguráción történő tesztelés során problémamentesen működött.
+
+\section{Telepítés}
+
+\begin{itemize}
+	\item Windows: A programot egy telepítőfájl segítségével telepíthetjük.
+	\item Linux:
+	\begin{lstlisting}[language=bash]
+	$ tar xvf pure-nes-1.0.tar.gz
+	$ cd pure-nes-1.0
+	$ ./configure
+	$ make
+	\end{lstlisting}
+\end{itemize}
+
+\section{Indítás}
+\begin{itemize}
+	\item Windows: Kattintsunk a program parancsikonjára a Start Menüben vagy az asztalon.
+	\item Linux:
+	\begin{lstlisting}[language=bash]
+	pure-nes-1.0$ stack exec pure-nes
+	\end{lstlisting}
+\end{itemize}
+
+
+\section{Kompatibilis kazetták}
+
+A NES megtervezésekor fontos cél volt, hogy a konzol életciklusa hosszú legyen, de ezt nem volt könnyű gazdaságos módon elérni. Azt a megoldás találták ki, hogy a kazetta a játék mellett tartalmazzon speciális integrált áramköröket, amik igény szerint bővíthették a hardveres erőforrásokat. Ezeket Mapper-nek nevezzük. A későbbi játékok előszeretettel használták ki ezt a lehetőséget. A legtöbb speciális áramkör a megnövelt ROM kezeléséhez volt szükséges, de akadt olyan is, amelyik további hangcsatornákat adott hozzá a hangfeldolgozó egységhez. Az emulátorom jelenleg a 0 és 2 típusú Mapper-eket támogatja, ezáltal 351 játékot képes elindítani.      
+
+\section{Főmenü}
+
+\begin{center}
+	\includegraphics[scale=0.7]{menu.png}
+\end{center}
+
+\subsection{Kazetta kiválasztása}
+
+A fájlkiválasztó segítségével adjuk meg a futtatni kívánt kazettát vagy mentést, majd nyomjunk a \emph{Start Emulator} gombra.
+A program hibaüzenettel jelzi, ha a kazetta nem kompatibilis vagy a fájl formátuma nem megfelelő.
+
+\subsection{Irányítási beállítások megtekintése}
+
+A főmenü \emph{Show controls} gombjára kattintva megtekinthetjük a gombhozzárendeléseket.
+
+\section{Játék alatt elérhető funkciók}
+
+\subsection {Irányítás}
+
+\begin{table}[H]
+	\centering
+	\begin{tabular}{ | l |  l | l | }
+		\hline
+		Virtuális kontroller & Billentyű & Joystick \\
+		\hline			
+		A & 1 & 2. gomb \\
+		B & 2 & 3. gomb \\
+		Select & 3 & 0. gomb \\
+		Start & 4 & 1. gomb \\
+		Up    & Fel nyíl & DPad Fel \\
+		Down  & Lefele nyíl & DPad Le \\
+		Left  & Balra nyíl & DPad Bal \\ 
+		Right & Jobbra nyíl & DPad Jobb \\
+		\hline
+	\end{tabular}
+	\caption{Játékok irányításához használt gombok}
+	
+	\begin{flushleft}
+		A Joystick vezérlők gombkiosztása el szokott térni, ami azt jelenti, hogy a fizikailag ugyanott található gomboknak más az azonosítója. A felhasználó feladata, hogy szükség esetén egy másik programmal módosítsa eszközének kiosztását úgy, hogy az megegyezzen az emulátor szerint elvárttal.
+	\end{flushleft}
+	
+	\begin{tabular}{ | l | c | }
+		\hline
+		Emulátor funkció & Billentyű \\
+		\hline			
+		Teljes képernyős nézet ki/be & R \\
+		Szüneteltetés ki/be & Space \\
+		100 processzor utasítás végrehajtása szüneteltetett állapotban & C \\
+		A következő képkocka kiszámolása szüneteltett állapotban & F \\
+		\hline
+	\end{tabular}
+	\caption{Az emuláció vezérlése}
+\end{table}
+
+
+\subsection{Mentési mappa kiválasztása}
+
+A felhasználónak ki kell jelölnie egy mappát, amit a program a mentések kezelésére használ. A program hibaüzenetet ad, ha enélkül próbálunk menteni vagy gyors betöltést végrehajtani.
+
+\subsection{Mentés}
+
+A mentések a virtuális gép teljes állopata mellett a praktikusság érdekében a játék másolatát is tartalmazzák, tehát egy mentés betöltéséhez nem kell megőrizni a játék eredeti példányát.
+
+\begin{center}
+	\includegraphics[scale=0.75]{save.png}
+\end{center}
+
+\subsubsection{Gyors mentés}
+
+A gyors mentési funkcióval egy gombnyomásra elmenthetjük állásunkat. A mentés \emph{quick.purenes} néven jön létre a mappában. Ha már létezik ilyen fájl, az felül lesz írva.
+Mentés létrehozása: \textbf{Quick Save} gomb vagy \textbf{F5} billentyű.
+A mentés sikerességét egy pipa vagy kereszt jelzi a kezelőfelületen a mentés ikon mellett.
+Ha a kontroller rendelkezik rezgőmotorral, akkor a sikeres mentés rezgéssel is jelezve lesz.
+
+\subsubsection{Egyedi mentés létrehozása}
+
+Adhatunk nevet a mentéseknek, ehhez írjuk be a nevet a szövegmezőbe és nyomjunk a \emph{Save} gombra. A mentés \emph{\{név\}.purenes} néven jön létre a mappában. A \emph{quick} nevet nem adhatjuk a mentésnek.
+
+\subsection{Betöltés}
+
+\begin{center}
+	\includegraphics[scale=0.75]{load.png}
+\end{center}
+
+\textbf{Figyelem:} Mindkét betöltési módnál az aktuális munkamenet elveszik. Ha ezt el szeretnénk kerülni, akkor mentsünk előtte.
+
+\subsubsection{Gyors betöltés}
+
+A gyors betöltési funkció játék közben érhető el, miután kiválasztottuk a mentéseket tároló mappát. A \textbf{Quick load} gombbal, vagy az \textbf{F9} billentyűvel visszatölthetjük a korábban létrehozott gyorsmentést.
+A betöltés sikeressége a mentéshez hasonló módon jelenik meg a kezelőfelületen.
+A sikeres betöltést szintén rezgés fogja követni.
+
+\vspace{0.2cm}
+\textbf{Lehetséges hibaüzenet}
+\begin{itemize}
+	\item A kiválasztott mappában nem található gyorsmentés.
+	Megoldás: hozzunk létre egy gyorsmentést.
+\end{itemize}
+
+\subsubsection{Egyedi mentés betöltése}
+
+A fájlkiválasztó segítségével válasszuk ki a betölteni kívánt mentést.
+
+\subsection{A játék megállítása}
+
+A játék futása bármikor felfüggeszthető a \emph{Pause} gombbal, majd ezután folytatható a \emph{Resume} gombbal.
+
+\begin{center}
+	\includegraphics[scale=0.8]{pause.png}
+	\qquad
+	\includegraphics[scale=0.8]{resume.png}
+\end{center}
+
+\subsection{Visszatérés a főmenübe}
+A \emph{Return To ROM selection} gomb bezárja a játékot és a felhasználói felületen visszanavigál minket a főmenübe.
+\newline \textbf{Figyelem:} Az állásunk elveszik, ha előtte nem mentünk. 
+\vspace{0.3cm}
+\begin{center}
+	\includegraphics[scale=0.8]{return.png}
+\end{center}
+
+\subsection{Képernyőképek}
+\vspace{0.5cm}
+\begin{figure}[H]
+	\centering
+	\includegraphics[scale=0.3]{shiru.png}
+	\caption{Alter Ego by Shiru}
+	\vspace{1cm}
+	\includegraphics[scale=0.3]{croom.png}
+	\caption{Concentration Room by Damian Yerrick}
+\end{figure}
