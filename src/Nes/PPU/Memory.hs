@@ -5,6 +5,8 @@ module Nes.PPU.Memory (
     Pixel,
     Palette(..),
     Sprite(..),
+    StatusFlag(..),
+    FrameBuffer,
     powerUp,
     loadPalette,
     horizontalMirroring,
@@ -33,7 +35,10 @@ import           Nes.CPU.Memory (Register8, Register16)
 import           Nes.Cartridge.Memory
 
 type    Pixel = (Word8, Word8, Word8)
+
 newtype Palette = Palette (VU.Vector Pixel) deriving (Show, Generic, Serialize)
+
+type FrameBuffer = VSM.IOVector Word8
 
 loadPalette :: FilePath -> IO B.ByteString
 loadPalette path = do 
@@ -46,18 +51,18 @@ loadPalette path = do
         Right bytelist -> pure (B.pack bytelist)
 
 data Sprite = Sprite {
-    cycleTimer :: !Int,
-    pattLsb    :: !Word8,
-    pattMsb    :: !Word8,
-    paletteId  :: !Word8,
-    behindBgd  :: !Bool,
-    flipHori   :: !Bool,
-    spriteZero :: !Bool
+    cycleTimer :: Int,
+    pattLsb    :: Word8,
+    pattMsb    :: Word8,
+    paletteId  :: Word8,
+    behindBgd  :: Bool,
+    flipHori   :: Bool,
+    spriteZero :: Bool
 } deriving (Show, Generic, Serialize)
 
 data PPU = PPU {
     palette         :: Palette,
-    screen          :: VSM.IOVector Word8,
+    screen          :: FrameBuffer,
     nametable       :: VUM.IOVector Word8,
     paletteIndices  :: VUM.IOVector Word8,
     primaryOam      :: VUM.IOVector Word8,
@@ -69,7 +74,6 @@ data PPU = PPU {
     ppuStatus         :: Register8,
     ppuOamAddr        :: Register8,
     ppuOamData        :: Register8,
-    ppuScroll         :: Register8,
     ppuAddr           :: Register8,
     ppuData           :: Register8,
 
@@ -152,13 +156,27 @@ powerUp mirroring =
     newIORefU 0                     <*>
     newIORefU 0                     <*>
     newIORefU 0                     <*>
-    newIORefU 0                     <*>
     pure (
       case mirroring of
         Horizontal -> horizontalMirroring
         Vertical   -> verticalMirroring
         __________ -> error $ "PPU emulator does not support this mirroring type: " ++ show mirroring
       )
+
+
+data StatusFlag 
+  = SpriteOverflow
+  | SpriteZeroHit
+  | VerticalBlank
+
+
+instance Enum StatusFlag where
+  toEnum   = undefined
+  fromEnum = \case
+    SpriteOverflow -> 5
+    SpriteZeroHit  -> 6
+    VerticalBlank  -> 7
+
 
 palette2C02 = Palette
     [

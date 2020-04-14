@@ -21,9 +21,9 @@ import           Nes.Cartridge.INES.Parser hiding (readCartridge)
 import           CPU.Exhaustive.Spec (runTestWith)
 
 
-runMixer = runTestWith clocks "roms/tests/apu/apu_mixer/"
+runMixer = runTestWith execCpuInstruction "roms/tests/apu/apu_mixer/"
 
-runApuTest = runTestWith clocks "roms/tests/apu/apu_test/rom_singles/"
+runApuTest = runTestWith execCpuInstruction "roms/tests/apu/apu_test/rom_singles/"
 
 tests :: [TestTree]
 tests = [

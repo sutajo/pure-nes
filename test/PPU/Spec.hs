@@ -44,11 +44,11 @@ runTest returnLoc expectedCode path romName = do
 
 runPPUTest = runTest (PPU.read 0x20A4) 0x31 blargg_ppu_tests
 
-runVblNmi = runTestWith clocks blargg_vbl_nmi
+runVblNmi = runTestWith execCpuInstruction blargg_vbl_nmi
 
-runSpriteZero = runTestWith clocks blargg_spriteZero
+runSpriteZero = runTestWith execCpuInstruction blargg_spriteZero
 
-runSpriteOverflow = runTestWith clocks blargg_spriteOverflow
+runSpriteOverflow = runTestWith execCpuInstruction blargg_spriteOverflow
 
 tests :: [TestTree]
 tests =

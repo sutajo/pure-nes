@@ -27,6 +27,7 @@ import           Communication as Comms
 import           Text.RawString.QQ
 import           Emulator.JoyControls as JoyControls
 import           Emulator.Framerate
+import           Emulator.CrtShader
 import           Nes.Cartridge.INES.Parser hiding (serialize, deserialize)
 import           Nes.Emulation.Monad
 import qualified Nes.CPU.Emulation as CPU
@@ -98,6 +99,7 @@ bye = putStrLn "Emulator closed successfully."
 data AppResources = AppResources {
   window          :: Window,
   renderer        :: Renderer,
+  glContext       :: GLContext,
   screen          :: Texture,
   commRes         :: CommResources,
   nes             :: IORef Nes,
@@ -155,7 +157,8 @@ acquireResources romPath comms = do
     windowConfig = SDL.defaultWindow {
       windowInitialSize = V2 (fromIntegral $ width * scale) (fromIntegral $ height * scale),
       windowResizable = True,
-      windowPosition = Absolute $ P $ V2 0 20
+      windowPosition = Absolute $ P $ V2 0 20,
+      windowGraphicsContext = OpenGLContext defaultOpenGL
   }
 
   window    <- SDL.createWindow "Pure-Nes Emulator" windowConfig
@@ -176,17 +179,20 @@ acquireResources romPath comms = do
   reset         <- newIORef (not $ isSave romPath)
   joyIsSecondCtrl <- newIORef False
   fullscreen      <- newIORef False
+  glContext       <- glCreateContext window
+  activateCrtShader
   return AppResources{..}
 
 
 
 releaseResources AppResources{..} = do
   readIORef joys >>= disconnectAllJoys
-  writeChan (fromSDLWindow commRes) SDLWindowClosed
+  glDeleteContext glContext
   destroyTexture screen
   destroyRenderer renderer
   destroyWindow window
   SDL.quit
+  writeChan (fromSDLWindow commRes) SDLWindowClosed
 
 
 -- | Main loop
@@ -336,7 +342,7 @@ executeCommand appResources@AppResources{..} command = do
 
     StepClockCycle -> do
       whenM (liftIO $ readIORef continousMode <&> not) $ do
-        replicateM_ 100 clocks
+        replicateM_ 100 execCpuInstruction
         PPU.drawPalette
         PPU.drawSprites
         pixels  <- PPU.accessScreen
@@ -344,10 +350,8 @@ executeCommand appResources@AppResources{..} command = do
 
     StepOneFrame -> do
       whenM (liftIO $ readIORef continousMode <&> not) $ do
-        emulateFrame
+        emulateFrame >>= updateScreen appResources
         CPUS.serialize >>= liftIO . print
-        pixels  <- PPU.accessScreen
-        updateScreen appResources pixels
 
     ToggleJoyMap -> liftIO $ do
       modifyIORef' joyIsSecondCtrl not
@@ -368,9 +372,10 @@ updateWindow :: AppResources -> Emulator Bool
 updateWindow appResources@AppResources{..} = do
   commands <- liftIO $ pollCommands appResources
   mapM_ (executeCommand appResources) commands
+
   whenM (liftIO $ readIORef continousMode) $ do
-    emulateFrame
-    PPU.accessScreen >>= updateScreen appResources
+    emulateFrame >>= updateScreen appResources
+
   reboot <- liftIO $ readIORef reboot
   return (Quit `elem` commands || reboot)
 

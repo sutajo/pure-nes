@@ -31,7 +31,6 @@ data PPU = PPU {
     sppuStatus         :: Word8,
     sppuOamAddr        :: Word8,
     sppuOamData        :: Word8,
-    sppuScroll         :: Word8,
     sppuAddr           :: Word8,
     sppuData           :: Word8,
 
@@ -77,7 +76,6 @@ serialize = do
   sppuStatus         <- liftIO $ readIORefU ppuStatus
   sppuOamAddr        <- liftIO $ readIORefU ppuOamAddr
   sppuOamData        <- liftIO $ readIORefU ppuOamData
-  sppuScroll         <- liftIO $ readIORefU ppuScroll
   sppuAddr           <- liftIO $ readIORefU ppuAddr
   spvtDataBuffer     <- liftIO $ readIORefU pvtDataBuffer
   spvtAddressLatch   <- liftIO $ readIORefU pvtAddressLatch
@@ -121,7 +119,6 @@ deserialize PPU{..} = do
   ppuStatus          <- newIORefU sppuStatus
   ppuOamAddr         <- newIORefU sppuOamAddr
   ppuOamData         <- newIORefU sppuOamData
-  ppuScroll          <- newIORefU sppuScroll
   ppuAddr            <- newIORefU sppuAddr
   pvtDataBuffer      <- newIORefU spvtDataBuffer
   pvtAddressLatch    <- newIORefU spvtAddressLatch

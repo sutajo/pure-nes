@@ -64,7 +64,7 @@ messageWidget text icon =
                         Info  -> "info.png"
                         Cross -> "cross.png"
             in
-            BoxChild defaultBoxChildProperties { padding = 25 } $
+              BoxChild defaultBoxChildProperties { padding = 25 } $
                 widget Image [#file := path]
             , BoxChild defaultBoxChildProperties { padding = 15 } $ 
                 widget Label [#label := text]
@@ -86,10 +86,10 @@ startMenu threadCount =
                 , BoxChild defaultBoxChildProperties { padding = 10 } $ 
                     widget FileChooserButton
                     [ 
-                    onM #selectionChanged (fmap FileSelectionChanged . fileChooserGetFilename),
-                    #marginLeft  := 20,
-                    #marginRight := 20,
-                    #title := "Please select the ROM you wish to run."
+                        onM #selectionChanged (fmap FileSelectionChanged . fileChooserGetFilename),
+                        #marginLeft  := 20,
+                        #marginRight := 20,
+                        #title := "Please select the ROM you wish to run."
                     ]
             , container Box
                 [#orientation := OrientationHorizontal, #halign := AlignCenter, #margin := 10 ]
@@ -102,20 +102,20 @@ startMenu threadCount =
             , BoxChild defaultBoxChildProperties $ 
                 widget Label
                 [
-                #marginTop := 30,
-                #label := "Supported mappers:",
-                #halign := AlignCenter
+                    #marginTop := 30,
+                    #label := "Supported mappers:",
+                    #halign := AlignCenter
                 ]
             , BoxChild defaultBoxChildProperties $ 
                 widget Label
                 [
-                #label := supportedMappers
+                    #label := supportedMappers
                 ]
             , BoxChild defaultBoxChildProperties $ 
                 widget Label
                 [
-                #marginTop := 10,
-                #label := ("Available OS threads: " <> (Text.pack (show threadCount)))
+                    #marginTop := 10,
+                    #label := ("Available OS threads: " <> (Text.pack (show threadCount)))
                 ]
             , container Box
                 [#orientation := OrientationVertical, #halign := AlignEnd, #marginRight := 10, #marginTop := 70, #marginBottom := 10 ]
@@ -156,7 +156,7 @@ controlsWidget =
     container Box
         [#orientation := OrientationVertical, #valign := AlignCenter, #halign := AlignCenter, #margin := 10 ]
         [
-        BoxChild defaultBoxChildProperties $ 
+          BoxChild defaultBoxChildProperties $ 
             widget Image [#file := "resources/GUI/info.png", #marginBottom := 35]
         , BoxChild defaultBoxChildProperties $
             mkControlHelpBox [ 

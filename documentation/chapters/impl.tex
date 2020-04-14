@@ -15,8 +15,9 @@ A NES emulációjához a következő komponenseket kell megismernünk és megval
 	\item[Ricoh RP2A03:] A hangchipet és központi feldolgozóegységet tartalmazó integrált áramkör. Utóbbi nem más, mint az Apple II-ben és Commodore 64-ben használt 8-bites MOS Technology 6502.
 	\item[Ricoh RP2C02:] A képfeldolgozó egység, rövid nevén PPU (Picture Processing Unit).
 	\item[NROM és UNROM:] 
-	A két megvalósított Mapper áramkör.
-	A feladatuk megegyezik a mai számítógépekben is megtalálható MMU-kéval, azaz a virtuális memóriacímeket a kazettán található fizikai címekre alakítják át.
+	Az emulátor által támogatott két kazettatípus.
+	\item[Sztenderd NES kontroller:] 
+	A konzol alapértelmezett beviteli eszköze.
 \end{compactdesc}
 
 \section{Órajel-frekvenciák}
@@ -29,18 +30,15 @@ Minden komponens rendelkezik egy saját órajelfrekvenciával, amit egy központ
 	\item PPU órajel-frekvencia: $ \frac{f}{4}  \sim 5.369318 \; MHz $
 \end{itemize}
 
-\section{A központi feldolgózóegységhez kapcsolódó fogalmak}
+\section{A központi feldolgozóegységhez kapcsolódó fogalmak}
 
 \begin{note}
-A hexadecimális értékeket \textbf{\$} prefix-el jelölöm.
+	A hexadecimális értékeket \textbf{\$} prefix-el jelölöm.
 \end{note}
 
 \subsection{Opkód} 
-Egy opkód ennél a processzornál csupán egyetlen bájt, amiből az utasításdekódoló egyértelműen meg tudja határozni a végrehajtandó utasítást és annak címzési módját.
-Ezt a hozzárendelést az opkódmátrix írja le.
-Az emulációhoz tárolni kell az opkódmátrixban, 
-hogy a végrehajtandó művelet hány központi órajel alatt fejeződik be.
-Azok az opkódok csillaggal vannak jelölve, amiknek futási ideje csak végrehajtás során dönthető el, az aktuális argumentumok alapján. 
+Egy opkód a 6502 esetében csupán egyetlen bájt, amiből az utasításdekódoló egyértelműen meg tudja határozni a végrehajtandó utasítást és annak címzési módját.
+Ezt a hozzárendelést az opkódmátrix írja le. Az emulációhoz emellett azt is tárolni kell az opkódmátrixban, hogy a végrehajtandó művelet hány központi órajel alatt fejeződik be, ugyanis ebből tudjuk megállapítani, hogy a processzor utasításával párhuzamosan hány órajelet kell kapnia a képfeldolgozónak. 
 
 \begin{figure}[H]
 	\centering
@@ -49,7 +47,8 @@ Azok az opkódok csillaggal vannak jelölve, amiknek futási ideje csak végreha
 	\label{fig:opcodes}
 \end{figure}
 
-Ha egy opkódhoz meg szeretnénk találni a hozzá tartozó információkat, akkor szükségünk lesz az opkód hexadecimális alakjára, ami legfeljebb két számjegyű lehet. A nagyobb helyiértékű számjegy a keresett cella sorát, a kisebbik pedig az oszlopát írja le. Példaként a \ref{fig:opcodes} ábrán láthatjuk, hogy a \textbf{\$30} opkódhoz a BMI utasítás tartozik relatív címzéssel.
+Ha meg szeretnénk találni egy adott opkódhoz a hozzá tartozó információt, akkor szükségünk lesz az opkód hexadecimális alakjára, ami legfeljebb két számjegyű lehet. A nagyobb helyiértékű számjegy a keresett cella sorát, a kisebbik pedig az oszlopát írja le. Példaként a \ref{fig:opcodes} ábrán láthatjuk, hogy a \textbf{\$30} opkódhoz a BMI utasítás tartozik relatív címzéssel.
+Azok az opkódok csillaggal vannak jelölve, amiknek futási ideje csak végrehajtás során dönthető el, az aktuális argumentumok alapján.
 A szürkével jelölt opkódokhoz hivatalosan nincs utasítás rendelve. 
 Ezeket a nem dokumentált, "illegális" opkódokat a processzor későbbi 
 verzióinak hagyták fent. A tervezők nem tiltották meg azonban ezeknek a használatát, 
@@ -147,6 +146,8 @@ szükséges operandus nem regiszterben, hanem a memóriában van. A címzési m�
 	
 \end{description}
 
+Az \textbf{abx}, \textbf{aby} és \textbf{izy} indexelt címzési módok és bizonyos utasítások kombinációjánál előfordulhat, hogy a végleges operandus cím és az indexelés előtt álló cím különböző memórialapra esik. Ebben az esetben 1 órajelciklussal tovább tart az utasítás végrehajtása.
+
 \subsection{Memóriatérkép}
 
 A memóriatérkép leírja a címtér felosztását a komponensek között.
@@ -159,7 +160,7 @@ A memóriatérképből meg tudjuk állapítani, hogy egy adott címen találhat�
 		Tartomány & Eszköz \\
 		\hline			
 		$ \$0000 - \$07FF $ & CPU RAM \\
-		$ \$0800 - \$1FFF $ & A CPU RAM tükrözése \\
+		$ \$0800 - \$1FFF $ & CPU RAM tükrözése \\
 		$ \$2000 - \$2007 $ & PPU regiszterek \\
 		$ \$2008 - \$3FFF $ & PPU regiszterek tükrözése \\
 		$ \$4000 - \$4017 $ & APU és IO regiszterek \\
@@ -213,7 +214,7 @@ Memóriatükrözésről beszélünk, amikor fizikailag ugyanazt a memóriaterül
 	\end{compactdesc}
 	\item Vezérlés
 	\begin{compactdesc}
-		\item[JMP:] Vezérlés áthelyezése egy megadott memóriacímhez, avagy a programszámláló átállítása erre a címre.
+		\item[JMP:] Vezérlés áthelyezése egy megadott memóriacímhez, avagy a programszámláló átállítása erre a címre
 		\item[JSR:] Szubrutin hívás (visszatérési cím elmentése + \textbf{JMP})
 		\item[RTS:] Visszatérés szubrutinból (visszatérési cím kiolvasása + \textbf{JMP})
 		\item[BRK:] Szoftveresen generált megszakítás
@@ -222,7 +223,7 @@ Memóriatükrözésről beszélünk, amikor fizikailag ugyanazt a memóriaterül
 	\item Flag manipuláció \newline \textbf{CLC, CLD, CLI, CLV, SED, SEC, SEI}
 	\newline
 	(C = Clear, S = Set)
-	\item Elágazások: vezérlés áthelyezése valamelyik státusz regiszterben található flag értéke szerint 
+	\item Elágazások: vezérlés áthelyezése akkor, ha teljesül a feltétel az utasítás által vizsgált státusz flag-re
 	\newline \textbf{BCC(C=0), BCS(C=1), BNE(Z=0), BEQ(Z=1), BPL(N=0), BMI(N=1),  BVC(V=0), BVS(V=1)}
 	\item Bájtok mozgatása regiszterek és a memória között
 	\newline
@@ -238,21 +239,193 @@ Memóriatükrözésről beszélünk, amikor fizikailag ugyanazt a memóriaterül
 
 \section{Kazetták}
 
-\subsection{A kazetta memóriája}
-
-\begin{itemize}
-	\item PRG ROM: A program utasításainak tárolására szolgál. 
-	\begin{compactdesc}
-		\item[NROM:]  16 KiB vagy 32 KiB
-		\item[UNROM:] 64 KiB vagy 128 KiB
-	\end{compactdesc}
-	\item CHR: A játékok képi világának építőelemeit, a $8 \cdot 8$ pixeles sprite-okat tárolja.
-	\begin{compactdesc}
-		\item[NROM:]  8 KiB ROM
-		\item[UNROM:] 8 KiB RAM
-	\end{compactdesc}
-\end{itemize}
+A kazettákon logikai szempontból két fajta memória található: PRG és CHR.
+A PRG jellemzően csak olvasható memória (ROM), ahol a processzor által végrehajtandó utasítások, avagy a játéklogika kapott helyett. Mérete NROM esetében 16 KiB vagy 32 KiB, UNROM-nál pedig 64 KiB vagy 128 KiB. A 8 KiB méretű CHR ROM/RAM memória a játék sprite-jait tárolja, amik 8*8 pixeles kis képekből állnak. Ezeket a kis képeket ezentúl alakzatoknak fogom hívni. 
 
 \subsection{Az iNES fájl formátum}
+
+Az iNES fájlformátumot egy korai NES emulátor vezette be a NES játékok bináris formában történő terjesztésére. A fájl elején található 16 bájtos fejléc többek között a mapper áramkör azonosítóját, a képfeldolgozó névtábláinak tükrözési módját, valamint a PRG ROM és a CHR memóriák típusát (ROM/RAM) és méretét határozza meg. A fejléc után ezek tartalma található.
+
+\section{A képfeldolgozó egységhez kapcsolódó fogalmak}
+
+\subsection{Színpaletta}
+
+A képpontok végső RGB színkódjának meghatározása többféle módon is lehetséges. A gyors, de kevésbé pontos módszer, ha egy fix palettával dolgozunk. A paletta hozzárendel egy $\$0$ és $\$3F$ közötti azonosítóhoz egy színkódot, így tehát 55 különböző színt tudunk megjeleníteni. A lassabb, de pontosabb módszer, hogy az analóg NTSC videójelre történő konverziót is emuláljuk, amivel a régi katódsugárcsöves TV-k jellegzetes színtorzítását is vissza tudjuk adni. Az emulátoromnál a gyorsabb módszert implementáltam.
+
+\vspace{0.3cm}
+\begin{figure}[H]
+	\centering
+	\includegraphics{palette.png}
+	\caption{A 2C02 színpalettája}
+\end{figure}
+
+\clearpage
+
+\subsection{Paletta indexek}
+
+A $\$3F00 - \$3F1F$ címtartományon található memóriaterületen kerülnek eltárolásra a használatban lévő színek azonosítói. A hardveres limitációk miatt a hátteret 16x16 pixeles cellákra osztották fel. Egy cellán belül kizárólag 4 féle szín fordulhatott elő. Ezeket a 4 színből álló színkombinációkat kissé megtévesztő módon szintén palettáknak nevezzük.
+
+\begin{table}[H]
+	\centering
+	\begin{tabular}{ | l | l | }
+		\hline
+		Tartomány & Paletta \\
+		\hline			
+		$ \$3F00 $ & Univerzális háttérszín \\
+		$ \$3F01 - \$3F03 $ & 0. háttér paletta \\
+		$ \$3F05 - \$3F07 $ & 1. háttér paletta \\
+		$ \$3F09 - \$3F0B $ & 2. háttér paletta \\
+		$ \$3F0D - \$3F0F $ & 3. háttér paletta \\
+		$ \$3F11 - \$3F13 $ & 0. sprite paletta \\
+		$ \$3F15 - \$3F17 $ & 1. sprite paletta \\
+		$ \$3F19 - \$3F1B $ & 2. sprite paletta \\
+		$ \$3F1D - \$3F1F $ & 3. sprite paletta \\
+		\hline
+	\end{tabular}
+	\caption{A paletta RAM struktúrája}
+	\label{fig:paletteram}
+\end{table}
+
+\subsection{Alakzattáblázat}
+
+A CHR memóriában található két alakzattáblázat az alakzatokat tárolja egy speciális formátumban. Ha az alakzatokat úgy reprezentálnánk, hogy minden pixelre eltárolnánk egy színkódot, akkor pixelenként 6 bitre lenne szükségünk (mivel 55 színkód áll rendelkezésre). Ehelyett pixelenként csak 2 bitet tárolnunk, ami egy 4 színből álló palettán belül azonosít egy színt. Ezzel a megoldással amellett, hogy egyharmadára csökkent a képek mérete, egyben újrafelhasználhatóvá is váltak: a Super Mario Bros. játékban a felhők és bokrok képe ugyanaz, csupán másik palettával kirajzolva.
+Egy alakzattáblázat 16x16 darab alakzatot tartalmaz, ebből adódóan a táblázat teljes mérete $16\cdot16\cdot(8\cdot8\cdot2)\div8 = 4096$ bájt.
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=0.45\linewidth,frame]{patt2.png}
+	\hspace{5pt}
+	\includegraphics[width=0.45\linewidth,frame]{patt1.png}
+	\caption{Az Alter Ego játék 0. mintázat táblája különböző palettákkal kirajzolva}
+\end{figure}
+
+\subsection{Rétegek}
+A képfeldolgozó két réteget képes kezelni hardveresen, ezek a háttér és a sprite rétegek.
+Általában a képkocka azon részei tartoznak a háttérhez, amik ritkán változnak (például feliratok, számlálók, mozdulatlan képek) és a kirajzolásukhoz nem szükséges további transzformáció (eltolás, forgatás). A háttérben az alakzatok 30 sorból és 32 oszlopból álló négyzetrácsot alkotnak (innen ered a NES 256*240 pixeles felbontása).
+A háttér rétegben egyesével nem lehet alakzatokat eltolni, csak az egész háttér eltolása lehetséges. A sprite rétegben nagyobb flexibilitás áll rendelkezésre, ugyanis itt egyenként, pixel pontosságú eltolással és tetszőleges elforgatottsággal rajzolhatjuk ki az alakzatokat. A sprite rétegnél legfeljebb 64 alakzat szerepelhet egy képkockán.  
+
+\subsection{Névtáblázat}
+
+A háttér réteg elrendezését a névtáblázatok tárolják. A névtáblázat a háttér 960 darab alakzatcellájának mindegyikéhez eltárolja a cellába rajzolandó alakzat 1 bájtos sorszámát.
+
+\subsection{Attribútum táblák}
+
+Minden névtáblához tartozik egy 64 bájtos attribútumtáblázat, ahol minden bájt egy 4*4 alakzatcellából álló terület palettáit határozza meg. A bájtok 4 darab 2 bites részre vannak felosztva, ahol mindegyik rész egy 2*2 cellából álló terület palettájának sorszámát kódolja el. Ennek a reprezentációnak a következménye, hogy a háttér 4 cellából álló csoportjai mindig osztoznak a palettán.
+
+\subsection{Háttéreltolás}
+
+A háttéreltolással pixel pontossággal megszabhatjuk, hogy a háttér mely része legyen látható a játékos számára. 
+
+\subsection{OAM}
+
+A sprite réteg elrendezését leíró 256 bájtos memória. 64 darab alakzatról tárol információt, amik a következők:
+
+\begin{compactitem}
+	\item X és Y koordináta
+	\item Alakzattáblázatbeli sorszám
+	\item Elforgatottság
+	\item Paletta sorszám
+	\item Prioritás a háttérrel szemben
+\end{compactitem}
+
+
+\subsection{Regiszterek}
+
+A CPU és a PPU az alább látható 9 darab egy bájtos regiszter segítségével tud egymással kommunikálni. A regisztereket a CPU a zárójelekben található címeken tudja elérni.
+
+\vspace{0.25cm}
+
+\begin{description}
+	\item[CONTROLLER(\$2000):] \hfill
+	\begin{compactdesc}
+		\item[0-1. bit:] Aktuális névtábla sorszáma
+		\item[2. bit:] VRAM cím inkrementálási mód
+		\item[3. bit:] Sprite mintázat tábla azonosító
+		\item[4. bit:] Háttér mintázat tábla azonosító
+		\item[5. bit:] Sprite méret (8x8 vagy 8x16 pixel)
+		\item[6. bit:] Az emuláció során nem használt bit
+		\item[7. bit:] NMI generálása a PPU tétlen periódusának kezdetén
+	\end{compactdesc}
+	\item[MASK(\$2001):] \hfill
+	\begin{compactdesc}
+		\item[0. bit:] Szürkeárnyalatos effektus
+		\item[1. bit:] Háttér kirajzolása a bal szélső 8 pixel széles oszlopban 
+		\item[2. bit:] Sprite-ok kirajzolása a bal szélső 8 pixel széles oszlopban
+		\item[3. bit:] Háttér kirajzolása
+		\item[4. bit:] Sprite-ok kirajzolása
+		\item[5. bit:] Piros szín intenzitásának növelése
+		\item[6. bit:] Zöld szín intenzitásának növelése
+		\item[7. bit:] Kék szín intenzitásának növelése
+	\end{compactdesc}
+	\item[STATUS(\$2002):] \hfill
+	\begin{compactdesc}
+	\item[5. bit:] Sprite túlcsordulás
+	\item[6. bit:] Sprite 0 találat
+	\item[7. bit:] A PPU a tétlen periódusban van 
+	\end{compactdesc}
+	\item[OAMADDR(\$2003) és OAMDATA(\$2004):] \hfill \\
+	Az OAM memória frissítésére szolgálnak. Először az OAMADDR regiszterbe kell beírni azt a címet, ahova először írni szeretnénk. Ezután az OAMDATA regiszterbe írt bájtok a megadott címtől kezdve bemásolódnak az OAM memóriába.
+	\item[PPUSCROLL(\$2005):] \hfill \\
+	Beállíthatjuk vele, hogy a hátteret hány pixellel szeretnénk arrébcsúsztatni (Horizontális tükrözésnél vízszintesen, vertikális tükrözésnél függőlegesen).
+	\item[PPUADDR(\$2006) és PPUDATA(\$2007):] \hfill \\
+	A névtáblák frissíthetők ezekkel a regiszterekkel hasonló módon, mint ahogy az OAM frissíthető az OAMADDR és OAMDATA segítségével.
+	\item[OAMDMA(\$4014):] \hfill \\
+	Az OAM memória frissítésének egy gyorsabb módja. Ebbe a regiszterbe a processzor által használt RAM azon lapjának számát kell beírni, ahol az átmásolandó adatok találhatóak. Ezután a processzor hardveresen gyorsított módon átmásolja a lapról az adatokat a VRAM-ba.
+\end{description}
+
+\subsection{Memóriatérkép}
+
+\begin{table}[H]
+	\centering
+	\begin{tabular}{ | l | l | }
+		\hline
+		Tartomány & Paletta \\
+		\hline			
+		$ \$0000 - \$0FFF $ & 0. Alakzattáblázat \\
+		$ \$1000 - \$1FFF $ & 1. Alakzattáblázat \\
+		$ \$2000 - \$23FF $ & 0. Névtáblázat \\
+		$ \$2400 - \$27FF $ & 1. Névtáblázat \\
+		$ \$2800 - \$2BFF $ & 2. Névtáblázat \\
+		$ \$2C00 - \$2FFF $ & 3. Névtáblázat \\
+		$ \$3000 - \$3EFF $ & A 0-3. névtáblázatok tükrözése \\
+		$ \$3F00 - \$3F1F $ & Paletta indexek \\
+		$ \$3F20 - \$3FFF $ & Paletta indexek tükrözése \\
+		\hline
+	\end{tabular}
+	\caption{A képfeldolgozó memóriatérképe}
+	\label{fig:ppumemmap}
+\end{table}
+
+\section{A kirajzolási folyamat}
+
+\subsection{Időzítések}
+
+\subsection{A háttér kirajzolása}
+
+\subsection{Sprite kiértékelés}
+
+\subsection{A rétegek egymásra illesztésének szabályai}
+
+\section{Az emulátor megvalósítása}
+
+\subsection{Adatreprezentáció}
+
+\subsection{Monád}
+
+\section{A processzor megvalósítása}
+
+\section{A képfeldolgozó megvalósítása}
+
+\section{Inputkezelés megvalósítása}
+
+\section{A grafikus felhasználói felület}
+
+\section{Interakció a felhasználóval}
+
+\subsection{UML Use-Case diagram}
+
+\section{Tesztelés}
+
+
 
 

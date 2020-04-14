@@ -1,5 +1,5 @@
 module Nes.Emulation.MasterClock (
-    clocks,
+    execCpuInstruction,
     emulateFrame
 ) where
 
@@ -10,8 +10,8 @@ import qualified Nes.CPU.Emulation as CPU
 import qualified Nes.PPU.Emulation as PPU
 import qualified Nes.APU.Emulation as APU
 
-clocks :: Emulator ()
-clocks = do
+execCpuInstruction :: Emulator ()
+execCpuInstruction = do
   masterClocks <- CPU.processInterrupt >> CPU.clock
   replicateM_ (masterClocks * 3) PPU.clock
   {-
@@ -21,8 +21,9 @@ clocks = do
     setApu newApuState
   -}
 
-emulateFrame :: Emulator ()
+emulateFrame :: Emulator FrameBuffer
 emulateFrame = do
   initialFrameCount <- PPU.getFrameCount
-  untilM_ clocks (PPU.getFrameCount <&> (/= initialFrameCount))
+  untilM_ execCpuInstruction (PPU.getFrameCount <&> (/= initialFrameCount))
+  PPU.accessScreen
 

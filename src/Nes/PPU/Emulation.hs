@@ -39,7 +39,7 @@ import           Nes.Emulation.Monad
 accessMemory :: (PPU -> a) -> Emulator a
 accessMemory memory = ask <&> (memory . ppu)
 
-accessScreen :: Emulator (VSM.IOVector Word8)
+accessScreen :: Emulator FrameBuffer
 accessScreen = accessMemory screen
 
 readPalette :: Word8 -> Emulator Pixel
@@ -95,17 +95,24 @@ modifyReg reg f = readReg reg >>= writeReg reg . f
 
 infix 0 $=
 
-testFlag :: (PPU -> Register8) -> Emulator Bool
-testFlag reg = readReg reg <&> (>0)
+isPositive :: (PPU -> Register8) -> Emulator Bool
+isPositive reg = readReg reg <&> (>0)
 
-setFlag :: (PPU -> Register8) -> Bool -> Emulator ()
-setFlag reg val = reg .= (toEnum.fromEnum $ val)
+assignBool :: (PPU -> Register8) -> Bool -> Emulator ()
+assignBool reg val = reg .= (toEnum.fromEnum $ val)
 
 increment :: (Prim a, Num a) => (PPU -> IORefU a) -> Emulator ()
 increment = (`modifyReg` (+1))
 
 between :: Ord a => a -> a -> a -> Bool
 between a b = liftA2 (&&) (a<=) (<=b)
+
+modifyStatusFlag :: (Word8 -> Int -> Word8) -> StatusFlag -> Emulator () 
+modifyStatusFlag f x = ppuStatus $= (`f` (fromEnum x))
+
+setStatusFlag   = modifyStatusFlag setBit
+
+clearStatusFlag = modifyStatusFlag clearBit
 
 advanceVRAMAddress = do
   ppuCtrl <- readReg ppuCtrl
@@ -116,11 +123,11 @@ getCoarsePosition = readReg pvtVRamAddr <&> (\v -> (v .&. 0x1F, (v `shiftR` 5) .
 
 clearVblAfterStatusRead :: Emulator ()
 clearVblAfterStatusRead = do
-  ppuStatus $= (`clearBit` 7)
+  clearStatusFlag VerticalBlank
   transfer emuClocks emuLastStatusRead
 
 debugging :: Bool
-debugging = True
+debugging = False
 
 withInfo :: IO () -> Emulator ()
 withInfo action = when debugging $ do
@@ -160,15 +167,15 @@ cpuWriteRegister :: Word16 -> Word8 -> Emulator ()
 cpuWriteRegister addr val = let val16 = fromIntegral val in case addr of
   0x2000 -> do
     status  <- readReg ppuStatus
-    occured <- testFlag emuNmiOccured
+    occured <- isPositive emuNmiOccured
     let nmiOuput = val    `testBit` 7
     let inVBlank = status `testBit` 7 
     let shouldOccur = inVBlank && not occured && nmiOuput 
     when shouldOccur $ do
-      setFlag emuNmiOccured True
+      assignBool emuNmiOccured True
       sendPendingNmi 2
     ppuCtrl .= val
-    setFlag emuNmiOccured shouldOccur
+    assignBool emuNmiOccured shouldOccur
     pvtTempAddr $= \reg -> (reg .&. 0x73FF) .|. ((val16 .&. 3) `shiftL` 10)
 
   0x2001 -> ppuMask .= val
@@ -266,7 +273,7 @@ drawBackground = do
           color <- getColor attr pixel
           setPixel x y color
 
-drawPatternTable = do
+drawPatternTable paletteId = do
   screen <- accessScreen
   liftIO $ VSM.set screen 0
   forM_ [0..1] $ \patterntab ->
@@ -282,7 +289,7 @@ drawPatternTable = do
               c = fromIntegral col
               get a i = fromEnum $ a `testBit` i 
               pixel = fromIntegral $ ((tile_msb `get` c) `shiftL` 1) .|. (tile_lsb `get` c)
-            color <- getColor 0 pixel
+            color <- getColor paletteId pixel
             setPixel (fromIntegral patterntab * 128 + fromIntegral(x*8 + (7 - col))) (58 + fromIntegral(y*8 + row)) color
 
 drawSprites = do
@@ -380,7 +387,7 @@ overlaySpriteColor (bgPalette, bgPixel) = do
   let
     checkSpriteZeroHit = do
       when (isSpriteZero && enabled && cycle /= 256) $
-        modifyReg ppuStatus (`setBit` 6)
+        setStatusFlag SpriteZeroHit
 
     overlaySpriteColor = getColor spPalette spPixel
     getBackgroundPixel = getColor bgPalette bgPixel
@@ -534,7 +541,7 @@ reloadSecondaryOam = do
  
   enabled <- isRenderingEnabled
   when (length candidateAddresses == 9 && enabled) $ do
-    ppuStatus $= (`setBit` 5) -- set sprite overflow flag
+    setStatusFlag SpriteOverflow
 
   sprites <- do
     forM (take 8 candidateAddresses) $ \addr -> do
@@ -587,17 +594,17 @@ enterVerticalBlank = do
   lastStatusRead <- readReg emuLastStatusRead
   currentClock   <- readReg emuClocks 
   when (lastStatusRead /= currentClock) $ do
-    modifyReg ppuStatus (`setBit` 7) 
+    setStatusFlag VerticalBlank
     ppuCtrl <- readReg ppuCtrl
     when (ppuCtrl `testBit` 7) $ do
-      setFlag emuNmiOccured True
+      assignBool emuNmiOccured True
       sendNmi
 
 
 exitVerticalBlank :: Emulator ()
 exitVerticalBlank = do
   ppuStatus .= 0
-  setFlag emuNmiOccured False
+  assignBool emuNmiOccured False
 
 
 reset :: Emulator ()

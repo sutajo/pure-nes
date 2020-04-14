@@ -34,7 +34,7 @@ runClock expectedSnapshot = do
   cycle    <- PPU.readReg emuCycle
   scanline <- PPU.readReg emuScanLine
   liftIO $ assertMatch expectedSnapshot (op, snapshot, PPUState{..})
-  clocks
+  execCpuInstruction
 
 test :: TestTree
 test = testCase "Nestest" $ do

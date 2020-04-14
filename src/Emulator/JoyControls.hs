@@ -85,8 +85,8 @@ getEventJoy searchedId map = map M.!? searchedId
 
 
 getEventJoyHaptic :: JoyControlState -> JoyButtonEventData -> IO (Maybe Haptic)
-getEventJoyHaptic JoyControlState { connectedJoys = joys } (JoyButtonEventData id _ _) = do
-  joy <- readIORef joys <&> getEventJoy id
+getEventJoyHaptic JoyControlState {connectedJoys} (JoyButtonEventData id _ _) = do
+  joy <- readIORef connectedJoys <&> getEventJoy id
   return $ joy >>= haptic
 
 
