@@ -329,13 +329,21 @@ drawPalette = do
           color <- getColor (fromIntegral palette) (fromIntegral pixel)
           setPixel (palette * 25 + pixel*5 + i) (234 + j) color
 
+
 isBackgroundRenderingEnabled :: Emulator Bool
 isBackgroundRenderingEnabled = readReg ppuMask <&> (`testBit` 3)
 
+isBackgroundHidden :: Emulator Bool
+isBackgroundHidden = 
+  liftA2 (&&)
+    (readReg ppuMask <&> not . (`testBit` 1))
+    (readReg emuCycle <&> (between 1 8))
+
 getBackgroundColor :: Emulator (Word8, Word8)
 getBackgroundColor = do
-  spritesEnabled <- isBackgroundRenderingEnabled
-  if spritesEnabled then do
+  backgroundEnabled <- isBackgroundRenderingEnabled
+  backgroundHidden  <- isBackgroundHidden
+  if not backgroundHidden && backgroundEnabled then do
     shift     <- readReg pvtFineX <&> fromIntegral
     let getBit byte = fromEnum $ byte `testBit` (15-shift)
     pixelLo   <- readReg emuPattShifterLo <&> getBit
@@ -348,20 +356,29 @@ getBackgroundColor = do
   else 
     pure (0,0)
 
+
 isSpriteRenderingEnabled :: Emulator Bool
 isSpriteRenderingEnabled = readReg ppuMask <&> (`testBit` 4)
+
+
+isSpriteHidden :: Emulator Bool
+isSpriteHidden = 
+  liftA2 (&&)
+    (readReg ppuMask <&> not . (`testBit` 2))
+    (readReg emuCycle <&> (between 1 8))
 
 
 overlaySpriteColor :: (Word8, Word8) -> Emulator Pixel
 overlaySpriteColor (bgPalette, bgPixel) = do
   spritesEnabled <- isSpriteRenderingEnabled
+  spriteHidden   <- isSpriteHidden
   cycle   <- readReg emuCycle
   mask    <- readReg ppuMask
 
   let defaultSpriteValues = pure (0, 0, True, False) 
 
   (spPalette, spPixel, 
-   behindBgd, isSpriteZero) <- if spritesEnabled then
+   behindBgd, isSpriteZero) <- if not spriteHidden && spritesEnabled then
       do
         secondaryOam  <- usePPU readIORef secondaryOam
         let
@@ -385,7 +402,7 @@ overlaySpriteColor (bgPalette, bgPixel) = do
     whenLeftEdgeEnabled =
       if mask .&. 0b110 /= 0b110
       then when (not $ between 1 8 cycle || cycle == 256)
-      else when (cycle /= 256) 
+      else when (cycle /= 256)
     checkSpriteZeroHit = 
       when (isSpriteZero && renderingEnabled) $
         whenLeftEdgeEnabled $ 
