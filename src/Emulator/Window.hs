@@ -94,16 +94,18 @@ greetings = do
 
 bye = putStrLn "Emulator closed successfully."
 
-
+data OpenGLResources = OpenGLResources {
+  glContext       :: GLContext,
+  crtProgram      :: Program,
+  textureUniform  :: UniformLocation
+}
 
 -- | Window resources
 data AppResources = AppResources {
   window          :: Window,
   renderer        :: Renderer,
-  glContext       :: GLContext,
-  crtProgram      :: Program,
-  textureUniform  :: UniformLocation,
   screen          :: Texture,
+  openGLResources :: OpenGLResources,
   commRes         :: CommResources,
   nes             :: IORef Nes,
   reset           :: IORef Bool,
@@ -150,6 +152,8 @@ acquireResources romPath comms = do
   reboot    <- newIORef False
   nes       <- (loadNes romPath >>= newIORef) `sendMessageOnException` comms
 
+  setHintWithPriority OverridePriority HintRenderDriver OpenGL
+  setHintWithPriority OverridePriority HintRenderOpenGLShaders EnableShaders
   SDL.initializeAll
   greetings
 
@@ -163,7 +167,7 @@ acquireResources romPath comms = do
       windowPosition = Absolute $ P $ V2 0 20,
       windowGraphicsContext = OpenGLContext defaultOpenGL { 
         glColorPrecision = V4 8 8 8 8,
-        glProfile = Core Normal 4 3 
+        glProfile = Core Normal 4 3
       }
   }
 
@@ -187,11 +191,13 @@ acquireResources romPath comms = do
   fullscreen      <- newIORef False
   Just crtProgram <- getCrtShaderProgram
   textureUniform  <- uniformLocation crtProgram "texImg"
+  let openGLResources = OpenGLResources{..}
   return AppResources{..}
 
 
 
 releaseResources AppResources{..} = do
+  let OpenGLResources{..} = openGLResources
   readIORef joys >>= disconnectAllJoys
   glDeleteContext glContext
   destroyTexture screen
@@ -226,6 +232,8 @@ pollCommands res@AppResources{..} = do
 -- | Update the pixels on the screen
 updateScreen :: AppResources -> VSM.IOVector Word8 -> Emulator ()
 updateScreen AppResources{..} pixels = liftIO $ do
+  let OpenGLResources{..} = openGLResources
+
   OpenGL.clear [ColorBuffer, DepthBuffer]
   (texPtr, _) <- SDL.lockTexture screen Nothing
   VSM.unsafeWith pixels $ \ptr ->  do
@@ -388,6 +396,8 @@ executeCommand appResources@AppResources{..} command = do
       inFullScreen <- readIORef fullscreen
       setWindowMode window (if inFullScreen then Windowed else FullscreenDesktop)
       modifyIORef' fullscreen not
+      V2 w h <- SDL.get (windowSize window)
+      viewport $= (Position 0 0, Size (fromIntegral w) (fromIntegral h))
       
     _ -> pure ()
 

@@ -156,8 +156,8 @@ void main(){
 |]
 
 
-setupShader :: ShaderType -> ByteString -> IO (Maybe Shader)
-setupShader shaderType source = do
+newShader :: ShaderType -> ByteString -> IO (Maybe Shader)
+newShader shaderType source = do
     shader <- createShader shaderType
     shaderSourceBS shader $= source
     compileShader shader
@@ -190,5 +190,12 @@ createProgramFrom _ = pure Nothing
 
 
 getCrtShaderProgram :: IO (Maybe Program)
-getCrtShaderProgram = createProgramFrom =<< sequence [setupShader VertexShader crtVertexShader, setupShader FragmentShader crtFragmentShader]
+getCrtShaderProgram = 
+  createProgramFrom 
+  =<< 
+  sequence 
+  [
+    newShader VertexShader crtVertexShader, 
+    newShader FragmentShader crtFragmentShader
+  ]
 
