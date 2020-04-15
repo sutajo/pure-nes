@@ -426,7 +426,6 @@ updateShiftregisters = do
 
 shiftRegisters :: Emulator ()
 shiftRegisters = do
-  mask <- readReg ppuMask
   whenM isBackgroundRenderingEnabled $ do
     forM_ [
         emuPattShifterLo,
@@ -434,6 +433,7 @@ shiftRegisters = do
         emuAttrShifterLo,
         emuAttrShifterHi
       ] $ (`modifyReg` (`shiftL` 1))
+
 
 scanLine :: Int -> Emulator ()
 scanLine step = 
@@ -628,8 +628,9 @@ clock = do
     vBlank = between 240 260
     ifVisible = when (between 1 256 cycle && between 0 239 scanline)  
     executeCycle = do
-      when (between 2 258 cycle || between 321 337 cycle) shiftRegisters
-      scanLine step
+      when (between 2 258 cycle || between 321 337 cycle) $ do
+        shiftRegisters
+        scanLine step
       ifVisible $ do
         drawPixel
         updateSecondaryOam
