@@ -18,6 +18,7 @@ import           Data.Maybe
 import           Data.Word
 import           Data.IORef
 import           Data.Time
+import           Graphics.Rendering.OpenGL as OpenGL hiding (Load)
 import           SDL hiding (Error)
 import           SDL.Raw.Haptic
 import           System.FilePath
@@ -100,6 +101,8 @@ data AppResources = AppResources {
   window          :: Window,
   renderer        :: Renderer,
   glContext       :: GLContext,
+  crtProgram      :: Program,
+  textureUniform  :: UniformLocation,
   screen          :: Texture,
   commRes         :: CommResources,
   nes             :: IORef Nes,
@@ -158,7 +161,10 @@ acquireResources romPath comms = do
       windowInitialSize = V2 (fromIntegral $ width * scale) (fromIntegral $ height * scale),
       windowResizable = True,
       windowPosition = Absolute $ P $ V2 0 20,
-      windowGraphicsContext = OpenGLContext defaultOpenGL
+      windowGraphicsContext = OpenGLContext defaultOpenGL { 
+        glColorPrecision = V4 8 8 8 8,
+        glProfile = Core Normal 4 3 
+      }
   }
 
   window    <- SDL.createWindow "Pure-Nes Emulator" windowConfig
@@ -170,7 +176,7 @@ acquireResources romPath comms = do
       rendererType          = AcceleratedRenderer,
       rendererTargetTexture = True
     }
-
+  glContext     <- glCreateContext window
   renderer      <- SDL.createRenderer window (-1) rendererConfig
   screen        <- SDL.createTexture renderer SDL.RGB24 SDL.TextureAccessStreaming (V2 256 240)
   continousMode <- newIORef True
@@ -179,8 +185,8 @@ acquireResources romPath comms = do
   reset         <- newIORef (not $ isSave romPath)
   joyIsSecondCtrl <- newIORef False
   fullscreen      <- newIORef False
-  glContext       <- glCreateContext window
-  activateCrtShader
+  Just crtProgram <- getCrtShaderProgram
+  textureUniform  <- uniformLocation crtProgram "texImg"
   return AppResources{..}
 
 
@@ -220,12 +226,31 @@ pollCommands res@AppResources{..} = do
 -- | Update the pixels on the screen
 updateScreen :: AppResources -> VSM.IOVector Word8 -> Emulator ()
 updateScreen AppResources{..} pixels = liftIO $ do
+  OpenGL.clear [ColorBuffer, DepthBuffer]
   (texPtr, _) <- SDL.lockTexture screen Nothing
   VSM.unsafeWith pixels $ \ptr ->  do
       copyBytes (castPtr texPtr) ptr (VSM.length pixels)
   SDL.unlockTexture screen
-  copy renderer screen Nothing Nothing
-  present renderer
+  currentProgram $= Just crtProgram
+  glBindTexture screen
+  uniform textureUniform $= (0 :: GLint)
+  let 
+    mintex = 0 :: Float
+    maxtex = 1 :: Float
+    screenMin = -1 :: GLfloat
+    screenMax = 1 :: GLfloat
+  renderPrimitive TriangleStrip $ do
+    texCoord (TexCoord2 mintex maxtex)
+    vertex (Vertex2 screenMin screenMin)
+    texCoord (TexCoord2 maxtex maxtex)
+    vertex (Vertex2 screenMax screenMin)
+    texCoord (TexCoord2 mintex mintex)
+    vertex (Vertex2 screenMin screenMax)
+    texCoord (TexCoord2 maxtex mintex)
+    vertex (Vertex2 screenMax screenMax)
+  glUnbindTexture screen
+  currentProgram $= Nothing
+  glSwapWindow window
 
 
 -- | Send an event to the GUI through a Chan

@@ -95,6 +95,7 @@ library
      , lens
      , OpenGL
      , StateVar
+     , ansi-terminal
   default-extensions: 
        ApplicativeDo
      , RecordWildCards
