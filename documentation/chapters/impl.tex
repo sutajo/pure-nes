@@ -288,7 +288,7 @@ A $\$3F00 - \$3F1F$ címtartományon található memóriaterületen kerülnek el
 
 \subsection{Alakzattáblázat}
 
-A CHR memóriában található két alakzattáblázat az alakzatokat tárolja egy speciális formátumban. Ha az alakzatokat úgy reprezentálnánk, hogy minden pixelre eltárolnánk egy színkódot, akkor pixelenként 6 bitre lenne szükségünk (mivel 55 színkód áll rendelkezésre). Ehelyett pixelenként csak 2 bitet tárolnunk, ami egy 4 színből álló palettán belül azonosít egy színt. Ezzel a megoldással amellett, hogy egyharmadára csökkent a képek mérete, egyben újrafelhasználhatóvá is váltak: a Super Mario Bros. játékban a felhők és bokrok képe ugyanaz, csupán másik palettával kirajzolva.
+A CHR memóriában található két alakzattáblázat az alakzatokat tárolja egy speciális formátumban. Ha az alakzatokat úgy reprezentálnánk, hogy minden pixelre eltárolnánk egy színkódot, akkor pixelenként 6 bitre lenne szükségünk (mivel 55 színkódból választhatunk). Ehelyett pixelenként csak 2 bitet tárolnunk, ami egy 4 színből álló palettán belül azonosít egy színt. Ezzel a megoldással amellett, hogy egyharmadára csökkent a képek mérete, egyben újrafelhasználhatóvá is váltak: a Super Mario Bros. játékban a felhők és bokrok képe ugyanaz, csupán másik palettával kirajzolva.
 Egy alakzattáblázat 16x16 darab alakzatot tartalmaz, ebből adódóan a táblázat teljes mérete $16\cdot16\cdot(8\cdot8\cdot2)\div8 = 4096$ bájt.
 
 \begin{figure}[H]
@@ -306,11 +306,11 @@ A háttér rétegben egyesével nem lehet alakzatokat eltolni, csak az egész h�
 
 \subsection{Névtáblázat}
 
-A háttér réteg elrendezését a névtáblázatok tárolják. A névtáblázat a háttér 960 darab alakzatcellájának mindegyikéhez eltárolja a cellába rajzolandó alakzat 1 bájtos sorszámát.
+A háttér réteg elrendezését a névtáblázatok tárolják. A névtáblázat a háttér 960 darab alakzatcellájának mindegyikéhez eltárolja a cellába rajzolandó alakzat sorszámát az aktív alakzattáblázatban.
 
 \subsection{Attribútum táblák}
 
-Minden névtáblához tartozik egy 64 bájtos attribútumtáblázat, ahol minden bájt egy 4*4 alakzatcellából álló terület palettáit határozza meg. A bájtok 4 darab 2 bites részre vannak felosztva, ahol mindegyik rész egy 2*2 cellából álló terület palettájának sorszámát kódolja el. Ennek a reprezentációnak a következménye, hogy a háttér 4 cellából álló csoportjai mindig osztoznak a palettán.
+Minden névtáblához tartozik egy 64 bájtos attribútumtáblázat, ahol minden bájt egy 4*4 alakzatcellából álló terület palettáit határozza meg. A bájtok 4 darab 2 bites részre vannak felosztva, ahol mindegyik rész egy 2*2 cellából álló terület palettájának sorszámát kódolja el. Ennek a reprezentációnak a következménye, hogy a háttér 4 cellából álló csoportjai mindig egy palettán osztoznak.
 
 \subsection{Háttéreltolás}
 
@@ -338,10 +338,10 @@ A CPU és a PPU az alább látható 9 darab egy bájtos regiszter segítségéve
 \begin{description}
 	\item[CONTROLLER(\$2000):] \hfill
 	\begin{compactdesc}
-		\item[0-1. bit:] Aktuális névtábla sorszáma
+		\item[0-1. bit:] Aktív névtáblázat indexe
 		\item[2. bit:] VRAM cím inkrementálási mód
-		\item[3. bit:] Sprite mintázat tábla azonosító
-		\item[4. bit:] Háttér mintázat tábla azonosító
+		\item[3. bit:] Aktív alakzattáblázat indexe a sprite rétegnél
+		\item[4. bit:] Aktív alakzattáblázat indexe a háttér rétegnél
 		\item[5. bit:] Sprite méret (8x8 vagy 8x16 pixel)
 		\item[6. bit:] Az emuláció során nem használt bit
 		\item[7. bit:] NMI generálása a PPU tétlen periódusának kezdetén
@@ -364,13 +364,20 @@ A CPU és a PPU az alább látható 9 darab egy bájtos regiszter segítségéve
 	\item[7. bit:] A PPU a tétlen periódusban van 
 	\end{compactdesc}
 	\item[OAMADDR(\$2003) és OAMDATA(\$2004):] \hfill \\
-	Az OAM memória frissítésére szolgálnak. Először az OAMADDR regiszterbe kell beírni azt a címet, ahova először írni szeretnénk. Ezután az OAMDATA regiszterbe írt bájtok a megadott címtől kezdve bemásolódnak az OAM memóriába.
+	A processzor ezen két regiszter segítségével képes új adatokkal feltölteni az OAM memóriát.
+	Az alábbi kódrészlet azt szemlélteti, hogy az \emph{adatok} tömb tartalmát hogyan kell a CPU memóriájából
+	az OAM-ba átmásolni egy megadott címtől kezdve.
+	\begin{lstlisting}
+    OAMADDR := 8 bites OAM cim
+    for i in 1..adatok.hossz
+    	OAMDATA := adatok[i]
+	\end{lstlisting}
 	\item[PPUSCROLL(\$2005):] \hfill \\
 	Beállíthatjuk vele, hogy a hátteret hány pixellel szeretnénk arrébcsúsztatni (Horizontális tükrözésnél vízszintesen, vertikális tükrözésnél függőlegesen).
 	\item[PPUADDR(\$2006) és PPUDATA(\$2007):] \hfill \\
-	A névtáblák frissíthetők ezekkel a regiszterekkel hasonló módon, mint ahogy az OAM frissíthető az OAMADDR és OAMDATA segítségével.
+	A névtáblák frissítésére szolgálnak. Hasonlóan kell őket használni, mint az OAMADDR és OAMDATA regisztereket.
 	\item[OAMDMA(\$4014):] \hfill \\
-	Az OAM memória frissítésének egy gyorsabb módja. Ebbe a regiszterbe a processzor által használt RAM azon lapjának számát kell beírni, ahol az átmásolandó adatok találhatóak. Ezután a processzor hardveresen gyorsított módon átmásolja a lapról az adatokat a VRAM-ba.
+	Az OAM memória frissítésének egy alternatív, gyorsabb módja a Direct Memory Access (DMA). Ekkor a processzorban található dedikált hardver másolja át az adatokat egyenesen a CPU RAM-ból az OAM memóriába. A másolás megkezdéséhez annak a memórialapnak a sorszámát kell beírni a regiszterbe, ahol az átmásolandó adatok találhatók.
 \end{description}
 
 \subsection{Memóriatérkép}
@@ -403,8 +410,6 @@ A CPU és a PPU az alább látható 9 darab egy bájtos regiszter segítségéve
 \subsection{A háttér kirajzolása}
 
 \subsection{Sprite kiértékelés}
-
-\subsection{A rétegek egymásra illesztésének szabályai}
 
 \section{Az emulátor megvalósítása}
 

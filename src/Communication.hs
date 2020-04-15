@@ -2,6 +2,7 @@
 
 module Communication where
 
+import Data.Int
 import Control.Concurrent.STM
 import Control.Concurrent.Chan
 import Control.Exception
@@ -54,7 +55,9 @@ data Command
   | StepOneFrame
   | StepClockCycle
   | ToggleJoyMap
+  | ToggleCrtShader
   | SwitchWindowMode
+  | AdjustViewport Int32 Int32
   deriving (Eq) 
 
 data CommResources = CommResources {

@@ -18,7 +18,7 @@ import           Data.Maybe
 import           Data.Word
 import           Data.IORef
 import           Data.Time
-import           Graphics.Rendering.OpenGL as OpenGL hiding (Load)
+import           Graphics.Rendering.OpenGL as OpenGL hiding (Load, scale)
 import           SDL hiding (Error)
 import           SDL.Raw.Haptic
 import           System.FilePath
@@ -39,6 +39,17 @@ import           Nes.Emulation.MasterClock
 import           Nes.Serialization (serialize, deserialize)
 
 
+-- | Constants
+
+nesScreenWidth  = 256
+nesScreenHeight = 240
+
+scale = 4
+
+sdlWindowWidth  = nesScreenWidth  * scale
+sdlWindowHeight = nesScreenHeight * scale
+
+
 -- | Used to create timestamps for save and load actions.
 formatResultTime :: IO String
 formatResultTime = do
@@ -47,10 +58,10 @@ formatResultTime = do
   return $ formatTime defaultTimeLocale "%H:%M:%S" (utcToLocalTime tz t)
 
 
-
 -- | Convert the SDL event to the internal command type
 translateSDLEvent :: SDL.EventPayload -> Maybe Command
 translateSDLEvent SDL.QuitEvent = Just Quit
+translateSDLEvent (WindowResizedEvent (WindowResizedEventData _ (V2 w h))) = Just $ AdjustViewport w h
 translateSDLEvent (JoyHatEvent eventData)    = Just $ JoyHatCommand eventData
 translateSDLEvent (JoyButtonEvent eventData) = Just $ JoyButtonCommand eventData
 translateSDLEvent (JoyDeviceEvent eventData) = Just $ JoyDeviceCommand eventData
@@ -70,6 +81,7 @@ translateSDLEvent (SDL.KeyboardEvent (SDL.KeyboardEventData _ motion _ sym)) =
       KeycodeF     -> onlyOnPress StepOneFrame
       KeycodeC     -> onlyOnPress StepClockCycle
       KeycodeR     -> onlyOnPress SwitchWindowMode
+      KeycodeT     -> onlyOnPress ToggleCrtShader
       KeycodeUp    -> playerInput Controls.Up
       KeycodeDown  -> playerInput Controls.Down
       KeycodeLeft  -> playerInput Controls.Left
@@ -114,7 +126,8 @@ data AppResources = AppResources {
   joyIsSecondCtrl :: IORef Bool,
   joys            :: IORef JoyControlState,
   saveFolder      :: IORef (Maybe FilePath),
-  fullscreen      :: IORef Bool
+  fullscreen      :: IORef Bool,
+  useCrtShader    :: IORef Bool
 }
 
 
@@ -147,7 +160,6 @@ loadNes path = do
     powerUpNes cartridge
 
 
-
 acquireResources romPath comms = do
   reboot    <- newIORef False
   nes       <- (loadNes romPath >>= newIORef) `sendMessageOnException` comms
@@ -158,11 +170,8 @@ acquireResources romPath comms = do
   greetings
 
   let 
-    width  = 256
-    height = 240
-    scale  = 3
     windowConfig = SDL.defaultWindow {
-      windowInitialSize = V2 (fromIntegral $ width * scale) (fromIntegral $ height * scale),
+      windowInitialSize = V2 (fromIntegral $ sdlWindowWidth) (fromIntegral $ sdlWindowHeight),
       windowResizable = True,
       windowPosition = Absolute $ P $ V2 0 20,
       windowGraphicsContext = OpenGLContext defaultOpenGL { 
@@ -189,6 +198,7 @@ acquireResources romPath comms = do
   reset         <- newIORef (not $ isSave romPath)
   joyIsSecondCtrl <- newIORef False
   fullscreen      <- newIORef False
+  useCrtShader    <- newIORef False
   Just crtProgram <- getCrtShaderProgram
   textureUniform  <- uniformLocation crtProgram "texImg"
   let openGLResources = OpenGLResources{..}
@@ -232,33 +242,43 @@ pollCommands res@AppResources{..} = do
 -- | Update the pixels on the screen
 updateScreen :: AppResources -> VSM.IOVector Word8 -> Emulator ()
 updateScreen AppResources{..} pixels = liftIO $ do
-  let OpenGLResources{..} = openGLResources
-
-  OpenGL.clear [ColorBuffer, DepthBuffer]
+  -- Upload the changes to the texture
   (texPtr, _) <- SDL.lockTexture screen Nothing
   VSM.unsafeWith pixels $ \ptr ->  do
       copyBytes (castPtr texPtr) ptr (VSM.length pixels)
   SDL.unlockTexture screen
-  currentProgram $= Just crtProgram
-  glBindTexture screen
-  uniform textureUniform $= (0 :: GLint)
-  let 
-    mintex = 0 :: Float
-    maxtex = 1 :: Float
-    screenMin = -1 :: GLfloat
-    screenMax = 1 :: GLfloat
-  renderPrimitive TriangleStrip $ do
-    texCoord (TexCoord2 mintex maxtex)
-    vertex (Vertex2 screenMin screenMin)
-    texCoord (TexCoord2 maxtex maxtex)
-    vertex (Vertex2 screenMax screenMin)
-    texCoord (TexCoord2 mintex mintex)
-    vertex (Vertex2 screenMin screenMax)
-    texCoord (TexCoord2 maxtex mintex)
-    vertex (Vertex2 screenMax screenMax)
-  glUnbindTexture screen
-  currentProgram $= Nothing
-  glSwapWindow window
+
+  -- Render the texture to the screen
+  useShader <- readIORef useCrtShader
+  if useShader
+  then do
+    let OpenGLResources{..} = openGLResources
+    OpenGL.clear [ColorBuffer, DepthBuffer]
+    oldProgram <- SDL.get currentProgram
+    currentProgram $= Just crtProgram
+    glBindTexture screen
+    uniform textureUniform $= (0 :: GLint)
+    let 
+      mintex = 0 :: Float
+      maxtex = 1 :: Float
+      screenMin = -1 :: GLfloat
+      screenMax = 1 :: GLfloat
+    renderPrimitive TriangleStrip $ do
+      texCoord (TexCoord2 mintex maxtex)
+      vertex (Vertex2 screenMin screenMin)
+      texCoord (TexCoord2 maxtex maxtex)
+      vertex (Vertex2 screenMax screenMin)
+      texCoord (TexCoord2 mintex mintex)
+      vertex (Vertex2 screenMin screenMax)
+      texCoord (TexCoord2 maxtex mintex)
+      vertex (Vertex2 screenMax screenMax)
+    glUnbindTexture screen
+    currentProgram $= oldProgram
+    glSwapWindow window
+  else do
+    SDL.clear renderer
+    copy renderer screen Nothing Nothing
+    present renderer
 
 
 -- | Send an event to the GUI through a Chan
@@ -394,10 +414,22 @@ executeCommand appResources@AppResources{..} command = do
 
     SwitchWindowMode -> liftIO $ do
       inFullScreen <- readIORef fullscreen
-      setWindowMode window (if inFullScreen then Windowed else FullscreenDesktop)
+
+      if inFullScreen 
+      then do 
+        setWindowMode window Windowed
+        windowSize window $= V2 (fromIntegral sdlWindowWidth) (fromIntegral sdlWindowHeight)
+        viewport $= (Position 0 0, Size (fromIntegral sdlWindowWidth) (fromIntegral sdlWindowHeight))
+      else do
+        setWindowMode window FullscreenDesktop
+
       modifyIORef' fullscreen not
-      V2 w h <- SDL.get (windowSize window)
+      
+    AdjustViewport w h -> do
       viewport $= (Position 0 0, Size (fromIntegral w) (fromIntegral h))
+
+    ToggleCrtShader -> liftIO $ do
+      modifyIORef' useCrtShader not
       
     _ -> pure ()
 

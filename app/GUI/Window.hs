@@ -169,6 +169,7 @@ controlsWidget =
                 ("Select", "3"),
                 ("Start", "4"),
                 ("Fullscreen toggle", "R"),
+                ("CRT effect toggle", "T"),
                 ("Pause", "Space"),
                 ("Step 100 cpu instructions (when paused)", "C"),
                 ("Step one frame (when paused)", "F")
