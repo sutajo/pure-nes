@@ -330,15 +330,12 @@ drawPalette = do
           setPixel (palette * 25 + pixel*5 + i) (234 + j) color
 
 isBackgroundRenderingEnabled :: Emulator Bool
-isBackgroundRenderingEnabled = do
-  mask  <- readReg ppuMask
-  cycle <- readReg emuCycle
-  return ((mask `testBit` 3 && cycle > 8) || (cycle <= 8 && mask `testBit` 1))
+isBackgroundRenderingEnabled = readReg ppuMask <&> (`testBit` 3)
 
 getBackgroundColor :: Emulator (Word8, Word8)
 getBackgroundColor = do
-  enabled <- isBackgroundRenderingEnabled
-  if enabled then do
+  spritesEnabled <- isBackgroundRenderingEnabled
+  if spritesEnabled then do
     shift     <- readReg pvtFineX <&> fromIntegral
     let getBit byte = fromEnum $ byte `testBit` (15-shift)
     pixelLo   <- readReg emuPattShifterLo <&> getBit
@@ -352,21 +349,19 @@ getBackgroundColor = do
     pure (0,0)
 
 isSpriteRenderingEnabled :: Emulator Bool
-isSpriteRenderingEnabled = do
-  mask  <- readReg ppuMask
-  cycle <- readReg emuCycle
-  return ((mask `testBit` 4 && cycle > 8) || (cycle <= 8 && mask `testBit` 2))
+isSpriteRenderingEnabled = readReg ppuMask <&> (`testBit` 4)
 
 
 overlaySpriteColor :: (Word8, Word8) -> Emulator Pixel
 overlaySpriteColor (bgPalette, bgPixel) = do
-  enabled <- isSpriteRenderingEnabled
+  spritesEnabled <- isSpriteRenderingEnabled
   cycle   <- readReg emuCycle
+  mask    <- readReg ppuMask
 
   let defaultSpriteValues = pure (0, 0, True, False) 
 
   (spPalette, spPixel, 
-   behindBgd, isSpriteZero) <- if enabled then
+   behindBgd, isSpriteZero) <- if spritesEnabled then
       do
         secondaryOam  <- usePPU readIORef secondaryOam
         let
@@ -384,10 +379,18 @@ overlaySpriteColor (bgPalette, bgPixel) = do
       else
         defaultSpriteValues
 
+  renderingEnabled <- isRenderingEnabled 
+  
   let
-    checkSpriteZeroHit = do
-      when (isSpriteZero && enabled && cycle /= 256) $
-        setStatusFlag SpriteZeroHit
+    whenLeftEdgeEnabled =
+      if mask .&. 0b110 /= 0b110
+      then when (not $ between 1 8 cycle || cycle == 256)
+      else when (cycle /= 256) 
+    checkSpriteZeroHit = 
+      when (isSpriteZero && renderingEnabled) $
+        whenLeftEdgeEnabled $ 
+          setStatusFlag SpriteZeroHit
+          
 
     overlaySpriteColor = getColor spPalette spPixel
     getBackgroundPixel = getColor bgPalette bgPixel
@@ -424,7 +427,7 @@ updateShiftregisters = do
 shiftRegisters :: Emulator ()
 shiftRegisters = do
   mask <- readReg ppuMask
-  when (mask `testBit` 3) $ do
+  whenM isBackgroundRenderingEnabled $ do
     forM_ [
         emuPattShifterLo,
         emuPattShifterHi,
@@ -539,8 +542,8 @@ reloadSecondaryOam = do
     let fallOnCurrentScanline y = y /= 0xFF && between 0 spriteHeight (scanLine - fromIntegral y)
     findCandidateSpritesThat fallOnCurrentScanline 9 [oamAddr, oamAddr+0x4 .. 0xFC]
  
-  enabled <- isRenderingEnabled
-  when (length candidateAddresses == 9 && enabled) $ do
+  spritesEnabled <- isRenderingEnabled
+  when (length candidateAddresses == 9 && spritesEnabled) $ do
     setStatusFlag SpriteOverflow
 
   sprites <- do
