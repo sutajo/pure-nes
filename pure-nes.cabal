@@ -31,6 +31,8 @@ library
       Emulator.Window
       Communication
   other-modules:
+      Nes.CPU.InterruptAccess
+      Nes.Emulation.Registers
       Nes.Cartridge.Memory
       Nes.Cartridge.Mappers
       Nes.Cartridge.Serialization
@@ -48,7 +50,8 @@ library
       Paths_pure_nes
   hs-source-dirs:
       src
-  ghc-options:       
+  ghc-options:
+      -Wunused-binds
       -fno-warn-name-shadowing
       -fwarn-unused-imports
       -O2
@@ -105,6 +108,7 @@ library
      , UnboxedSums
      , LambdaCase
      , NamedFieldPuns
+     , StrictData
   default-language: Haskell2010
 
 executable pure-nes

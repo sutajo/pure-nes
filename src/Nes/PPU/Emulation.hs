@@ -27,8 +27,9 @@ import qualified Data.Vector.Unboxed          as VU
 import qualified Data.Vector.Unboxed.Mutable  as VUM
 import qualified Data.Vector.Storable.Mutable as VSM
 import           Prelude hiding (read)
-import           Nes.PPU.Memory
-import           Nes.Emulation.Monad
+import           Nes.PPU.Memory 
+import           Nes.Emulation.Monad hiding (ppuReadCartridge)
+import           Nes.Emulation.Registers
 
 --http://wiki.nesdev.com/w/index.php/PPU_registers
 --http://wiki.nesdev.com/w/index.php/PPU_scrolling
@@ -36,25 +37,28 @@ import           Nes.Emulation.Monad
 --http://wiki.nesdev.com/w/index.php/PPU_palettes
 --Addresses $3F10/$3F14/$3F18/$3F1C are mirrors of $3F00/$3F04/$3F08/$3F0C
 
-accessMemory :: (PPU -> a) -> Emulator a
-accessMemory memory = ask <&> (memory . ppu)
+accessMemory :: (PPU -> a) -> Emulator PPU a
+accessMemory memory = ask <&> memory
 
-accessScreen :: Emulator FrameBuffer
+accessScreen :: Emulator PPU FrameBuffer
 accessScreen = accessMemory screen
 
-readPalette :: Word8 -> Emulator Pixel
+readPalette :: Word8 -> Emulator PPU Pixel
 readPalette index = do
   Palette p <- accessMemory palette
   return $ p VU.! (fromIntegral index)
 
-usePPU :: (b -> IO a) -> (PPU -> b) -> Emulator a
-usePPU action field = useMemory (field . ppu) action
+readCartridge :: Word16 -> Emulator PPU Word8
+readCartridge = readCartridgeWithAccessor cartridgeAccess
 
-readPPUComponent :: Enum addr => (PPU -> VUM.IOVector Word8) -> addr -> Emulator Word8
-readPPUComponent component = readMemory (component . ppu)
+writeCartridge :: Word16 -> Word8 -> Emulator PPU ()
+writeCartridge = writeCartridgeWithAccessor cartridgeAccess
 
-writePPUComponent :: Enum addr => (PPU -> VUM.IOVector Word8) -> addr -> Word8 -> Emulator ()
-writePPUComponent component = writeMemory (component . ppu)
+readPPUComponent :: Enum addr => (PPU -> VUM.IOVector Word8) -> addr -> Emulator PPU Word8
+readPPUComponent = readMemory
+
+writePPUComponent :: Enum addr => (PPU -> VUM.IOVector Word8) -> addr -> Word8 -> Emulator PPU ()
+writePPUComponent = writeMemory
 
 usePaletteIndices usage addr
  | addr `testBit` 4 && addr .&. 0b11 == 0 = usage (addr `clearBit` 4)
@@ -66,54 +70,55 @@ writePaletteIndices = usePaletteIndices (writePPUComponent paletteIndices)
 readNametable       = readPPUComponent  nametable
 writeNametable      = writePPUComponent nametable
 
-readOam :: Word8 -> Emulator Word8
+readOam :: Word8 -> Emulator PPU Word8
 readOam  = readPPUComponent primaryOam
 
-writeOam :: Word8 -> Word8 -> Emulator ()
+writeOam :: Word8 -> Word8 -> Emulator PPU ()
 writeOam = writePPUComponent primaryOam
 
 getOamAddr = readReg ppuOamAddr
 
-readReg :: Prim a => (PPU -> IORefU a) -> Emulator a
-readReg = usePPU readIORefU
+readReg :: Prim a => (PPU -> IORefU a) -> Emulator PPU a
+readReg = flip useMemory readIORefU
 
-writeReg :: Prim a => (PPU -> IORefU a) -> a -> Emulator ()
-writeReg reg val = usePPU (`writeIORefU` val) reg
+writeReg :: Prim a => (PPU -> IORefU a) -> a -> Emulator PPU ()
+writeReg reg val = useMemory reg (`writeIORefU` val)
 
 transfer source dest = readReg source >>= writeReg dest 
 
-(.=) :: Prim a => (PPU -> IORefU a) -> a -> Emulator ()
+(.=) :: Prim a => (PPU -> IORefU a) -> a -> Emulator PPU ()
 (.=) = writeReg
 
 infix 0 .=
 
-modifyReg :: Prim a => (PPU -> IORefU a) -> (a -> a) -> Emulator ()
+modifyReg :: Prim a => (PPU -> IORefU a) -> (a -> a) -> Emulator PPU ()
 modifyReg reg f = readReg reg >>= writeReg reg . f
 
-($=) :: Prim a => (PPU -> IORefU a) -> (a -> a) -> Emulator ()
+($=) :: Prim a => (PPU -> IORefU a) -> (a -> a) -> Emulator PPU ()
 ($=) = modifyReg
 
 infix 0 $=
 
-isPositive :: (PPU -> Register8) -> Emulator Bool
+isPositive :: (PPU -> Register8) -> Emulator PPU Bool
 isPositive reg = readReg reg <&> (>0)
 
-assignBool :: (PPU -> Register8) -> Bool -> Emulator ()
+assignBool :: (PPU -> Register8) -> Bool -> Emulator PPU ()
 assignBool reg val = reg .= (toEnum.fromEnum $ val)
 
-increment :: (Prim a, Num a) => (PPU -> IORefU a) -> Emulator ()
+increment :: (Prim a, Num a) => (PPU -> IORefU a) -> Emulator PPU ()
 increment = (`modifyReg` (+1))
 
 between :: Ord a => a -> a -> a -> Bool
 between a b = liftA2 (&&) (a<=) (<=b)
 
-modifyStatusFlag :: (Word8 -> Int -> Word8) -> StatusFlag -> Emulator () 
+modifyStatusFlag :: (Word8 -> Int -> Word8) -> StatusFlag -> Emulator PPU () 
 modifyStatusFlag f x = ppuStatus $= (`f` (fromEnum x))
 
 setStatusFlag   = modifyStatusFlag setBit
 
 clearStatusFlag = modifyStatusFlag clearBit
 
+advanceVRAMAddress :: Emulator PPU ()
 advanceVRAMAddress = do
   ppuCtrl <- readReg ppuCtrl
   pvtVRamAddr $= (+ if ppuCtrl `testBit` 2 then 32 else 1)
@@ -121,125 +126,138 @@ advanceVRAMAddress = do
 getFrameCount = readReg emuFrameCount
 getCoarsePosition = readReg pvtVRamAddr <&> (\v -> (v .&. 0x1F, (v `shiftR` 5) .&. 0x1F)) 
 
-clearVblAfterStatusRead :: Emulator ()
+clearVblAfterStatusRead :: Emulator PPU ()
 clearVblAfterStatusRead = do
   clearStatusFlag VerticalBlank
   transfer emuClocks emuLastStatusRead
 
-debugging :: Bool
-debugging = False
 
-withInfo :: IO () -> Emulator ()
-withInfo action = when debugging $ do
-  cycle    <- readReg emuCycle
-  scanLine <- readReg emuScanLine
-  liftIO $ do
-    putStr $ show (cycle, scanLine)
-    action
+getNametableMirroring :: Emulator PPU (Word16 -> Word16)
+getNametableMirroring = ask <&> mirrorNametableAddress
 
-cpuReadRegister :: Word16 -> Emulator Word8
-cpuReadRegister addr = 
+
+cpuReadRegister :: Word16 -> Emulator PPUAccess Word8
+cpuReadRegister addr = createPPUAccess $
   let
+    readStatusReg :: Emulator PPU Word8
     readStatusReg = do
       result <- liftA2 (.|.) (readReg ppuStatus <&> (.&. 0xE0)) (readReg pvtDataBuffer <&> (.&. 0x1F))
       clearVblAfterStatusRead
       pvtAddressLatch .= 0
       return result
+
+    readOamData :: Emulator PPU Word8
     readOamData = readReg ppuOamAddr >>= readOam
+
+    readDataReg :: Emulator PPU Word8
     readDataReg = do
       vramAddr  <- readReg pvtVRamAddr
       let paletteRead = vramAddr >= 0x3F00
-      result <- if paletteRead
+
+      result <- 
+        if paletteRead
         then do
           read (vramAddr - 0x1000) >>= writeReg pvtDataBuffer
           read vramAddr
         else do
-          (readReg pvtDataBuffer) <* (read vramAddr >>= writeReg pvtDataBuffer)
+          byte <- read vramAddr
+          readReg pvtDataBuffer <* writeReg pvtDataBuffer byte
+
       advanceVRAMAddress
       return result
+  
   in case addr of
     0x2002 -> readStatusReg
     0x2004 -> readOamData
     0x2007 -> readDataReg
     ______ -> pure 0
 
-cpuWriteRegister :: Word16 -> Word8 -> Emulator ()
-cpuWriteRegister addr val = let val16 = fromIntegral val in case addr of
-  0x2000 -> do
-    status  <- readReg ppuStatus
-    occured <- isPositive emuNmiOccured
-    let nmiOuput = val    `testBit` 7
-    let inVBlank = status `testBit` 7 
-    let shouldOccur = inVBlank && not occured && nmiOuput 
-    when shouldOccur $ do
-      assignBool emuNmiOccured True
-      sendPendingNmi 2
-    ppuCtrl .= val
-    assignBool emuNmiOccured shouldOccur
-    pvtTempAddr $= \reg -> (reg .&. 0x73FF) .|. ((val16 .&. 3) `shiftL` 10)
 
-  0x2001 -> ppuMask .= val
+cpuWriteRegister :: Word16 -> Word8 -> Emulator PPUAccess ()
+cpuWriteRegister addr val = createPPUAccess $ 
+  let 
+    val16 = fromIntegral val 
+  in 
+    case addr of
+      0x2000 -> do
+        status  <- readReg ppuStatus
+        occured <- isPositive emuNmiOccured
 
-  0x2003 -> ppuOamAddr .= val
+        let nmiOuput = val    `testBit` 7
+        let inVBlank = status `testBit` 7 
+        let shouldOccur = inVBlank && not occured && nmiOuput 
+        when shouldOccur $ do
+          assignBool emuNmiOccured True
+          sendPendingNmi 2 interruptAccess
 
-  0x2004 -> do
-    readReg ppuOamAddr >>= (`writeOam` val)
-    increment ppuOamAddr
+        ppuCtrl .= val
+        assignBool emuNmiOccured shouldOccur
+        pvtTempAddr $= \reg -> (reg .&. 0x73FF) .|. ((val16 .&. 3) `shiftL` 10)
 
-  0x2005 -> do
-    latch <- readReg pvtAddressLatch
-    case latch of
-      0 -> do
-        pvtFineX    .=  val .&. 0x7
-        pvtTempAddr $= \reg -> reg .&. 0x7FE0 .|. val16 `shiftR` 3
-      _ -> do
-        pvtTempAddr $= 
-          \reg -> reg .&. 0xC1F .|. (val16 .&. 0x7) `shiftL` 12 .|. (val16 `shiftR` 3) `shiftL` 5
-    pvtAddressLatch $= complement
+      0x2001 -> ppuMask .= val
 
-  0x2006 -> do
-    latch <- readReg pvtAddressLatch
-    case latch of 
-      0 -> do  -- higher byte is being written
-        pvtTempAddr $= \reg -> reg .&. 0xFF .|. (val16 .&. 0x3F) `shiftL` 8
-      _ -> do  -- lower  byte is being written
-        tempAddr <- readReg pvtTempAddr
-        let result = (tempAddr .&. 0xFF00) .|. val16
-        pvtTempAddr .= result
-        pvtVRamAddr .= result 
-    pvtAddressLatch $= complement
+      0x2003 -> ppuOamAddr .= val
 
-  0x2007 -> do
-    pvtVRamAddr <- readReg pvtVRamAddr
-    write pvtVRamAddr val
-    advanceVRAMAddress
+      0x2004 -> do
+        readReg ppuOamAddr >>= (`writeOam` val)
+        increment ppuOamAddr
 
-  ______ -> pure ()
+      0x2005 -> do
+        latch <- readReg pvtAddressLatch
+        case latch of
+          0 -> do
+            pvtFineX    .=  val .&. 0x7
+            pvtTempAddr $= \reg -> reg .&. 0x7FE0 .|. val16 `shiftR` 3
+          _ -> do
+            pvtTempAddr $= 
+              \reg -> reg .&. 0xC1F .|. (val16 .&. 0x7) `shiftL` 12 .|. (val16 `shiftR` 3) `shiftL` 5
+        pvtAddressLatch $= complement
 
-read :: Word16 -> Emulator Word8
+      0x2006 -> do
+        latch <- readReg pvtAddressLatch
+        case latch of 
+          0 -> do  -- higher byte is being written
+            pvtTempAddr $= \reg -> reg .&. 0xFF .|. (val16 .&. 0x3F) `shiftL` 8
+          _ -> do  -- lower  byte is being written
+            tempAddr <- readReg pvtTempAddr
+            let result = (tempAddr .&. 0xFF00) .|. val16
+            pvtTempAddr .= result
+            pvtVRamAddr .= result 
+        pvtAddressLatch $= complement
+
+      0x2007 -> do
+        pvtVRamAddr <- readReg pvtVRamAddr
+        write pvtVRamAddr val
+        advanceVRAMAddress
+
+      ______ -> pure ()
+
+
+read :: Word16 -> Emulator PPU Word8
 read addrUnsafe
-  | addr <= 0x1FFF = ppuReadCartridge addr
+  | addr <= 0x1FFF = readCartridge addr
   | addr <= 0x3EFF = do
     mirror <- getNametableMirroring
     readNametable (mirror addr)
   | otherwise = readPaletteIndices ((addr - 0x3F00) .&. 0x1F)
   where addr = addrUnsafe .&. 0x3FFF
 
-write :: Word16 -> Word8 -> Emulator ()
+write :: Word16 -> Word8 -> Emulator PPU ()
 write addrUnsafe val
-  | addr <= 0x1FFF = ppuWriteCartridge addr val
+  | addr <= 0x1FFF = writeCartridge addr val
   | addr <= 0x3EFF = do
     mirror <- getNametableMirroring
     writeNametable (mirror addr) val
   | otherwise = writePaletteIndices ((addr - 0x3F00) .&. 0x1F) val
   where addr = addrUnsafe .&. 0x3FFF
 
-getColor :: Word8 -> Word8 -> Emulator Pixel
+
+getColor :: Word8 -> Word8 -> Emulator PPU Pixel
 getColor palette pixel = do
-  index <- read (0x3F00 + fromIntegral (palette `shiftL` 2 + pixel))
+  index <- readPaletteIndices (fromIntegral (palette `shiftL` 2 + pixel))
   readPalette (index .&. 0x3F)
 
-setPixel :: Int -> Int -> Pixel -> Emulator ()
+setPixel :: Int -> Int -> Pixel -> Emulator PPU ()
 setPixel x y (r,g,b) = do
   screen <- accessScreen
   let offset = (y `shiftL` 8 + x) * 3
@@ -249,7 +267,7 @@ setPixel x y (r,g,b) = do
     VSM.write screen (offset + 2) b
 
 
-drawBackground :: Emulator ()
+drawBackground :: Emulator PPU ()
 drawBackground = do
   ctrl <- readReg ppuCtrl
   let baseNametableAddr = (fromIntegral ctrl .&. 0b11) * 0x400
@@ -270,8 +288,10 @@ drawBackground = do
             pixel = fromIntegral $ ((tile_msb `get` c) `shiftL` 1) .|. (tile_lsb `get` c)
             x = fromIntegral (coarsex*8 + (7 - col))
             y = fromIntegral (coarsey*8 + row)
+          
           color <- getColor attr pixel
           setPixel x y color
+
 
 drawPatternTable paletteId = do
   screen <- accessScreen
@@ -330,16 +350,22 @@ drawPalette = do
           setPixel (palette * 25 + pixel*5 + i) (234 + j) color
 
 
-isBackgroundRenderingEnabled :: Emulator Bool
+isRenderingEnabled :: Emulator PPU Bool
+isRenderingEnabled = readReg ppuMask <&> (\mask -> mask .&. 0b00011000 /= 0)
+
+
+isBackgroundRenderingEnabled :: Emulator PPU Bool
 isBackgroundRenderingEnabled = readReg ppuMask <&> (`testBit` 3)
 
-isBackgroundHidden :: Emulator Bool
+
+isBackgroundHidden :: Emulator PPU Bool
 isBackgroundHidden = 
   liftA2 (&&)
     (readReg ppuMask <&> not . (`testBit` 1))
     (readReg emuCycle <&> (between 1 8))
 
-getBackgroundColor :: Emulator (Word8, Word8)
+
+getBackgroundColor :: Emulator PPU (Word8, Word8)
 getBackgroundColor = do
   backgroundEnabled <- isBackgroundRenderingEnabled
   backgroundHidden  <- isBackgroundHidden
@@ -357,18 +383,18 @@ getBackgroundColor = do
     pure (0,0)
 
 
-isSpriteRenderingEnabled :: Emulator Bool
+isSpriteRenderingEnabled :: Emulator PPU Bool
 isSpriteRenderingEnabled = readReg ppuMask <&> (`testBit` 4)
 
 
-isSpriteHidden :: Emulator Bool
+isSpriteHidden :: Emulator PPU Bool
 isSpriteHidden = 
   liftA2 (&&)
     (readReg ppuMask <&> not . (`testBit` 2))
     (readReg emuCycle <&> (between 1 8))
 
 
-overlaySpriteColor :: (Word8, Word8) -> Emulator Pixel
+overlaySpriteColor :: (Word8, Word8) -> Emulator PPU Pixel
 overlaySpriteColor (bgPalette, bgPixel) = do
   spritesEnabled <- isSpriteRenderingEnabled
   spriteHidden   <- isSpriteHidden
@@ -380,7 +406,7 @@ overlaySpriteColor (bgPalette, bgPixel) = do
   (spPalette, spPixel, 
    behindBgd, isSpriteZero) <- if not spriteHidden && spritesEnabled then
       do
-        secondaryOam  <- usePPU readIORef secondaryOam
+        secondaryOam  <- useMemory secondaryOam readIORef 
         let
           get a i = fromEnum $ a `testBit` i 
           getFineX Sprite{..}   = if flipHori then cycleTimer else 7-cycleTimer
@@ -421,14 +447,14 @@ overlaySpriteColor (bgPalette, bgPixel) = do
   combine bgPixel spPixel behindBgd  
   
 
-drawPixel :: Emulator ()
+drawPixel :: Emulator PPU ()
 drawPixel = do
   cycle    <- readReg emuCycle
   scanline <- readReg emuScanLine
   getBackgroundColor >>= overlaySpriteColor >>= setPixel (cycle - 1) scanline 
 
 
-updateShiftregisters :: Emulator ()
+updateShiftregisters :: Emulator PPU ()
 updateShiftregisters = do
   at  <- readReg emuNextAT        
   lsb <- readReg emuNextLSB       
@@ -441,7 +467,7 @@ updateShiftregisters = do
   emuAttrShifterHi $= (updateAttr (at .&. 0b10))
 
 
-shiftRegisters :: Emulator ()
+shiftRegisters :: Emulator PPU ()
 shiftRegisters = do
   whenM isBackgroundRenderingEnabled $ do
     forM_ [
@@ -452,7 +478,7 @@ shiftRegisters = do
       ] $ (`modifyReg` (`shiftL` 1))
 
 
-scanLine :: Int -> Emulator ()
+scanLine :: Int -> Emulator PPU ()
 scanLine step = 
   let 
     getPattAddr = do
@@ -480,9 +506,6 @@ scanLine step =
     7 -> incrementHorizontal
     _ -> pure ()
 
-isRenderingEnabled :: Emulator Bool
-isRenderingEnabled = readReg ppuMask <&> (\mask -> mask .&. 0b00011000 /= 0)
-
 whenRendering = whenM isRenderingEnabled
 
 transferTempWithMask mask = do
@@ -491,15 +514,15 @@ transferTempWithMask mask = do
 
 verticalMask = 0b111101111100000
 
-transferVertical :: Emulator ()
+transferVertical :: Emulator PPU ()
 transferVertical = whenRendering $ do
   transferTempWithMask verticalMask
 
-transferHorizontal :: Emulator ()
+transferHorizontal :: Emulator PPU ()
 transferHorizontal = whenRendering $ do
   transferTempWithMask (complement verticalMask)
 
-incrementHorizontal :: Emulator ()
+incrementHorizontal :: Emulator PPU ()
 incrementHorizontal = whenRendering $ do
   coarseXwraps <- readReg pvtVRamAddr <&> (\reg -> (reg .&. 0x1F) == 0x1F)
   pvtVRamAddr $=
@@ -507,7 +530,7 @@ incrementHorizontal = whenRendering $ do
     then (\v -> (v .&. 0x7FE0) `xor` 0x400)
     else (+1)
 
-incrementVertical :: Emulator ()
+incrementVertical :: Emulator PPU ()
 incrementVertical = whenRendering $ do
   vramAddr <- readReg pvtVRamAddr
   let canIncrementFineY = vramAddr .&. 0x7000 /= 0x7000
@@ -523,7 +546,7 @@ incrementVertical = whenRendering $ do
       __ -> (pvtVRamAddr $= (+0x20))
 
 
-resetOamAddr :: Emulator ()
+resetOamAddr :: Emulator PPU ()
 resetOamAddr = ppuOamAddr .= 0
 
 
@@ -531,7 +554,7 @@ findCandidateSpritesThat ::
   (Word8  -> Bool) ->  -- Filter function
   Int     ->           -- Max number of candidates needed
   [Word8] ->           -- Base address of all sprites
-  Emulator [Word8]
+  Emulator PPU [Word8]
 findCandidateSpritesThat filter = go
   where
     go 0 _  = return []
@@ -543,7 +566,7 @@ findCandidateSpritesThat filter = go
       else go count rest
 
 
-reloadSecondaryOam :: Emulator ()
+reloadSecondaryOam :: Emulator PPU ()
 reloadSecondaryOam = do
   resetOamAddr
   ctrl     <- readReg ppuCtrl
@@ -599,17 +622,17 @@ reloadSecondaryOam = do
           pattMsb <- read (totalOffset + 8)
           return Sprite{..}
 
-  usePPU (`writeIORef` sprites) secondaryOam
+  useMemory secondaryOam (`writeIORef` sprites)
 
 
-updateSecondaryOam :: Emulator ()
+updateSecondaryOam :: Emulator PPU ()
 updateSecondaryOam = do
   let tickTimer s@Sprite{cycleTimer} = s {cycleTimer = cycleTimer + 1}
   let notExpired  Sprite{cycleTimer} = cycleTimer < 8
-  usePPU (`modifyIORef` (filter notExpired . map tickTimer)) secondaryOam
+  useMemory secondaryOam (`modifyIORef` (filter notExpired . map tickTimer))
 
 
-moveToNextPosition :: Int -> Int -> Emulator ()
+moveToNextPosition :: Int -> Int -> Emulator PPU ()
 moveToNextPosition cycle scanline = do
   case cycle of
     340 -> do
@@ -626,7 +649,7 @@ moveToNextPosition cycle scanline = do
     ___ -> increment emuCycle
 
 
-enterVerticalBlank :: Emulator ()
+enterVerticalBlank :: Emulator PPU ()
 enterVerticalBlank = do
   lastStatusRead <- readReg emuLastStatusRead
   currentClock   <- readReg emuClocks 
@@ -635,23 +658,23 @@ enterVerticalBlank = do
     ppuCtrl <- readReg ppuCtrl
     when (ppuCtrl `testBit` 7) $ do
       assignBool emuNmiOccured True
-      sendNmi
+      sendNmi interruptAccess
 
 
-exitVerticalBlank :: Emulator ()
+exitVerticalBlank :: Emulator PPU ()
 exitVerticalBlank = do
   ppuStatus .= 0
   assignBool emuNmiOccured False
 
 
-reset :: Emulator ()
+reset :: Emulator PPU ()
 reset = do
   writeReg emuCycle      0
   writeReg emuScanLine   261
   writeReg emuPattShifterHi 1
 
 
-clock :: Emulator ()
+clock :: Emulator PPU ()
 clock = do
   cycle     <- readReg emuCycle
   scanline  <- readReg emuScanLine

@@ -134,10 +134,6 @@ initHaptic joy = do
   else return Nothing
 
 
-closeHaptic :: ConnectedJoy -> IO ()
-closeHaptic ConnectedJoy{..} = whenJust haptic $ hapticClose
-
-
 disconnectJoy :: ConnectedJoy -> JoyControlState -> IO ()
 disconnectJoy c@ConnectedJoy{joy,haptic,id}  JoyControlState{connectedJoys} = do
   putStrLn "Controller disconnected."

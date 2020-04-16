@@ -7,11 +7,7 @@ module Nes.Cartridge.INES.Parser (
   MapperState(..),
   dummyMapper,
   mappersById,
-  loadCartridge,
-  cpuReadCartridge,
-  cpuWriteCartridge,
-  ppuReadCartridge,
-  ppuWriteCartridge
+  loadCartridge
 ) where
 
 -- INES format: https://wiki.nesdev.com/w/index.php/INES

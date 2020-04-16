@@ -31,7 +31,6 @@ import           Emulator.Framerate
 import           Emulator.CrtShader
 import           Nes.Cartridge.INES.Parser hiding (serialize, deserialize)
 import           Nes.Emulation.Monad
-import qualified Nes.CPU.Emulation as CPU
 import qualified Nes.CPU.Serialization as CPUS
 import qualified Nes.PPU.Emulation as PPU
 import qualified Nes.Controls as Controls (Input(..), Button(..))
@@ -160,6 +159,7 @@ loadNes path = do
     powerUpNes cartridge
 
 
+acquireResources :: String -> CommResources -> IO AppResources
 acquireResources romPath comms = do
   reboot    <- newIORef False
   nes       <- (loadNes romPath >>= newIORef) `sendMessageOnException` comms
@@ -205,7 +205,7 @@ acquireResources romPath comms = do
   return AppResources{..}
 
 
-
+releaseResources :: AppResources -> IO ()
 releaseResources AppResources{..} = do
   let OpenGLResources{..} = openGLResources
   readIORef joys >>= disconnectAllJoys
@@ -218,13 +218,15 @@ releaseResources AppResources{..} = do
 
 
 -- | Main loop
+runApp :: AppResources -> IO ()
 runApp appResources@AppResources{..} = do
   nes           <- readIORef nes
   writeIORef reboot False
   
   shouldReset  <- readIORef reset
   runEmulator nes $ do
-    when shouldReset $ CPU.reset; PPU.reset
+    when shouldReset $ do
+      resetNes
     updateWindow appResources `cappedAt` 60
 
   shouldReboot <- readIORef reboot
@@ -233,6 +235,7 @@ runApp appResources@AppResources{..} = do
 
 
 -- | Poll events from both the SDL Window and the GUI
+pollCommands :: AppResources -> IO [Command]
 pollCommands res@AppResources{..} = do
   sdlCommands <- (catMaybes . map (translateSDLEvent . eventPayload)) <$> SDL.pollEvents
   gtkCommands <- atomically $ readAllTChan (toSDLWindow commRes)
@@ -240,7 +243,7 @@ pollCommands res@AppResources{..} = do
 
 
 -- | Update the pixels on the screen
-updateScreen :: AppResources -> VSM.IOVector Word8 -> Emulator ()
+updateScreen :: AppResources -> VSM.IOVector Word8 -> Emulator Nes ()
 updateScreen AppResources{..} pixels = liftIO $ do
   -- Upload the changes to the texture
   (texPtr, _) <- SDL.lockTexture screen Nothing
@@ -326,7 +329,7 @@ rumble Nothing = pure ()
 
 
 -- | Execute a single command
-executeCommand :: AppResources -> Command -> Emulator ()
+executeCommand :: AppResources -> Command -> Emulator Nes ()
 executeCommand appResources@AppResources{..} command = do
   joys            <- liftIO $ readIORef joys
   maybeSaveFolder <- liftIO $ readIORef saveFolder 
@@ -372,16 +375,16 @@ executeCommand appResources@AppResources{..} command = do
 
     JoyHatCommand eventData -> do
       controllerId <- liftIO $ readIORef joyIsSecondCtrl
-      liftIO (manageHatEvent    joys eventData) >>= mapM_ (`processInput` fromEnum controllerId)
+      emulateCPU $ liftIO (manageHatEvent    joys eventData) >>= mapM_ (`processInput` fromEnum controllerId)
 
     JoyDeviceCommand eventData -> do
       liftIO (manageDeviceEvent joys eventData)
 
     PlayerOneInput input -> do
-      input `processInput` 0
+      emulateCPU $ input `processInput` 0
 
     PlayerTwoInput input -> do
-      input `processInput` 1
+      emulateCPU $ input `processInput` 1
     
     SwitchEmulationMode shouldForward -> do
       stepByStep <- liftIO $ do
@@ -390,21 +393,22 @@ executeCommand appResources@AppResources{..} command = do
         continous <- readIORef continousMode
         putStrLn ("Switched to " ++ (if continous then "continous" else "step-by-step") ++ " mode.")
         return $ not continous
-      pixels  <- PPU.accessScreen
+      pixels  <- emulatePPU $ PPU.accessScreen
       liftIO $ VSM.set pixels 0
 
     StepClockCycle -> do
       whenM (liftIO $ readIORef continousMode <&> not) $ do
-        replicateM_ 100 execCpuInstruction
-        PPU.drawPalette
-        PPU.drawSprites
-        pixels  <- PPU.accessScreen
+        emulateCPU $ replicateM_ 100 execCpuInstruction
+        pixels  <- emulatePPU $ do
+          PPU.drawPalette 
+          PPU.drawSprites
+          PPU.accessScreen
         updateScreen appResources pixels
 
     StepOneFrame -> do
       whenM (liftIO $ readIORef continousMode <&> not) $ do
         emulateFrame >>= updateScreen appResources
-        CPUS.serialize >>= liftIO . print
+        emulateCPU CPUS.serializeRegisters >>= liftIO . print
 
     ToggleJoyMap -> liftIO $ do
       modifyIORef' joyIsSecondCtrl not
@@ -417,10 +421,12 @@ executeCommand appResources@AppResources{..} command = do
 
       if inFullScreen 
       then do 
+        cursorVisible $= True
         setWindowMode window Windowed
         windowSize window $= V2 (fromIntegral sdlWindowWidth) (fromIntegral sdlWindowHeight)
         viewport $= (Position 0 0, Size (fromIntegral sdlWindowWidth) (fromIntegral sdlWindowHeight))
       else do
+        cursorVisible $= False
         setWindowMode window FullscreenDesktop
 
       modifyIORef' fullscreen not
@@ -435,7 +441,7 @@ executeCommand appResources@AppResources{..} command = do
 
 
 -- | Main loop body
-updateWindow :: AppResources -> Emulator Bool
+updateWindow :: AppResources -> Emulator Nes Bool
 updateWindow appResources@AppResources{..} = do
   commands <- liftIO $ pollCommands appResources
   mapM_ (executeCommand appResources) commands

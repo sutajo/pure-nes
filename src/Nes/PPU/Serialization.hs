@@ -15,6 +15,7 @@ import qualified Data.Vector.Unboxed          as VU
 import qualified Data.Vector.Storable.Mutable as VSM
 import           Data.Vector.Serialize()
 import           Nes.Emulation.Monad hiding (PPU)
+import           Nes.CPU.InterruptAccess
 import qualified Nes.PPU.Memory as M
 import           Nes.Cartridge.Memory hiding (serialize, deserialize)
 
@@ -61,10 +62,10 @@ data PPU = PPU {
     smirroringType :: Mirroring
 } deriving (Generic, Serialize)
 
-serialize :: Emulator PPU
+serialize :: Emulator M.PPU PPU
 serialize = do
-  smirroringType <- ask <&> mirror . cartridge
-  M.PPU{..}      <- ask <&> ppu
+  smirroringType <- ask <&> getMirroring . cartridgeAccess
+  M.PPU{..}      <- ask
   let spalette = palette
   snametable         <- liftIO $ VU.freeze nametable
   spaletteIndices    <- liftIO $ VU.freeze paletteIndices
@@ -100,8 +101,8 @@ serialize = do
   return PPU{..}
 
 
-deserialize :: PPU -> IO M.PPU
-deserialize PPU{..} = do
+deserialize :: CartridgeAccess -> InterruptAccess -> PPU -> IO M.PPU
+deserialize cartridgeAccess interruptAccess PPU{..} = do
   let 
     palette = spalette
     mirrorNametableAddress = case smirroringType of

@@ -28,9 +28,9 @@ data Cartridge = Cartridge {
 } deriving (Generic, Serialize)
 
 
-serialize :: Emulator Cartridge
+serialize :: Emulator CM.Cartridge Cartridge
 serialize = do
-  CM.Cartridge{..} <- ask <&> cartridge
+  CM.Cartridge{..} <- ask
   let shasChrRam = hasChrRam
   let smapperId = mapperId
   let smirror   = mirror

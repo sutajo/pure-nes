@@ -36,19 +36,18 @@ blargg_spriteOverflow = "roms/tests/ppu/ppu_sprite_overflow/rom_singles/"
 runTest returnLoc expectedCode path romName = do
   nes        <- loadCartridge (path ++ romName) >>= powerUpNes
   runEmulator nes $ do
-    CPU.reset
-    PPU.reset
+    resetNes
     replicateM_ 200 emulateFrame
     returnCode <- returnLoc
     liftIO $ expectedCode @=? returnCode
 
-runPPUTest = runTest (PPU.read 0x20A4) 0x31 blargg_ppu_tests
+runPPUTest = runTest (emulatePPU $ PPU.read 0x20A4) 0x31 blargg_ppu_tests
 
-runVblNmi = runTestWith execCpuInstruction blargg_vbl_nmi
+runVblNmi = runTestWith (emulateCPU execCpuInstruction) blargg_vbl_nmi
 
-runSpriteZero = runTestWith execCpuInstruction blargg_spriteZero
+runSpriteZero = runTestWith (emulateCPU execCpuInstruction) blargg_spriteZero
 
-runSpriteOverflow = runTestWith execCpuInstruction blargg_spriteOverflow
+runSpriteOverflow = runTestWith (emulateCPU execCpuInstruction) blargg_spriteOverflow
 
 tests :: [TestTree]
 tests =

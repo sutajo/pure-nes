@@ -25,9 +25,6 @@ uncapped m = getTicks >>= go (0 :: Double) 0
     when (not exit) $ go newDt newFrameCount currentTime
 
 
-picoToMicro t = round (realToFrac t * 10^6)
-
-
 cappedAt :: MonadIO m => m Bool -> Word32 -> m ()
 cappedAt activity fps = getTicks >>= go
   where

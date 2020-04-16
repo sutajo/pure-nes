@@ -16,6 +16,7 @@ import           Prelude hiding (read)
 import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Nes.Emulation.Monad
+import           Nes.Emulation.MasterClock
 import           Nes.CPU.Memory hiding (intr)
 import           Nes.CPU.Emulation as CPU
 import qualified Nes.PPU.Emulation as PPU
@@ -33,22 +34,23 @@ intr = "roms/tests/cpu/cpu_interrupts_v2/rom_singles/"
 instr_time :: FilePath
 instr_time = "roms/tests/cpu/instr_timing/"      
 
-runTestWith :: Emulator a -> FilePath -> String -> Assertion
+runTestWith :: Emulator Nes a -> FilePath -> String -> Assertion
 runTestWith stepper path romName = do
   nes        <- loadCartridge (path ++ romName) >>= powerUpNes
   runEmulator nes $ do
-    CPU.reset
-    PPU.reset
-    write 0x6000 0x80
-    untilM_ stepper (read 0x6000 <&> (<0x80))
-    sanityCheck <- forM [0x6001..0x6003] read
+    resetNes
+    sanityCheck <- do 
+      emulateCPU $ write 0x6000 0x80
+      untilM_ stepper (emulateCPU $ read 0x6000 <&> (<0x80))
+      emulateCPU $ forM [0x6001..0x6003] read
     liftIO $ zipWithM_ (@?=) sanityCheck [0xDE, 0xB0, 0x61] -- make sure the test results are valid
-    returnCode <- read 0x6000
-    msg  <- readNullTerminatedString 0x6004
-    liftIO $ assertEqual (msg ++ "\nTest exitcode indicates failure.") 0 returnCode
+    emulateCPU $ do
+      returnCode <- read 0x6000
+      msg  <- readNullTerminatedString 0x6004
+      liftIO $ assertEqual (msg ++ "\nTest exitcode indicates failure.") 0 returnCode
 
 runTest :: FilePath -> String -> Assertion
-runTest = runTestWith clock 
+runTest = runTestWith (emulateCPU clock) 
 
 tests :: [TestTree]
 tests =

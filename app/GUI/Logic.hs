@@ -134,7 +134,7 @@ update comms e (SwitchMode shouldForward)
 
 -- Return to main menu if the SDL window was closed
 
-update _ (Emulating{}) SDLWindowClosed 
+update _ _ SDLWindowClosed 
   = Transition (Started Nothing) noop
 
 

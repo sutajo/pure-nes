@@ -10,7 +10,7 @@ module Nes.CPU.Emulation (
   read,
   write,
   readNullTerminatedString,
-  processInterrupt
+  processInterrupts
 ) where
 
 import           Prelude hiding (read, cycle, and)
@@ -18,7 +18,7 @@ import           Control.Applicative
 import           Control.Monad.Extra
 import           Control.Monad.Loops
 import           Nes.Emulation.Monad hiding (bit)
-import           Nes.CPU.Memory
+import           Nes.CPU.Memory as CPUMEM
 import qualified Nes.APU.Emulation as APU
 import qualified Nes.PPU.Emulation as PPU hiding (clock)
 
@@ -27,7 +27,7 @@ data Penalty = None | BoundaryCross
 type Opcode = Word8
 
 data DecodedOpcode = DecodedOpcode {
-  instruction   :: Emulator (),
+  instruction   :: Emulator CPU (),
   cycles        :: Int
 }
 
@@ -50,27 +50,37 @@ mergeWord8 low high = (fromIntegral high `shiftL` 8) .|. fromIntegral low
 stackBase :: Word16
 stackBase = 0x0100
 
-readReg :: Prim a => (CPU -> IORefU a) -> Emulator a
-readReg = useCpu readIORefU
+readReg :: Prim a => (CPU -> IORefU a) -> Emulator CPU a
+readReg = flip useMemory readIORefU
 
-writeReg :: Prim a => (CPU -> IORefU a) -> a -> Emulator ()
-writeReg reg val = useCpu (flip writeIORefU val) reg
+writeReg :: Prim a => (CPU -> IORefU a) -> a -> Emulator CPU ()
+writeReg reg val = useMemory reg (flip writeIORefU val)
 
-modifyReg :: Prim a => (CPU -> IORefU a) -> (a -> a) -> Emulator ()
+modifyReg :: Prim a => (CPU -> IORefU a) -> (a -> a) -> Emulator CPU ()
 modifyReg reg f = readReg reg >>= writeReg reg . f
 
+readRAM :: Word16 -> Emulator CPU Word8
 readRAM = readMemory ram
+
+writeRAM :: Word16 -> Word8 -> Emulator CPU ()
 writeRAM = writeMemory ram
 
-read :: Word16 -> Emulator Word8
+cpuReadCartridge :: Word16 -> Emulator CPU Word8
+cpuReadCartridge = readCartridgeWithAccessor CPUMEM.cartridgeAccess
+
+cpuWriteCartridge :: Word16 -> Word8 -> Emulator CPU ()
+cpuWriteCartridge = writeCartridgeWithAccessor CPUMEM.cartridgeAccess
+
+read :: Word16 -> Emulator CPU Word8
 read addr 
   | addr <= 0x1FFF = readRAM (addr .&. 0x7FF)
-  | addr <= 0x3FFF = PPU.cpuReadRegister (0x2000 .|. addr .&. 7)
-  | addr <= 0x4015 = getApu <&> APU.read (addr .&. 0x3FFF)
+  | addr <= 0x3FFF = accessPPU $ PPU.cpuReadRegister (0x2000 .|. addr .&. 7)
+  | addr <= 0x4015 = pure 0 -- getApu <&> APU.read (addr .&. 0x3FFF)
   | addr <= 0x4017 = readController (fromIntegral $ addr - 0x4016)
   | otherwise = cpuReadCartridge addr
 
-readNullTerminatedString :: Word16 -> Emulator String
+
+readNullTerminatedString :: Word16 -> Emulator CPU String
 readNullTerminatedString addr = map (toEnum.fromEnum) <$> unfoldrM go addr
   where
     go addr = do
@@ -79,10 +89,10 @@ readNullTerminatedString addr = map (toEnum.fromEnum) <$> unfoldrM go addr
         0x0 -> Nothing
         ___ -> Just (byte, addr + 1)
 
-readAddress :: Word16 -> Emulator Word16
+readAddress :: Word16 -> Emulator CPU Word16
 readAddress addr = liftA2 mergeWord8 (read addr) (read (addr+1))
 
-readAddressWithBug :: Word16 -> Emulator Word16
+readAddressWithBug :: Word16 -> Emulator CPU Word16
 readAddressWithBug addr = do
   lo <- read addr
   hi <- read (addr+1)
@@ -94,33 +104,34 @@ readAddressWithBug addr = do
         ____ -> addr  +  1
     )
 
-write :: Word16 -> Word8 -> Emulator ()
+write :: Word16 -> Word8 -> Emulator CPU ()
 write addr val
   | addr <= 0x1FFF = writeRAM (addr .&. 0x7FF) val
-  | addr <= 0x3FFF = PPU.cpuWriteRegister (0x2000 .|. addr .&. 7) val
+  | addr <= 0x3FFF = accessPPU $ PPU.cpuWriteRegister (0x2000 .|. addr .&. 7) val
   | addr == 0x4014 = oamDma val
-  | addr <= 0x4015 = getApu >>= setApu . APU.write (addr .&. 0x3FFF) val
+  | addr <= 0x4015 = pure () --getApu >>= setApu . APU.write (addr .&. 0x3FFF) val
   | addr == 0x4016 = forM_ [0..1] (writeController val) -- writing to 0x4016 polls both controllers
   | addr == 0x4017 = pure ()
   | otherwise = cpuWriteCartridge addr val
 
-setFlag :: Flag -> Bool -> Emulator ()
+
+setFlag :: Flag -> Bool -> Emulator CPU ()
 setFlag flag cond = modifyReg p (setFlag' flag cond)
   where setFlag' flag val word = (if val then setBit else clearBit) word (fromEnum flag)
 
-clearFlag :: Flag -> Emulator ()
+clearFlag :: Flag -> Emulator CPU ()
 clearFlag = flip setFlag False
 
-setOverflow :: Word8 -> Emulator ()
+setOverflow :: Word8 -> Emulator CPU ()
 setOverflow word = setFlag Overflow (word `testBit` 6)
 
-setZero :: Word8 -> Emulator ()
+setZero :: Word8 -> Emulator CPU ()
 setZero word = setFlag Zero (word == 0)
 
-setNegative :: Word8 -> Emulator ()
+setNegative :: Word8 -> Emulator CPU ()
 setNegative word = setFlag Negative (word `testBit` 7)
 
-testFlag :: Flag -> Emulator Bool
+testFlag :: Flag -> Emulator CPU Bool
 testFlag flag = readReg p <&> testFlag' flag
   where testFlag' flag word = word `testBit` (fromEnum flag)
 
@@ -128,32 +139,32 @@ testFlag flag = readReg p <&> testFlag' flag
 onDifferentPage :: Word16 -> Word16 -> Bool
 onDifferentPage addr1 addr2 = addr1 .&. 0xFF00 /= addr2 .&. 0xFF00
 
-cycle :: Int -> Emulator ()
+cycle :: Int -> Emulator CPU ()
 cycle n = modifyReg cyc (n+)
 
-push :: Word8 -> Emulator ()
+push :: Word8 -> Emulator CPU ()
 push value = do
   sp <- readReg s
   write (fromIntegral sp + stackBase) value
   modifyReg s (flip (-) 1)
 
-pop :: Emulator Word8
+pop :: Emulator CPU Word8
 pop = do
   sp <- readReg s
   let sp' = sp+1
   writeReg s sp'
   read (fromIntegral sp' `setBit` 8)
 
-pushAddress :: Word16 -> Emulator ()
+pushAddress :: Word16 -> Emulator CPU ()
 pushAddress addr = do
   let (high, low) = splitWord16 addr 
   push high
   push low
 
-popAddress :: Emulator Word16
+popAddress :: Emulator CPU Word16
 popAddress = liftA2 mergeWord8 pop pop
 
-fetch :: Emulator Opcode
+fetch :: Emulator CPU Opcode
 fetch = readReg pc >>= read
 
 
@@ -162,7 +173,7 @@ fetch = readReg pc >>= read
 -- https://forums.nesdev.com/viewtopic.php?f=10&t=10049
 
 
-adc :: Word16 -> Emulator ()
+adc :: Word16 -> Emulator CPU ()
 adc addr = do 
   mem   <- read addr 
   acc   <- readReg a 
@@ -177,7 +188,7 @@ adc addr = do
   setNegative result
 
   
-and :: Word16 -> Emulator ()
+and :: Word16 -> Emulator CPU ()
 and addr = do
   byte <- read addr
   modifyReg a (.&. byte) 
@@ -185,7 +196,7 @@ and addr = do
   setZero accVal
   setNegative accVal
 
-asl :: Emulator Word8 -> (Word8 -> Emulator ()) -> Emulator ()
+asl :: Emulator CPU Word8 -> (Word8 -> Emulator CPU ()) -> Emulator CPU ()
 asl acquire store = do
   val <- acquire
   setFlag Carry (val `testBit` 7)
@@ -194,14 +205,14 @@ asl acquire store = do
   setZero result
   store result
 
-aslA :: Emulator ()
+aslA :: Emulator CPU ()
 aslA = asl (readReg a) (writeReg a)
 
-aslM :: Word16 -> Emulator ()
+aslM :: Word16 -> Emulator CPU ()
 aslM addr = asl (read addr) (write addr)
 
 -- if(pred) pc = addr
-jumpWhen :: Emulator Bool -> Word16 -> Emulator ()
+jumpWhen :: Emulator CPU Bool -> Word16 -> Emulator CPU ()
 jumpWhen condition relativeAddr = 
   whenM condition $ do
     pc <- readReg pc
@@ -209,16 +220,16 @@ jumpWhen condition relativeAddr =
     cycle (if absoluteAddr `onDifferentPage` pc then 2 else 1)
     jmp absoluteAddr
 
-bcc :: Word16 -> Emulator ()
+bcc :: Word16 -> Emulator CPU ()
 bcc = jumpWhen (testFlag Carry <&> not)
 
-bcs :: Word16 -> Emulator ()
+bcs :: Word16 -> Emulator CPU ()
 bcs = jumpWhen (testFlag Carry)
 
-beq :: Word16 -> Emulator ()
+beq :: Word16 -> Emulator CPU ()
 beq = jumpWhen (testFlag Zero)
 
-bit :: Word16 -> Emulator ()
+bit :: Word16 -> Emulator CPU ()
 bit addr = do
   byte  <- read addr
   a'    <- readReg a
@@ -226,43 +237,43 @@ bit addr = do
   setNegative byte
   setOverflow byte
 
-bmi :: Word16 -> Emulator ()
+bmi :: Word16 -> Emulator CPU ()
 bmi = jumpWhen (testFlag Negative)
 
-bne :: Word16 -> Emulator ()
+bne :: Word16 -> Emulator CPU ()
 bne = jumpWhen (testFlag Zero <&> not)
 
-bpl :: Word16 -> Emulator ()
+bpl :: Word16 -> Emulator CPU ()
 bpl = jumpWhen (testFlag Negative <&> not)
 
 
 -- http://forums.nesdev.com/viewtopic.php?p=7365#7365
-brk :: Emulator ()
+brk :: Emulator CPU ()
 brk = do
   readReg pc <&> (+1) >>= pushAddress
   php
   sei
   readAddress 0xFFFE >>= jmp
 
-bvc :: Word16 -> Emulator ()
+bvc :: Word16 -> Emulator CPU ()
 bvc = jumpWhen (testFlag Overflow <&> not)
 
-bvs :: Word16 -> Emulator ()
+bvs :: Word16 -> Emulator CPU ()
 bvs = jumpWhen (testFlag Overflow)
 
-clc :: Emulator ()
+clc :: Emulator CPU ()
 clc = clearFlag Carry
 
-cld :: Emulator ()
+cld :: Emulator CPU ()
 cld = clearFlag DecimalMode
 
-cli :: Emulator ()
+cli :: Emulator CPU ()
 cli = clearFlag InterruptDisable
 
-clv :: Emulator ()
+clv :: Emulator CPU ()
 clv = clearFlag Overflow
 
-cmpWords :: (Emulator Word8) -> (Emulator Word8) -> Emulator ()
+cmpWords :: (Emulator CPU Word8) -> (Emulator CPU Word8) -> Emulator CPU ()
 cmpWords getA getB = do
   a <- getA
   b <- getB
@@ -271,16 +282,16 @@ cmpWords getA getB = do
   setNegative res
   setFlag Carry (a >= b)
 
-cmp :: Word16 -> Emulator ()
+cmp :: Word16 -> Emulator CPU ()
 cmp addr = cmpWords (readReg a) (read addr)
 
-cpx :: Word16 -> Emulator ()
+cpx :: Word16 -> Emulator CPU ()
 cpx addr = cmpWords (readReg x) (read addr)
 
-cpy :: Word16 -> Emulator ()
+cpy :: Word16 -> Emulator CPU ()
 cpy addr = cmpWords  (readReg y) (read addr)
 
-change :: (Word8 -> Word8) -> Emulator Word8 -> (Word8 -> Emulator ()) -> Emulator ()
+change :: (Word8 -> Word8) -> Emulator CPU Word8 -> (Word8 -> Emulator CPU ()) -> Emulator CPU ()
 change f r w = do
   byte  <- r
   let result = f byte
@@ -290,16 +301,16 @@ change f r w = do
 
 decrement x = x-1
 
-dec :: Word16 -> Emulator ()
+dec :: Word16 -> Emulator CPU ()
 dec addr = change decrement (read addr) (write addr)
 
-dex :: Emulator ()
+dex :: Emulator CPU ()
 dex = change decrement (readReg x) (writeReg x)
 
-dey :: Emulator ()
+dey :: Emulator CPU ()
 dey = change decrement (readReg y) (writeReg y)
 
-eor :: Word16 -> Emulator ()
+eor :: Word16 -> Emulator CPU ()
 eor word = do
   acc   <- readReg a
   byte  <- read word
@@ -308,40 +319,40 @@ eor word = do
   setZero result
   setNegative result
 
-inc :: Word16 -> Emulator ()
+inc :: Word16 -> Emulator CPU ()
 inc addr = change (+1) (read addr) (write addr)
 
-inx :: Emulator ()
+inx :: Emulator CPU ()
 inx = change (+1) (readReg x) (writeReg x)
 
-iny :: Emulator ()
+iny :: Emulator CPU ()
 iny = change (+1) (readReg y) (writeReg y)
 
-jmp :: Word16 -> Emulator ()
+jmp :: Word16 -> Emulator CPU ()
 jmp = writeReg pc
 
-jsr :: Word16 -> Emulator ()
+jsr :: Word16 -> Emulator CPU ()
 jsr addr = do
   readReg pc <&> decrement >>= pushAddress
   jmp addr 
 
-ld :: (CPU -> IORefU Word8) -> Word16 -> Emulator ()
+ld :: (CPU -> IORefU Word8) -> Word16 -> Emulator CPU ()
 ld reg addr = do
   read addr >>= writeReg reg
   a' <- readReg reg
   setZero a'
   setNegative a'
 
-lda :: Word16 -> Emulator ()
+lda :: Word16 -> Emulator CPU ()
 lda = ld a
 
-ldx :: Word16 -> Emulator ()
+ldx :: Word16 -> Emulator CPU ()
 ldx = ld x
 
-ldy :: Word16 -> Emulator ()
+ldy :: Word16 -> Emulator CPU ()
 ldy = ld y
 
-lsr :: Emulator Word8 -> (Word8 -> Emulator ()) -> Emulator ()
+lsr :: Emulator CPU Word8 -> (Word8 -> Emulator CPU ()) -> Emulator CPU ()
 lsr acquire store = do
   a' <- acquire
   setFlag Carry (a' `testBit` 0)
@@ -350,16 +361,16 @@ lsr acquire store = do
   setZero result
   setNegative result
 
-lsrA :: Emulator ()
+lsrA :: Emulator CPU ()
 lsrA = lsr (readReg a) (writeReg a)
 
-lsrM :: Word16 -> Emulator ()
+lsrM :: Word16 -> Emulator CPU ()
 lsrM addr = lsr (read addr) (write addr)
 
-nop :: Emulator ()
+nop :: Emulator CPU ()
 nop = pure ()
 
-ora :: Word16 -> Emulator ()
+ora :: Word16 -> Emulator CPU ()
 ora addr = do
   byte <- read addr
   a' <- readReg a
@@ -368,23 +379,23 @@ ora addr = do
   setZero result
   setNegative result
   
-pha :: Emulator ()
+pha :: Emulator CPU ()
 pha = readReg a >>= push
 
-php :: Emulator ()
+php :: Emulator CPU ()
 php = readReg p <&> (.|. 0x30) >>= push
 
-pla :: Emulator ()
+pla :: Emulator CPU ()
 pla = do
   val <- pop
   writeReg a val
   setZero val
   setNegative val
 
-plp :: Emulator ()
+plp :: Emulator CPU ()
 plp = pop <&> (`clearBit` 4) >>= writeReg p
 
-rol :: Emulator Word8 -> (Word8 -> Emulator ()) -> Emulator ()
+rol :: Emulator CPU Word8 -> (Word8 -> Emulator CPU ()) -> Emulator CPU ()
 rol acquire store = do
   val <- acquire
   c   <- toWord8 <$> testFlag Carry
@@ -394,13 +405,13 @@ rol acquire store = do
   setZero result
   store result
 
-rolA :: Emulator ()
+rolA :: Emulator CPU ()
 rolA = rol (readReg a) (writeReg a)
 
-rolM :: Word16 -> Emulator ()
+rolM :: Word16 -> Emulator CPU ()
 rolM addr = rol (read addr) (write addr)
 
-ror :: Emulator Word8 -> (Word8 -> Emulator ()) -> Emulator ()
+ror :: Emulator CPU Word8 -> (Word8 -> Emulator CPU ()) -> Emulator CPU ()
 ror acquire store = do
   val <- acquire
   c   <- toWord8 <$> testFlag Carry
@@ -410,23 +421,23 @@ ror acquire store = do
   setZero result
   store result
 
-rorA :: Emulator ()
+rorA :: Emulator CPU ()
 rorA = ror (readReg a) (writeReg a)
 
-rorM :: Word16 -> Emulator ()
+rorM :: Word16 -> Emulator CPU ()
 rorM addr = ror (read addr) (write addr)
 
-rti :: Emulator ()
+rti :: Emulator CPU ()
 rti = do
   pop >>= writeReg p
   popAddress >>= jmp
 
-rts :: Emulator ()
+rts :: Emulator CPU ()
 rts = do
   addr <- popAddress
   jmp (addr+1)
 
-sbc :: Word16 -> Emulator ()
+sbc :: Word16 -> Emulator CPU ()
 sbc addr = do 
   value <- read addr
   acc   <- readReg a
@@ -442,16 +453,16 @@ sbc addr = do
   setFlag Overflow ((0 /= ) $ (result `xor` acc16) .&. (result `xor` val16) .&. 0x0080)
   writeReg a res8
 
-sec :: Emulator ()
+sec :: Emulator CPU ()
 sec = setFlag Carry True
 
-sed :: Emulator ()
+sed :: Emulator CPU ()
 sed = setFlag DecimalMode True
 
-sei :: Emulator ()
+sei :: Emulator CPU ()
 sei = setFlag InterruptDisable True
 
-st :: (CPU -> IORefU Word8) -> Word16 -> Emulator ()
+st :: (CPU -> IORefU Word8) -> Word16 -> Emulator CPU ()
 st reg addr = readReg reg >>= write addr
 
 sta = st a
@@ -467,61 +478,61 @@ transferAndSetFlags a b = do
   setZero val
   setNegative val 
 
-tax :: Emulator ()
+tax :: Emulator CPU ()
 tax = transferAndSetFlags a x
 
-tay :: Emulator ()
+tay :: Emulator CPU ()
 tay = transferAndSetFlags a y
 
-tsx :: Emulator ()
+tsx :: Emulator CPU ()
 tsx = transferAndSetFlags s x
 
-txa :: Emulator ()
+txa :: Emulator CPU ()
 txa = transferAndSetFlags x a
 
-txs :: Emulator ()
+txs :: Emulator CPU ()
 txs = transfer x s
 
-tya :: Emulator ()
+tya :: Emulator CPU ()
 tya = transferAndSetFlags y a
 
 -- Addressing modes
 
-accumulator :: Emulator ()
+accumulator :: Emulator CPU ()
 accumulator = pure ()
 
-immediate :: Emulator Word16
+immediate :: Emulator CPU Word16
 immediate = readReg pc <* modifyReg pc (+1)
 
-implied :: Emulator ()
+implied :: Emulator CPU ()
 implied = pure ()
 
-zeroPage :: Emulator Word16
+zeroPage :: Emulator CPU Word16
 zeroPage = (fetch <&> fromIntegral) <* modifyReg pc (+1)
 
-zeroPageX :: Emulator Word16
+zeroPageX :: Emulator CPU Word16
 zeroPageX = do
   addr  <- fetch
   modifyReg pc (+1)
   xreg  <- readReg x
   return (fromIntegral $ addr + xreg)
 
-zeroPageY :: Emulator Word16
+zeroPageY :: Emulator CPU Word16
 zeroPageY = do
   y     <- readReg y
   addr  <- fetch
   modifyReg pc (+1)
   return (fromIntegral $ addr + y)
 
-absolute :: Emulator Word16
+absolute :: Emulator CPU Word16
 absolute = (readReg pc >>= readAddress) <* modifyReg pc (+2)
 
-addPenaltyCycles :: Bool -> Penalty -> Emulator ()
+addPenaltyCycles :: Bool -> Penalty -> Emulator CPU ()
 addPenaltyCycles _____ None = pure ()
 addPenaltyCycles False ____ = pure ()
 addPenaltyCycles True BoundaryCross = cycle 1
 
-absoluteGen :: Emulator Word8 -> Penalty -> Emulator Word16
+absoluteGen :: Emulator CPU Word8 -> Penalty -> Emulator CPU Word16
 absoluteGen acquire penalty = do
   addr  <- absolute 
   reg16 <- fromIntegral <$> acquire
@@ -531,25 +542,25 @@ absoluteGen acquire penalty = do
   addPenaltyCycles pageCrossed penalty
   return result
 
-absoluteX :: Emulator Word16
+absoluteX :: Emulator CPU Word16
 absoluteX = absoluteGen (readReg x) None
 
-absoluteXP :: Emulator Word16
+absoluteXP :: Emulator CPU Word16
 absoluteXP = absoluteGen (readReg x) BoundaryCross
 
-absoluteY :: Emulator Word16
+absoluteY :: Emulator CPU Word16
 absoluteY = absoluteGen (readReg y) None
 
-absoluteYP :: Emulator Word16
+absoluteYP :: Emulator CPU Word16
 absoluteYP = absoluteGen (readReg y) BoundaryCross
 
-indirect :: Emulator Word16
+indirect :: Emulator CPU Word16
 indirect = (readReg pc >>= readAddressWithBug) <* modifyReg pc (+2)
 
-readZeroPageAddress :: Word16 -> Emulator Word16
+readZeroPageAddress :: Word16 -> Emulator CPU Word16
 readZeroPageAddress x = liftA2 mergeWord8 (read x) $ read ((x+1) .&. 0xFF)
 
-indirectX :: Emulator Word16
+indirectX :: Emulator CPU Word16
 indirectX = do
   addr <- fetch
   modifyReg pc (+1)
@@ -557,7 +568,7 @@ indirectX = do
   let abs = addr + x
   readZeroPageAddress $ fromIntegral abs
 
-indirectYGen :: Penalty -> Emulator Word16
+indirectYGen :: Penalty -> Emulator CPU Word16
 indirectYGen penalty = do
   yreg  <- readReg y
   addr  <- fetch >>= readZeroPageAddress . fromIntegral
@@ -566,13 +577,13 @@ indirectYGen penalty = do
   addPenaltyCycles (addr `onDifferentPage` result) penalty
   return result
 
-indirectY :: Emulator Word16
+indirectY :: Emulator CPU Word16
 indirectY = indirectYGen None
 
-indirectYP :: Emulator Word16
+indirectYP :: Emulator CPU Word16
 indirectYP = indirectYGen BoundaryCross
 
-relative :: Emulator Word16
+relative :: Emulator CPU Word16
 relative = do
   addr_relative <- fetch <&> fromIntegral
   modifyReg pc (+1)
@@ -779,7 +790,7 @@ sax addr = liftA2 (.&.) (readReg x) (readReg a) >>= write addr
 
 -- http://forums.nesdev.com/viewtopic.php?f=3&t=3831&start=30
 sh reg addr = do
-  let (hi, lo) = splitWord16 addr
+  let (_, lo) = splitWord16 addr
   reg <- readReg reg 
   let 
     result     = (fromIntegral (addr `shiftR` 8) + 1) .&. reg
@@ -799,14 +810,14 @@ tas _ = pure ()
 xaa _ = pure ()
 
 
-elapsedCycles :: Emulator a -> Emulator Int
+elapsedCycles :: Emulator CPU a -> Emulator CPU Int
 elapsedCycles operation = do
   cyclesBefore <- readReg cyc
   operation
   readReg cyc <&> (\cyclesAfter -> cyclesAfter - cyclesBefore)
 
 
-nmi :: Emulator ()
+nmi :: Emulator CPU ()
 nmi = do
   readReg pc >>= pushAddress
   setFlag InterruptDisable True
@@ -815,7 +826,7 @@ nmi = do
   cycle 8
 
 
-irq :: Emulator ()
+irq :: Emulator CPU ()
 irq = do
   irqEnabled <- not <$> testFlag InterruptDisable
   when irqEnabled $ do
@@ -826,30 +837,44 @@ irq = do
     cycle 7
 
 
-processInterruptTimer timer intr = do
-  remainingClocks <- readReg timer
-  when (remainingClocks == 1) intr
-  when (remainingClocks > 0) $ timer `modifyReg` decrement
+tickInterruptTimer :: (InterruptAccess -> Register8) -> Emulator CPU () -> Emulator CPU ()
+tickInterruptTimer timer interrupt = do
+  remainingClocks <- readReg (timer . interrupts)
+
+  when (remainingClocks == 1) $ do
+    interrupt
+
+  when (remainingClocks > 0) $ do
+    modifyReg (timer . interrupts) decrement
 
 
-processInterrupt = do
-  processInterruptTimer nmiTimer nmi
-  processInterruptTimer irqTimer irq
+
+processInterrupts = do
+  tickInterruptTimer CPUMEM.nmi Nes.CPU.Emulation.nmi
+  tickInterruptTimer CPUMEM.irq Nes.CPU.Emulation.irq
   setFlag Unused True
 
 
-oamDma :: Word8 -> Emulator ()
+oamDma :: Word8 -> Emulator CPU ()
 oamDma pageId = do
-  let (baseAddr :: Word16) = fromIntegral pageId `shiftL` 8
-  (oamOffset :: Word16) <- PPU.getOamAddr <&> fromIntegral
-  let copyByte source dest = read source >>= PPU.writeOam (fromIntegral dest)
+  let
+    (baseAddr :: Word16) = fromIntegral pageId `shiftL` 8
+
+  (oamOffset :: Word16) <- directPPUAccess $ PPU.getOamAddr <&> fromIntegral
+
+  let 
+    copyByte source dest = do
+      byte <- read source
+      directPPUAccess $ PPU.writeOam (fromIntegral dest) byte
+
   zipWithM_ copyByte [baseAddr..baseAddr+0xFF] [oamOffset..oamOffset+0xFF]
   cycles <- readReg cyc <&> fromIntegral
   cycle (513 + cycles .&. 0x1)
 
 
+
 -- https://forums.nesdev.com/viewtopic.php?f=3&t=14231
-reset :: Emulator ()
+reset :: Emulator CPU ()
 reset = do
   readAddress 0xFFFC >>= jmp
   writeReg p 0x34
@@ -857,7 +882,7 @@ reset = do
   cycle 7
 
 
-runInstruction :: Emulator () -> Int -> Emulator ()
+runInstruction :: Emulator CPU () -> Int -> Emulator CPU ()
 runInstruction instruction cycles = do
   modifyReg pc (+1)
   instruction
@@ -865,15 +890,9 @@ runInstruction instruction cycles = do
   setFlag Unused True
 
 
-clock :: Emulator Int
+clock :: Emulator CPU Int
 clock = do
   DecodedOpcode{instruction, cycles} <- do
     fetch <&> decodeOpcode
 
   elapsedCycles $ runInstruction instruction cycles
-    
-
-
-
-
-

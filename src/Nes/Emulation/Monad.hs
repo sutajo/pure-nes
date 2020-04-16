@@ -5,22 +5,23 @@ module Nes.Emulation.Monad (
     Emulator,
     powerUpNes,
     runEmulator,
+    emulateSubcomponent,
+    emulateCPU,
+    emulatePPU,
+    accessPPU,
+    createPPUAccess,
+    directPPUAccess,
     useMemory,
     readMemory,
     writeMemory,
     getApu,
     setApu,
-    cpuReadCartridge,
-    cpuWriteCartridge,
-    ppuReadCartridge,
-    ppuWriteCartridge,
-    getNametableMirroring,
+    readCartridgeWithAccessor,
+    writeCartridgeWithAccessor,
     sendPendingNmi,
     sendPendingIrq,
     sendNmi,
-    clearNmi,
     sendIrq,
-    useCpu,
     readController,
     writeController,
     processInput,
@@ -31,10 +32,8 @@ module Nes.Emulation.Monad (
 ) where
 
 import           Control.Monad.Reader
-import           Data.Int
 import qualified Data.Vector.Unboxed.Mutable  as VUM
 import           Data.Primitive(Prim)
-import           Data.Vector.Mutable (IOVector)
 import qualified Data.Vector.Mutable as VM
 import           Data.Mutable
 import           Data.Functor
@@ -44,97 +43,97 @@ import           Nes.PPU.Memory         as PPU
 import qualified Nes.Cartridge.Memory   as Cart
 import qualified Nes.Controls           as Controls
 
-type RAM = VUM.IOVector Word8
-
-allocateRAM :: IO RAM
-allocateRAM = VUM.new 0x800
-
 data Nes =  Nes {
     cpu         ::  CPU,
-    ram         ::  RAM,
     ppu         ::  PPU,
     apu         ::  IORef APU,
-    audioBuffer ::  UDeque RealWorld Int16,
-    cartridge   ::  Cart.Cartridge,
-    controllers ::  IOVector Controls.Controller    
+    cartridge   ::  Cart.Cartridge   
 }
 
 powerUpNes :: Cart.Cartridge -> IO Nes
-powerUpNes cart = 
-    Nes         <$>
-    CPU.powerUp <*>
-    allocateRAM <*>
-    PPU.powerUp (Cart.mirror cart) <*>
+powerUpNes cart = do
+  (cpu, ppu) <- CPU.powerUp cart (Cart.mirror cart)
+
+  Nes           <$>
+    return cpu  <*>
+    return ppu  <*>
     newIORef APU.powerUp <*>
-    newColl              <*>
-    pure cart            <*>
-    VM.replicate 2 Controls.powerUp
+    pure cart
 
 
-newtype Emulator a = Emulator (ReaderT Nes IO a) 
-  deriving (Functor, Applicative, Monad, MonadIO, MonadReader Nes)
+newtype Emulator component value = Emulator (ReaderT component IO value) 
+  deriving (Functor, Applicative, Monad, MonadIO, MonadReader component)
 
 
-runEmulator :: Nes -> Emulator a -> IO a
-runEmulator nes (Emulator emu) = runReaderT emu nes
+runEmulator :: c -> Emulator c a -> IO a
+runEmulator component (Emulator emu) = runReaderT emu component
+
+emulateSubcomponent :: (b -> c) -> Emulator c a -> Emulator b a
+emulateSubcomponent component (Emulator emu) = Emulator (withReaderT component emu)
+
+emulateCPU :: Emulator CPU a -> Emulator Nes a
+emulateCPU = emulateSubcomponent cpu
+
+emulatePPU :: Emulator PPU a -> Emulator Nes a
+emulatePPU = emulateSubcomponent ppu
+
+accessPPU :: Emulator PPUAccess a -> Emulator CPU a
+accessPPU = emulateSubcomponent ppuAccess
+
+createPPUAccess :: Emulator PPU a -> Emulator PPUAccess a
+createPPUAccess = emulateSubcomponent useAccess
+
+directPPUAccess = accessPPU . createPPUAccess
 
 -- Memory access
 
-useMemory :: (Nes -> b) -> (b -> IO a) -> Emulator a
+useMemory :: (component -> reference) -> (reference -> IO value) -> Emulator component value
 useMemory memory action = ask >>= liftIO . action . memory
 {-# INLINE useMemory #-}
 
-readMemory :: Enum addr => (Nes -> VUM.IOVector Word8) -> addr -> Emulator Word8
+readMemory :: Enum addr => (c -> VUM.IOVector Word8) -> addr -> Emulator c Word8
 readMemory comp addr = useMemory comp $ (`VUM.read` (fromEnum addr))
 
-writeMemory :: Enum addr => (Nes -> VUM.IOVector Word8) -> addr -> Word8 -> Emulator ()
+writeMemory :: Enum addr => (c -> VUM.IOVector Word8) -> addr -> Word8 -> Emulator c ()
 writeMemory comp addr val = useMemory comp $ (\arr -> VUM.write arr (fromEnum addr) val)
 
-readCartridgeWith accessor addr = useMemory cartridge (`accessor` addr)
-writeCartridgeWith modifier addr val = useMemory cartridge $ \cart -> modifier cart addr val
+readCartridgeWithAccessor :: (component -> Cart.CartridgeAccess) -> Word16 -> Emulator component Word8
+readCartridgeWithAccessor selector addr = do
+  reader <- ask <&> Cart.readCartridge . selector
+  liftIO $ reader addr
 
-cpuReadCartridge :: Word16 -> Emulator Word8
-cpuReadCartridge = readCartridgeWith Cart.cpuReadCartridge 
+writeCartridgeWithAccessor :: (component -> Cart.CartridgeAccess) -> Word16 -> Word8 -> Emulator component ()
+writeCartridgeWithAccessor selector addr val = do
+  writer <- ask <&> Cart.writeCartridge . selector
+  liftIO $ writer addr val
 
-cpuWriteCartridge :: Word16 -> Word8 -> Emulator ()
-cpuWriteCartridge = writeCartridgeWith Cart.cpuWriteCartridge
-
-ppuReadCartridge :: Word16 -> Emulator Word8
-ppuReadCartridge = readCartridgeWith Cart.ppuReadCartridge
-
-ppuWriteCartridge :: Word16 -> Word8 -> Emulator ()
-ppuWriteCartridge = writeCartridgeWith Cart.ppuWriteCartridge
-
-getNametableMirroring :: Emulator (Word16 -> Word16)
-getNametableMirroring = ask <&> (mirrorNametableAddress . ppu)
-
-useCpu :: (b -> IO a) -> (CPU -> b) -> Emulator a
-useCpu action field = useMemory (field . cpu) action
-
-getApu :: Emulator APU
+getApu :: Emulator Nes APU
 getApu = useMemory apu readIORef
 
-setApu :: APU -> Emulator ()
+setApu :: APU -> Emulator Nes ()
 setApu val = useMemory apu (`writeIORef` val)
 
 -- Cpu interrupts
 
--- Sends an NMI which fires after the specified amount of clock cycles
-sendPendingInterrupt :: (CPU -> Register8) -> Word8 -> Emulator ()
-sendPendingInterrupt reg cyc = useCpu (`writeIORefU` cyc) reg
+sendPendingInterrupt :: (InterruptAccess -> Register8) -> Word8 -> (component -> InterruptAccess) -> Emulator component ()
+sendPendingInterrupt register pendingCycles component = 
+  (ask <&> register . component) >>= \reg -> liftIO $ reg `writeIORefU` pendingCycles
 
-clearInterrupt :: (CPU -> Register8) -> Emulator ()
-clearInterrupt reg = useCpu (`writeIORefU` 0) reg
+sendPendingNmi :: Word8 -> (component -> InterruptAccess) -> Emulator component ()
+sendPendingNmi = sendPendingInterrupt nmi
 
-sendPendingNmi = sendPendingInterrupt nmiTimer
-sendNmi  = sendPendingNmi 1
-clearNmi = clearInterrupt nmiTimer
-sendPendingIrq = sendPendingInterrupt irqTimer
+sendNmi :: (component -> InterruptAccess) -> Emulator component ()
+sendNmi = sendPendingNmi 1
+
+sendPendingIrq :: Word8 -> (component -> InterruptAccess) ->Emulator component ()
+sendPendingIrq = sendPendingInterrupt irq
+
+sendIrq :: (component -> InterruptAccess) -> Emulator component ()
 sendIrq = sendPendingIrq 1
 
 -- Controller access
 
-readController :: Int -> Emulator Word8
+readController :: Int -> Emulator CPU Word8
 readController index = 
   useMemory controllers $ \cs -> do
     controller <- VM.read cs index

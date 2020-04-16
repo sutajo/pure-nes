@@ -42,6 +42,13 @@ data Mapper = Mapper {
 } deriving (Generic)
 
 
+data CartridgeAccess = CartridgeAccess {
+    readCartridge  :: Word16 -> IO Word8
+  , writeCartridge :: Word16 -> Word8 -> IO ()
+  , getMirroring   :: Mirroring
+}
+
+
 data Cartridge = Cartridge {
     hasChrRam    :: Bool,
     mapperId     :: Word8,
@@ -51,6 +58,7 @@ data Cartridge = Cartridge {
     prg_rom      :: VUM.IOVector Word8,
     prg_ram      :: VUM.IOVector Word8
 } deriving (Generic)
+
 
 dummyMapper = 
   Mapper 
@@ -62,14 +70,9 @@ dummyMapper =
   (\_ -> undefined)
  where dummyRead = const (pure 0); dummyWrite _ _ = pure ()
 
-cpuReadCartridge :: Cartridge -> Word16 -> IO Word8
-cpuReadCartridge cart = cpuRead (mapper cart)
 
-cpuWriteCartridge :: Cartridge -> Word16 -> Word8 -> IO ()
-cpuWriteCartridge cart = cpuWrite (mapper cart)
+getCPUAccess :: Cartridge -> CartridgeAccess
+getCPUAccess Cartridge{mapper=Mapper{cpuRead, cpuWrite}, mirror} = CartridgeAccess cpuRead cpuWrite mirror
 
-ppuReadCartridge :: Cartridge -> Word16 -> IO Word8
-ppuReadCartridge cart = ppuRead (mapper cart)
-
-ppuWriteCartridge :: Cartridge -> Word16 -> Word8 -> IO ()
-ppuWriteCartridge cart = ppuWrite (mapper cart)
+getPPUAccess :: Cartridge -> CartridgeAccess
+getPPUAccess Cartridge{mapper=Mapper{ppuRead, ppuWrite}, mirror} = CartridgeAccess ppuRead ppuWrite mirror

@@ -64,6 +64,8 @@ data APU = APU {
 } deriving (Generic, Serialize)
 makeLenses ''APU
 
+newtype APUAccess = APUAccess APU
+
 powerUp :: APU
 powerUp = let
       _duty          = 0

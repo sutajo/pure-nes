@@ -77,7 +77,7 @@ A gyártási költségek alacsonyan tartása végett csak 6 regiszter került a 
 
 
 \subsection{Memórialap}
-Az $i$. lap a $ [i \cdot \$FF, (i+1) \cdot \$FF] $ címtartományon elhelyezkedő, 256 bájtos egybefüggő memóriarész.
+Az $i$. lap egy 256 bájtos egybefüggő memóriarész, ami a $ [i \cdot \$100, \: (i+1) \cdot \$100) $ címtartományon helyezkedik el.
 
 \subsection{Hívási verem}
 Az egymásba ágyazott eljárásokat a processzor hardveresen támogatja, amihez egy vermet használ.
@@ -109,7 +109,7 @@ A nem maszkolható lábhoz a képfeldolgozó, a maszkolhatóhoz a hangchip van k
 \subsection{Címzési módok}
 
 Egy opkód után azoknál a címzési módoknál áll argumentum, amiknél a művelet elvégzéséhez 
-szükséges operandus nem regiszterben, hanem a memóriában van. A címzési módok azt határozzák meg, hogy az argumentumból hogyan kell kiszámolni az operandus effektív 16 bites memóriacímét. A címzési mód mögött álló zárójelben az opkódmátrixbeli név (amennyiben van) és az argumentumok száma található.  
+szükséges operandus nem regiszterben, hanem a memóriában van. A címzési módok azt határozzák meg, hogy az argumentumból hogyan kell kiszámolni az operandus effektív 16 bites memóriacímét. A címzési mód mögött álló zárójelben az opkódmátrixbeli név (amennyiben van) és az argumentum bájtok száma található.  
 
 
 \begin{description}
@@ -125,8 +125,8 @@ szükséges operandus nem regiszterben, hanem a memóriában van. A címzési m�
 	Hasonlóan most is csak a 0. lapot tudjuk címezni, de az argumentumhoz hozzáadjuk valamelyik index regiszter értékét.
 	Az operandus címének kiszámítása: $ (arg1 + index) \mod 256 $
 	\item[Indexelt abszolút mód (abx, aby, 2):] Az argumentum egy teljes memóriacím, amihez hozzáadjuk a megadott index regiszter értékét. 
-	\item[Adott mód (0):] nincs szükség argumentumra, mert az utasítás regiszterekkel dolgozik.
-	\item[Relatív mód (rel, 1):] Elágazásoknál ha a feltétel teljesül, akkor az argumentummal el kell tolni a programszámlálót.
+	\item[Implicit mód (0):] nincs szükség argumentumra, mert az utasítás regiszterekkel dolgozik.
+	\item[Relatív mód (rel, 1):] Az elágazási utasítások használják ezt a címzési módot. Elágazásoknál ha a feltétel teljesül, akkor az argumentummal el kell tolni a programszámlálót.
 	\item[Indirekt mód (ind, 2):] 
 	Erre a címzési módra a JMP utasításnál van szükség.
 	A két argumentum bájt együtt egy teljes memóriacímet alkot, legyen ez \emph{m}.
@@ -239,10 +239,10 @@ Memóriatükrözésről beszélünk, amikor fizikailag ugyanazt a memóriaterül
 
 \section{Kazetták}
 
-A kazettákon logikai szempontból két fajta memória található: PRG és CHR.
+A kazettákon logikai szempontból kétfajta memória található: PRG és CHR.
 A PRG jellemzően csak olvasható memória (ROM), ahol a processzor által végrehajtandó utasítások, avagy a játéklogika kapott helyett. Mérete NROM esetében 16 KiB vagy 32 KiB, UNROM-nál pedig 64 KiB vagy 128 KiB. A 8 KiB méretű CHR ROM/RAM memória a játék sprite-jait tárolja, amik 8*8 pixeles kis képekből állnak. Ezeket a kis képeket ezentúl alakzatoknak fogom hívni. 
 
-\subsection{Az iNES fájl formátum}
+\subsection{Az iNES fájlformátum}
 
 Az iNES fájlformátumot egy korai NES emulátor vezette be a NES játékok bináris formában történő terjesztésére. A fájl elején található 16 bájtos fejléc többek között a mapper áramkör azonosítóját, a képfeldolgozó névtábláinak tükrözési módját, valamint a PRG ROM és a CHR memóriák típusát (ROM/RAM) és méretét határozza meg. A fejléc után ezek tartalma található.
 
@@ -263,7 +263,7 @@ A képpontok végső RGB színkódjának meghatározása többféle módon is le
 
 \subsection{Paletta indexek}
 
-A $\$3F00 - \$3F1F$ címtartományon található memóriaterületen kerülnek eltárolásra a használatban lévő színek azonosítói. A hardveres limitációk miatt a hátteret 16x16 pixeles cellákra osztották fel. Egy cellán belül kizárólag 4 féle szín fordulhatott elő. Ezeket a 4 színből álló színkombinációkat kissé megtévesztő módon szintén palettáknak nevezzük.
+A $\$3F00 - \$3F1F$ címtartományon található memóriaterületen kerülnek eltárolásra a használatban lévő színek azonosítói. A hardveres limitációk miatt a hátteret 16x16 pixeles cellákra osztották fel. Egy cellán belül kizárólag 4 féle szín fordulhatott elő. Ezeket a 4 színből álló színkombinációkat kissé megtévesztő módon szintén palettáknak nevezik.
 
 \begin{table}[H]
 	\centering

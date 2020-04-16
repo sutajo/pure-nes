@@ -7,11 +7,11 @@ module Nes.PPU.Memory (
     Sprite(..),
     StatusFlag(..),
     FrameBuffer,
+    PPUAccess(..),
     powerUp,
     loadPalette,
     horizontalMirroring,
     verticalMirroring,
-    module Nes.CPU.Memory,
     module Data.Bits,
     module Data.IORef,
     module Data.IORef.Unboxed,
@@ -31,7 +31,8 @@ import           Data.Functor
 import           Data.Word
 import           Data.IORef
 import           Data.IORef.Unboxed
-import           Nes.CPU.Memory (Register8, Register16)
+import           Nes.CPU.InterruptAccess
+import           Nes.Emulation.Registers
 import           Nes.Cartridge.Memory
 
 type    Pixel = (Word8, Word8, Word8)
@@ -100,9 +101,18 @@ data PPU = PPU {
     emuPattShifterHi  :: Register16,
     emuAttrShifterLo  :: Register16,
     emuAttrShifterHi  :: Register16,
+
+    -- Handle to the cartridge
+    cartridgeAccess   :: CartridgeAccess,
+
+    -- Handle to the CPU interrupts
+    interruptAccess   :: InterruptAccess,
+
     -- Mirroring function
     mirrorNametableAddress :: Word16 -> Word16
 }
+
+newtype PPUAccess = PPUAccess { useAccess :: PPU } -- TODO: Narrow this down to only contain fields needed by the CPU
 
 --http://wiki.nesdev.com/w/index.php/Mirroring#Nametable_Mirroring
 
@@ -120,8 +130,8 @@ horizontalMirroring addr = a - ((a .&. 0x800) `shiftR` 1)
 verticalMirroring :: Word16 -> Word16
 verticalMirroring = (.&. 0x7FF)
 
-powerUp :: Mirroring -> IO PPU
-powerUp mirroring = 
+powerUp :: InterruptAccess -> Cartridge -> Mirroring -> IO PPU
+powerUp interruptAccess cartridge mirroring = 
     PPU                             <$>
     pure palette2C02                <*>
     VSM.replicate (256*240*3) 0     <*>
@@ -156,6 +166,8 @@ powerUp mirroring =
     newIORefU 0                     <*>
     newIORefU 0                     <*>
     newIORefU 0                     <*>
+    return (getPPUAccess cartridge) <*>
+    return interruptAccess               <*>
     pure (
       case mirroring of
         Horizontal -> horizontalMirroring
