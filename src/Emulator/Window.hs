@@ -198,7 +198,7 @@ acquireResources romPath comms = do
   reset         <- newIORef (not $ isSave romPath)
   joyIsSecondCtrl <- newIORef False
   fullscreen      <- newIORef False
-  useCrtShader    <- newIORef False
+  useCrtShader    <- newIORef True
   Just crtProgram <- getCrtShaderProgram
   textureUniform  <- uniformLocation crtProgram "texImg"
   let openGLResources = OpenGLResources{..}
