@@ -551,12 +551,12 @@ reloadSecondaryOam = do
   scanLine <- readReg emuScanLine
   let 
     basePattAddr = if ctrl `testBit` 3 then 0x1000 else 0x0
-    spriteHeight = if ctrl `testBit` 5 then 15 else 7
+    spriteHeight = if ctrl `testBit` 5 then 16 else 8
 
   oamAddr <- readReg ppuOamAddr
 
   candidateAddresses <- do
-    let fallOnCurrentScanline y = y /= 0xFF && between 0 spriteHeight (scanLine - fromIntegral y)
+    let fallOnCurrentScanline y = y /= 0xFF && between 0 (spriteHeight-1) (scanLine - fromIntegral y)
     findCandidateSpritesThat fallOnCurrentScanline 9 [oamAddr, oamAddr+0x4 .. 0xFC]
  
   spritesEnabled <- isRenderingEnabled
@@ -569,18 +569,35 @@ reloadSecondaryOam = do
       tile       <- readOam (addr+1)
       attributes <- readOam (addr+2)
       cycleTimer <- readOam (addr+3) <&> negate . fromIntegral
-      let
-        row        = (\x -> if flipVert then 7-x else x) $ fromIntegral (scanLine - fromIntegral y)
-        pattOffset = fromIntegral tile `shiftL` 4
+      let 
         paletteId  = (attributes .&. 0b11) .|. 4
         behindBgd  = attributes `testBit` 5
         flipHori   = attributes `testBit` 6
         flipVert   = attributes `testBit` 7
         spriteZero = addr == oamAddr
-        totalOffset = basePattAddr .|. pattOffset .|. row
-      pattLsb <- read totalOffset
-      pattMsb <- read (totalOffset+8)
-      return Sprite{..}
+        flip = (\x -> if flipVert then 7-x else x)
+
+      case spriteHeight of
+        8 -> do
+          let
+            row        =  flip $ fromIntegral (scanLine - fromIntegral y)
+            pattOffset = fromIntegral tile `shiftL` 4
+            totalOffset = basePattAddr .|. pattOffset .|. row
+          pattLsb <- read totalOffset
+          pattMsb <- read (totalOffset+8)
+          return Sprite{..}
+
+        16 -> do
+          let
+            yDiff         = fromIntegral $ scanLine - fromIntegral y
+            bankOffset    = if tile `testBit` 0 then 0x1000 else 0x0
+            (current, next) = if flipVert then (1,0) else (0,1)
+            patternOffset = (fromIntegral tile .&. 0xFE + if yDiff < 8 then current else next) `shiftL` 4
+            rowOffset     = flip yDiff .&. 7
+            totalOffset   = bankOffset .|. patternOffset .|. rowOffset
+          pattLsb <- read totalOffset
+          pattMsb <- read (totalOffset + 8)
+          return Sprite{..}
 
   usePPU (`writeIORef` sprites) secondaryOam
 
