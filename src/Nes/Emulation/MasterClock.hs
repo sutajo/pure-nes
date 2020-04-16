@@ -17,7 +17,7 @@ import qualified Nes.APU.Emulation as APU
 execCpuInstruction :: Emulator CPU ()
 execCpuInstruction = do
   masterClocks <- CPU.processInterrupts >> CPU.clock
-  replicateM_ (masterClocks * 3) (directPPUAccess PPU.clock)
+  directPPUAccess $ replicateM_ (masterClocks * 3) PPU.clock
   {-
   replicateM_ masterclocks $ do
     apuState <- getApu
