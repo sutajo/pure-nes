@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveAnyClass, StrictData #-}
 
 module Nes.Cartridge.Memory where
 
