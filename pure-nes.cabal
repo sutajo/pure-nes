@@ -143,6 +143,8 @@ executable pure-nes
     , filepath
     , template-haskell
     , raw-strings-qq
+    , gi-gobject
+    , unordered-containers
   default-extensions: 
     RecordWildCards, 
     LambdaCase, 

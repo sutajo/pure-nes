@@ -1,14 +1,15 @@
-{-# LANGUAGE OverloadedStrings, QuasiQuotes #-}
+{-# LANGUAGE OverloadedStrings, QuasiQuotes, DeriveAnyClass #-}
 
 module Emulator.CrtShader (getCrtShaderProgram) where
 
 
 import           Control.Monad
+import           Control.Exception
 import           Data.ByteString hiding (putStrLn)
-import           Data.Maybe
 import           Data.StateVar
 import           Graphics.Rendering.OpenGL.GL.Shaders
 import           System.Console.ANSI
+import           System.Mem
 import           Text.RawString.QQ
 
 
@@ -170,8 +171,20 @@ void main(){
 
 |]
 
+data ShaderException 
+  = ShaderValidationError
+  | ShaderLinkingError
+  | ShaderCompileError
+  deriving Exception
 
-newShader :: ShaderType -> ByteString -> IO (Maybe Shader)
+instance Show ShaderException where
+  show = let common = "\n Please make sure the video driver is up to date and OpenGL 4.3 is supported." in 
+    \case
+      ShaderCompileError    -> "Failed to compile the GLSL vertex or fragment shader for the CRT effect." ++ common
+      ShaderLinkingError    -> "Failed to link the OpenGL shader program." ++ common
+      ShaderValidationError -> "Failed to validate the OpenGL shader program." ++ common
+
+newShader :: ShaderType -> ByteString -> IO Shader
 newShader shaderType source = do
     shader <- createShader shaderType
     shaderSourceBS shader $= source
@@ -179,32 +192,29 @@ newShader shaderType source = do
     success <- compileStatus shader
     when (not success) $ do
       setSGR [SetColor Foreground Vivid Red]
-      putStrLn "Failed to compile shader:"
+      putStrLn $ "Failed to compile " ++ show shaderType ++ ":"
       setSGR [SetColor Foreground Vivid Yellow]
       shaderInfoLog shader >>= putStrLn
       setSGR [Reset]
-    let result = if success then Just else const Nothing
-    return $ result shader
+      throw ShaderCompileError
+    return shader
 
 
-createProgramFrom :: [Maybe Shader] -> IO (Maybe Program)
-createProgramFrom shaders@[Just _, Just _] = do
+createProgramFrom :: [Shader] -> IO Program
+createProgramFrom shaders = do
     program <- createProgram
-    attachedShaders program $= catMaybes shaders 
+    attachedShaders program $= shaders 
     linkProgram program
     linkSuccess <- linkStatus program
+    when (not linkSuccess) $ throw ShaderLinkingError
     validateProgram program
     validateSuccess <- validateStatus program
-    if linkSuccess && validateSuccess
-    then do
-      putStrLn "Shaders compiled successfully."
-      return . Just $ program
-    else return Nothing
-
-createProgramFrom _ = pure Nothing
+    when (not validateSuccess) $ throw ShaderLinkingError
+    performMajorGC
+    return program
 
 
-getCrtShaderProgram :: IO (Maybe Program)
+getCrtShaderProgram :: IO Program
 getCrtShaderProgram = 
   createProgramFrom 
   =<< 

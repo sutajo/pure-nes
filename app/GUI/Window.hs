@@ -6,6 +6,7 @@ import           Data.Char (toUpper)
 import           Data.Time
 import           Data.List (intercalate)
 import           Data.Version
+import           Data.Maybe
 import qualified Data.Vector as V
 import           Language.Haskell.TH
 import           Data.Text (Text)
@@ -73,8 +74,8 @@ messageWidget text icon =
         ]
 
 
-startMenu :: Int -> Widget Event
-startMenu threadCount =
+startMenu :: Int -> Maybe FilePath -> Widget Event
+startMenu threadCount selectedRom =
     container Box
         [#orientation := OrientationVertical, #valign := AlignCenter]
             [ 
@@ -95,7 +96,7 @@ startMenu threadCount =
                 [#orientation := OrientationHorizontal, #halign := AlignCenter, #margin := 10 ]
                 [
                     BoxChild defaultBoxChildProperties { padding = 15 } $ 
-                    widget Button [#label := "Start Emulator", on #clicked StartEmulator]
+                    widget Button [#label := "Start Emulator", on #clicked StartEmulator, #sensitive := isJust selectedRom ]
                 , BoxChild defaultBoxChildProperties { padding = 15 } $ 
                     widget Button [#label := "Show controls", on #clicked ShowControlsPressed]
                 ]
@@ -135,19 +136,34 @@ startMenu threadCount =
         ]
 
 
-mkControlHelpBox :: [(Text, Text)] -> Widget Event
+mkControlHelpBox :: [(Text, Text, Text)] -> Widget Event
 mkControlHelpBox controls =
   container 
   Grid
-  [#orientation := OrientationVertical, #valign := AlignCenter, #marginBottom := 20] (V.fromList $ concat $ zipWith mkHelpRow [1..] controls)
+  [#orientation := OrientationVertical, #valign := AlignCenter, #marginBottom := 20, #marginRight := 25, #marginLeft := 25] 
+  (V.fromList $ concat $ mkTopRow 1 toprow : zipWith mkHelpRow [2..] controls)
   where
-    orange x = [r|<span weight="bold" foreground="#eb660e">|] <> x <> [r|</span>|]
-    blue x   = [r|<span weight="bold" foreground="#033b94">|] <> x <> [r|</span>|]
-    mkHelpRow index (action, button) = [
+    span attrs x = "<span " <> Text.intercalate " " (map (\(attr, val) -> attr <> [r| ="|] <> val <> [r|"|]) attrs) <> ">" <> x <> [r|</span>|]
+    toprow = ("NES input", "Keyboard button", "Controller button")
+    orange = span [("weight", "bold"), ("foreground", "#eb660e")]
+    blue   = span [("weight", "bold"), ("foreground", "#033b94")]
+    underlinedorange = span [("weight", "ultrabold"), ("foreground", "#eb660e"), ("underline", "single")]
+    underlinedblue   = span [("weight", "ultrabold"), ("foreground", "#033b94"), ("underline", "single")]
+    mkTopRow index (action, key, joybutton) = [
+        GridChild defaultGridChildProperties { leftAttach = 1, topAttach = index } $ 
+          widget Label [#label := underlinedorange action, #useMarkup := True, #xalign := 0, #marginRight := 25, #marginBottom := 20]
+      , GridChild defaultGridChildProperties { leftAttach = 2, topAttach = index } $ 
+          widget Label [#label := underlinedblue key, #useMarkup := True, #xalign := 0, #marginRight := 25, #marginBottom := 20]
+      , GridChild defaultGridChildProperties { leftAttach = 3, topAttach = index } $ 
+          widget Label [#label := underlinedblue joybutton, #useMarkup := True, #xalign := 0, #marginBottom := 20]
+      ]
+    mkHelpRow index (action, key, joybutton) = [
         GridChild defaultGridChildProperties { leftAttach = 1, topAttach = index } $ 
           widget Label [#label := orange action, #useMarkup := True, #xalign := 0, #marginRight := 25, #marginBottom := 15]
       , GridChild defaultGridChildProperties { leftAttach = 2, topAttach = index } $ 
-          widget Label [#label := blue button, #useMarkup := True, #xalign := 0, #marginBottom := 15]
+          widget Label [#label := blue key, #useMarkup := True, #xalign := 0, #marginRight := 25, #marginBottom := 15]
+      , GridChild defaultGridChildProperties { leftAttach = 3, topAttach = index } $ 
+          widget Label [#label := blue joybutton, #useMarkup := True, #xalign := 0, #marginBottom := 15]
       ]
 
 
@@ -160,19 +176,21 @@ controlsWidget =
             widget Image [#file := "resources/GUI/info.png", #marginBottom := 35]
         , BoxChild defaultBoxChildProperties $
             mkControlHelpBox [ 
-                ("Up", "Up arrow"),
-                ("Down", "Down arrow"),
-                ("Left", "Left arrow"),
-                ("Right", "Right arrow"),
-                ("A", "1"),
-                ("B", "2"),
-                ("Select", "3"),
-                ("Start", "4"),
-                ("Fullscreen toggle", "R"),
-                ("CRT effect toggle", "T"),
-                ("Pause", "Space"),
-                ("Step 100 cpu instructions (when paused)", "C"),
-                ("Step one frame (when paused)", "F")
+                ("Up", "Up arrow", "DPAD Up"),
+                ("Down", "Down arrow", "DPAD Down"),
+                ("Left", "Left arrow", "DPAD Left"),
+                ("Right", "Right arrow", "DPAD Right"),
+                ("A", "1", "Button 2"),
+                ("B", "2", "Button 3"),
+                ("Select", "3", "Button 0"),
+                ("Start", "4", "Button 1"),
+                ("Quick save", "F5", "Button 4"),
+                ("Quick load", "F9", "Button 6"),
+                ("Fullscreen toggle", "R", "Not available"),
+                ("CRT effect toggle", "T", "Not available"),
+                ("Pause", "Space", "Not available"),
+                ("Step 100 cpu instructions (when paused)", "C", "Not available"),
+                ("Step one frame (when paused)", "F", "Not available")
             ]
         , BoxChild defaultBoxChildProperties { padding = 15 } $ 
             widget Button [#label := "Ok", on #clicked MessageAck]
@@ -183,12 +201,12 @@ visualize :: Int -> State -> AppView Window Event
 visualize threadCount s = do
   let 
     height = case s of
-      ShowControls -> 400
-      _            -> 700
+      ShowControls _ -> 400
+      _              -> 700
     title = case s of
-      Message _ _ _ -> "Message"
-      ShowControls -> "Controls"
-      _            -> "Pure-Nes Menu"
+      Message _ _ _  -> "Message"
+      ShowControls _ -> "Controls"
+      _              -> "Pure-Nes Menu"
   bin
       Window
       [ #title := title
@@ -206,10 +224,10 @@ visualize threadCount s = do
         e@Emulating{} -> 
             inGame e
 
-        Started{} -> 
-            startMenu threadCount
+        Started{selectedRom} -> 
+            startMenu threadCount selectedRom
 
-        ShowControls ->
+        ShowControls _ ->
             controlsWidget
             
 

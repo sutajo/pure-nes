@@ -1,7 +1,7 @@
 module Main where
 
 
-import           Control.Monad                  
+import           Control.Monad  
 import           Control.Monad.IO.Class
 import           Control.Concurrent       hiding (yield)
 import           Control.Concurrent.STM
@@ -39,37 +39,44 @@ resultEvent result op =
     Nothing  -> noop
     Just msg -> emit $ MessageText (prefix ++ msg) Cross
 
+
 sendMsg :: CommResources -> Command -> IO (Maybe Event)
 sendMsg CommResources{toSDLWindow} = only . atomically . writeTChan toSDLWindow
 
+-- | If a field should change while displaying a message
+--   then update the nested emulation state
+updateNestedEmulationState :: (State -> State) -> State -> State
+updateNestedEmulationState f e@Message{stateBefore = s} = e{stateBefore = updateNestedEmulationState f s }
+updateNestedEmulationState f e@Emulating{} = f e
+updateNestedEmulationState f x = x
 
 -- | GUI state transition function
 update :: CommResources -> State -> Event -> Transition State Event
 
 -- New filepath selected in the main menu
 
-update _ (Started _) (FileSelectionChanged p) 
-  = Transition (Started p) (return Nothing)
+update _ s@Started{} (FileSelectionChanged p) 
+  = Transition s{selectedRom = p} (return Nothing)
 
 
 -- Show controls and then return if Ok was pressed
 
-update _ (Started _) ShowControlsPressed = Transition ShowControls noop
+update _ s@Started{} ShowControlsPressed = Transition (ShowControls s) noop
 
-update _ ShowControls MessageAck = Transition (Started Nothing) noop
+update _ (ShowControls s) MessageAck = Transition s noop
 
 
 -- Start the emulator thread
 
-update comms s@(Started (Just path)) StartEmulator 
+update comms (Started (Just path) savePath) StartEmulator 
   = Transition 
-    (Emulating (Text.pack . takeBaseName $ path) True Nothing "" "" Nothing Nothing) 
-    (only $ launchEmulator path comms)
+    (Emulating (Text.pack . takeBaseName $ path) True savePath "" "" Nothing Nothing) 
+    (only $ launchEmulator path comms >> (sendMsg comms . NewSaveFolder) savePath)
 
 
 -- Warnings related to saving and loading
 
-update _ s@(Started Nothing) StartEmulator
+update _ s@(Started Nothing _) StartEmulator
   = Transition s (return . Just $ MessageText "No ROM selected." Alert)
 
 update _ e@Emulating{savePath = Nothing} SaveButtonPressed
@@ -99,25 +106,25 @@ update comms e@Emulating{savePath = Just path, saveRomName} SaveButtonPressed
 update comms e@Emulating{ savePath = Just path } QuickReloadPressed
   = Transition e (sendMsg comms (QuickLoad Nothing))
 
-update comms e (LoadPathChanged (Just path))
+update comms e@Emulating{} (LoadPathChanged (Just path))
   = Transition e {loadPath = path} (sendMsg comms (Load path))
 
-update comms e (SavePathChanged s)
+update comms e@Emulating{} (SavePathChanged s)
   = Transition (e {savePath = s}) (sendMsg comms (NewSaveFolder s))
 
-update comms Emulating{} ReturnToSelection 
-  = Transition (Started Nothing) (sendMsg comms Quit)
+update comms Emulating{savePath} ReturnToSelection 
+  = Transition (Started Nothing savePath) (sendMsg comms Quit)
 
 
 -- Update record fields
 
-update _ e (SaveNameChanged s)
+update _ e@Emulating{} (SaveNameChanged s)
   = Transition e{saveRomName = s} noop
 
-update _ e (SaveResult res)
+update _ e@Emulating{} (SaveResult res)
   = Transition e{saveResultSuccess = Just $ res} $ resultEvent res "saving"
 
-update _ e (LoadResult res)
+update _ e@Emulating{} (LoadResult res)
   = Transition e{loadResultSuccess = Just $ res} $ resultEvent res "loading"
 
 update _ m@Message{} (MessageText newMsg newIcon)
@@ -126,16 +133,16 @@ update _ m@Message{} (MessageText newMsg newIcon)
 
 -- Pause and resume
 
-update comms e (SwitchMode shouldForward)
+update comms s (SwitchMode shouldForward)
   = Transition 
-    (e { running = not (running e) }) 
+    (updateNestedEmulationState (\ e@Emulating{running = r} -> e {running = not r}) s) 
     (if shouldForward then sendMsg comms (SwitchEmulationMode False) else noop)
 
 
 -- Return to main menu if the SDL window was closed
 
-update _ _ SDLWindowClosed 
-  = Transition (Started Nothing) noop
+update _ Emulating{savePath} SDLWindowClosed 
+  = Transition (Started Nothing savePath) noop
 
 
 -- Displaying messages
@@ -144,15 +151,18 @@ update _ s (MessageText msg icon)
   = Transition (Message (Text.pack msg) icon s) noop
 
 update comms (Message _ _ stateBefore) MessageAck 
-  = Transition stateBefore (sendMsg comms (NewSaveFolder Nothing))
+  = Transition stateBefore noop
 
 
 -- Display error messages with a cross
 -- and then return to the main menu
 
-update _ s (Error msg) 
-  = Transition (Message (Text.pack msg) Cross (Started Nothing)) noop
+update _ Emulating{savePath} (Error msg) 
+  = Transition (Message (Text.pack msg) Cross (Started Nothing savePath)) noop
 
+
+update _ _ (Error msg) 
+  = Transition (Message (Text.pack msg) Cross (Started Nothing Nothing)) noop
 
 -- Exit the application
 
@@ -180,5 +190,5 @@ main = do
     void $ run App {    view         = visualize threadCount
                       , DAS.update   = Main.update comms
                       , inputs       = [sdlWindowEventProxy]
-                      , initialState = Started Nothing
+                      , initialState = Started Nothing Nothing
                     }

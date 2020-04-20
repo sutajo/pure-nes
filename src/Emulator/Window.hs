@@ -199,7 +199,7 @@ acquireResources romPath comms = do
   joyIsSecondCtrl <- newIORef False
   fullscreen      <- newIORef False
   useCrtShader    <- newIORef True
-  Just crtProgram <- getCrtShaderProgram
+  crtProgram      <- getCrtShaderProgram
   textureUniform  <- uniformLocation crtProgram "texImg"
   let openGLResources = OpenGLResources{..}
   return AppResources{..}
@@ -387,23 +387,24 @@ executeCommand appResources@AppResources{..} command = do
       emulateCPU $ input `processInput` 1
     
     SwitchEmulationMode shouldForward -> do
-      stepByStep <- liftIO $ do
+      screen <- emulatePPU PPU.accessScreen
+      liftIO $ do
         modifyIORef' continousMode not
-        when shouldForward $ sendEvent (SwitchMode False)
+        when shouldForward (sendEvent (SwitchMode False))
         continous <- readIORef continousMode
+        when (not continous) (liftIO $ VSM.set screen 0)
         putStrLn ("Switched to " ++ (if continous then "continous" else "step-by-step") ++ " mode.")
-        return $ not continous
-      pixels  <- emulatePPU $ PPU.accessScreen
-      liftIO $ VSM.set pixels 0
 
     StepClockCycle -> do
       whenM (liftIO $ readIORef continousMode <&> not) $ do
+        oldFrameCount <- emulatePPU $ PPU.getFrameCount
         emulateCPU $ replicateM_ 100 execCpuInstruction
-        pixels  <- emulatePPU $ do
+        (pixels, newFrameCount)  <- emulatePPU $ do
           PPU.drawPalette 
-          PPU.drawSprites
-          PPU.accessScreen
+          (,) <$> PPU.accessScreen <*> PPU.getFrameCount
+        when (newFrameCount /= oldFrameCount) (liftIO $ VSM.set pixels 0)
         updateScreen appResources pixels
+
 
     StepOneFrame -> do
       whenM (liftIO $ readIORef continousMode <&> not) $ do
@@ -416,20 +417,21 @@ executeCommand appResources@AppResources{..} command = do
       putStr "Joy has been remapped as controller "
       print (fromEnum id)
 
-    SwitchWindowMode -> liftIO $ do
-      inFullScreen <- readIORef fullscreen
+    SwitchWindowMode -> do
+      liftIO $ whenM (readIORef continousMode) $ do
+        inFullScreen <- readIORef fullscreen
 
-      if inFullScreen 
-      then do 
-        cursorVisible $= True
-        setWindowMode window Windowed
-        windowSize window $= V2 (fromIntegral sdlWindowWidth) (fromIntegral sdlWindowHeight)
-        viewport $= (Position 0 0, Size (fromIntegral sdlWindowWidth) (fromIntegral sdlWindowHeight))
-      else do
-        cursorVisible $= False
-        setWindowMode window FullscreenDesktop
+        if inFullScreen 
+        then do 
+          cursorVisible $= True
+          setWindowMode window Windowed
+          windowSize window $= V2 (fromIntegral sdlWindowWidth) (fromIntegral sdlWindowHeight)
+          viewport $= (Position 0 0, Size (fromIntegral sdlWindowWidth) (fromIntegral sdlWindowHeight))
+        else do
+          cursorVisible $= False
+          setWindowMode window FullscreenDesktop
 
-      modifyIORef' fullscreen not
+        modifyIORef' fullscreen not
       
     AdjustViewport w h -> do
       viewport $= (Position 0 0, Size (fromIntegral w) (fromIntegral h))

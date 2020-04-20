@@ -423,7 +423,9 @@
 	breakatwhitespace=false,
 	float,
 	frame=linesc,
-	captionpos=b
+	captionpos=b,
+    extendedchars=true,
+    literate={á}{{\'a}}1 {ã}{{\~a}}1 {é}{{\'e}}1 {ó}{{\'o}}1 {ö}{{\"o}}1 {ú}{{\'u}}1 {ü}{{\"u}}1 {ő}{{\H{o}}}1 {í}{{\'{i}}}1 {Á}{{\uppercase{\'a}}}1
 }
 % Forráskód elnevezése
 \renewcommand{\lstlistingname}{\codelabel}

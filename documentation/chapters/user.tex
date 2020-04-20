@@ -10,7 +10,7 @@
 	\label{fig:nes}
 \end{figure}
 
-A program feladata a NES kazetták futtatása. A felhasználó grafikus felület segítségével kiválaszthatja a futtatni kívánt, iNES formátumú kazetta fájlt, majd annak betöltése után az emulátor belekezd a videókimenet előállításába. Bemeneti eszközként billentyűzet vagy kontroller használható. A futtatás során lehetőség van az emulátor állapotának fájlként való mentésére és betöltésére. Az emulációt többféle módon is befolyásolhatja a felhasználó, amikbe beletartozik a játék szüneteltetése, adott mennyiségű CPU utasítás végrehajtása, valamint a teljes képkockánként történő léptetés.
+A program feladata a NES kazetták futtatása. A felhasználó grafikus felület segítségével kiválaszthatja a futtatni kívánt, iNES formátumú kazetta fájlt, majd annak betöltése után az emulátor belekezd a videókimenet előállításába (a hangfeldolgozást nem emulálja a program). Bemeneti eszközként billentyűzet vagy kontroller használható. A futtatás során lehetőség van az emulátor állapotának fájlként való mentésére és betöltésére. Az emulációt többféle módon is befolyásolhatja a felhasználó, amikbe beletartozik a játék szüneteltetése, adott mennyiségű CPU utasítás végrehajtása, valamint a teljes képkockánként történő léptetés.
 
 A programot azoknak ajánlom, akik egy letisztult kezelőfelülettel rendelkező, több platformon is elérhető NES emulátorral szeretnék játszani kedvenc játékaikat.
 
@@ -51,12 +51,12 @@ A program a fenti konfiguráción történő tesztelés során problémamentesen
 
 \section{Kompatibilis kazetták}
 
-A NES megtervezésekor fontos cél volt, hogy a konzol életciklusa hosszú legyen, de ezt nem volt könnyű gazdaságos módon elérni. Azt a megoldás találták ki, hogy a kazetta a játék mellett tartalmazzon speciális integrált áramköröket, amik igény szerint bővíthették a hardveres erőforrásokat. Ezeket Mapper-nek nevezzük. A későbbi játékok előszeretettel használták ki ezt a lehetőséget. A legtöbb speciális áramkör a megnövelt ROM kezeléséhez volt szükséges, de akadt olyan is, amelyik további hangcsatornákat adott hozzá a hangfeldolgozó egységhez. Az emulátorom jelenleg a 0 és 2 típusú Mapper-eket támogatja, ezáltal 351 játékot képes elindítani.      
+A NES megtervezésekor fontos cél volt, hogy a konzol életciklusa hosszú legyen, de ezt nem volt könnyű gazdaságos módon elérni. Azt a megoldás találták ki, hogy a kazetta a játék mellett tartalmazzon speciális integrált áramköröket, amik igény szerint bővíthették a hardveres erőforrásokat. Ezeket Mapper-nek nevezzük. A későbbi játékok előszeretettel használták ki ezt a lehetőséget. A legtöbb speciális áramkör a megnövelt ROM kezeléséhez volt szükséges, de akadt olyan is, amelyik további hangcsatornákat adott hozzá a hangfeldolgozó egységhez. Az emulátorom jelenleg a 0 és 2-es típusú áramköröket használó kazettákat támogatja, ezáltal 351 játékot képes elindítani \cite{ROM lista}.      
 
 \section{Főmenü}
 
 \begin{center}
-	\includegraphics[scale=0.7]{menu.png}
+	\includegraphics[scale=0.8]{menu.png}
 \end{center}
 
 \subsection{Kazetta kiválasztása}
@@ -68,7 +68,17 @@ A program hibaüzenettel jelzi, ha a kazetta nem kompatibilis vagy a fájl form�
 
 A főmenü \emph{Show controls} gombjára kattintva megtekinthetjük a gombhozzárendeléseket.
 
+\begin{center}
+	\includegraphics[scale=0.8]{controls.png}
+\end{center}
+
 \section{Játék alatt elérhető funkciók}
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[scale=0.4]{tetris.png}
+	\caption{A felhasználói felület játék közben}
+\end{figure}
 
 \subsection {Irányítás}
 
@@ -76,22 +86,26 @@ A főmenü \emph{Show controls} gombjára kattintva megtekinthetjük a gombhozz�
 	\centering
 	\begin{tabular}{ | l |  l | l | }
 		\hline
-		Virtuális kontroller & Billentyű & Joystick \\
+		NES kontroller gomb & Billentyű & Kontroller \\
 		\hline			
-		A & 1 & 2. gomb \\
-		B & 2 & 3. gomb \\
+		A      & 1 & 2. gomb \\
+		B      & 2 & 3. gomb \\
 		Select & 3 & 0. gomb \\
-		Start & 4 & 1. gomb \\
-		Up    & Fel nyíl & DPad Fel \\
-		Down  & Lefele nyíl & DPad Le \\
-		Left  & Balra nyíl & DPad Bal \\ 
-		Right & Jobbra nyíl & DPad Jobb \\
+		Start  & 4 & 1. gomb \\
+		Up     & Fel nyíl & DPad Fel \\
+		Down   & Lefele nyíl & DPad Le \\
+		Left   & Balra nyíl & DPad Bal \\ 
+		Right  & Jobbra nyíl & DPad Jobb \\
 		\hline
 	\end{tabular}
 	\caption{Játékok irányításához használt gombok}
+	\label{fig:btns}
 \end{table}
 
+A \ref{fig:btns} táblázatban látható módon vannak a fizikai gombok (a billentyűzeten vagy a kontrolleren) az emulált NES virtuális gombjainak megfeleltetve. Például ha a játékon belül a \emph{Select} gombot szeretnénk lenyomni, akkor a billentyűzeten a 3-as, vagy a kontrolleren a 0. gombot kell lenyomnunk.
 A Joystick vezérlők gombkiosztása el szokott térni, ami azt jelenti, hogy a fizikailag ugyanott található gomboknak más az azonosítója. A felhasználó feladata, hogy szükség esetén egy másik programmal módosítsa eszközének kiosztását úgy, hogy az megegyezzen az emulátor szerint elvárttal.
+
+Az \ref{fig:emucontrol} táblázatban felsorolt gombokkal lehet az emulációt irányítani és testre szabni. A szüneteltetés leállítja az emulált komponenseket és elérhetővé teszi a léptetési funkciókat. A teljes rendszert 100 processzorutasítással léptetve láthatjuk, ahogy az aktuális képkocka sorról sorra elő lesz állítva. Ha ennél gyorsabb ütemben szeretnénk léptetni az emulációt, akkor használjuk a képkockánti léptetést. A képre alapértelmezetten rákerül egy katódsugárcsöves megjelenítőket szimuláló effektus, de ezt a funkciót bármikor kikapcsolhatjuk.
 
 \begin{table}[H]
 	\centering
@@ -102,30 +116,28 @@ A Joystick vezérlők gombkiosztása el szokott térni, ami azt jelenti, hogy a 
 		Teljes képernyős nézet ki/be & R \\
 		Katódsugárcsöves képernyő-effektus ki/be & T \\
 		Szüneteltetés ki/be & Space \\
-		100 processzor utasítás végrehajtása szüneteltetett állapotban & C \\
-		A következő képkocka kiszámolása szüneteltett állapotban & F \\
+		100 processzor utasítás végrehajtása (szüneteltetés alatt) & C \\
+		Léptetés a következő képkockára (szüneteltetés alatt) & F \\
 		\hline
 	\end{tabular}
 	\caption{Az emuláció vezérlése}
+	\label{fig:emucontrol}
 \end{table}
-
-
-\subsection{Mentési mappa kiválasztása}
-
-A felhasználónak ki kell jelölnie egy mappát, amit a program a mentések kezelésére használ. A program hibaüzenetet ad, ha enélkül próbálunk menteni vagy gyors betöltést végrehajtani.
 
 \subsection{Mentés}
 
-A mentések a virtuális gép teljes állopata mellett a praktikusság érdekében a játék másolatát is tartalmazzák, tehát egy mentés betöltéséhez nem kell megőrizni a játék eredeti példányát.
+A felhasználónak ki kell jelölnie egy mappát, amit a program a mentések kezelésére használ. A program hibaüzenetet ad, ha enélkül próbálunk menteni vagy gyors betöltést végrehajtani.
+
+A mentések a virtuális gép teljes állapota mellett a praktikusság érdekében a játék másolatát is tartalmazzák, tehát egy mentés betöltéséhez nem kell megőrizni a játék eredeti példányát.
 
 \begin{center}
 	\includegraphics[scale=0.75]{save.png}
 \end{center}
 
-\subsubsection{Gyors mentés}
+\subsubsection{Gyorsmentés}
 
-A gyors mentési funkcióval egy gombnyomásra elmenthetjük állásunkat. A mentés \emph{quick.purenes} néven jön létre a mappában. Ha már létezik ilyen fájl, az felül lesz írva.
-Mentés létrehozása: \textbf{Quick Save} gomb vagy \textbf{F5} billentyű.
+A gyorsmentési funkcióval egy gombnyomásra elmenthetjük állásunkat. A mentés \emph{quick.purenes} néven jön létre a mappában. Ha már létezik ilyen fájl, az felül lesz írva.
+Mentés létrehozása: \textbf{Quicksave} gomb vagy \textbf{F5} billentyű vagy a \textbf{4.} gomb a kontrolleren.
 A mentés sikerességét egy pipa vagy kereszt jelzi a kezelőfelületen a mentés ikon mellett.
 Ha a kontroller rendelkezik rezgőmotorral, akkor a sikeres mentés rezgéssel is jelezve lesz.
 
@@ -135,28 +147,23 @@ Adhatunk nevet a mentéseknek, ehhez írjuk be a nevet a szövegmezőbe és nyom
 
 \subsection{Betöltés}
 
+\subsubsection{Gyorsbetöltés}
+
+A gyorsbetöltési funkció játék közben érhető el, miután kiválasztottuk a mentéseket tároló mappát. A \textbf{Quickload} gombbal, vagy az \textbf{F9} billentyűvel, vagy a kontroller \textbf{6.} gombjával visszatölthetjük a korábban létrehozott gyorsmentést.
+A betöltés sikeressége a mentéshez hasonló módon jelenik meg a kezelőfelületen.
+Sikertelen betöltés abból adódhat, hogy a mappában nem található gyorsmentés, vagy a mentési fájl sérült.
+A sikeres betöltést itt is rezgés fogja követni.
+
 \begin{center}
 	\includegraphics[scale=0.75]{load.png}
 \end{center}
 
-\textbf{Figyelem:} Mindkét betöltési módnál az aktuális munkamenet elveszik. Ha ezt el szeretnénk kerülni, akkor mentsünk előtte.
 
-\subsubsection{Gyors betöltés}
+\begin{subsubsection}{Egyedi mentés betöltése}
 
-A gyors betöltési funkció játék közben érhető el, miután kiválasztottuk a mentéseket tároló mappát. A \textbf{Quick load} gombbal, vagy az \textbf{F9} billentyűvel visszatölthetjük a korábban létrehozott gyorsmentést.
-A betöltés sikeressége a mentéshez hasonló módon jelenik meg a kezelőfelületen.
-A sikeres betöltést szintén rezgés fogja követni.
+Ez a funkció arra szolgál, hogy a gyorsmentésen kívül más mentéseket is be tudjunk tölteni. A fájlkiválasztó segítségével válasszuk ki a betölteni kívánt mentést. \newline \textbf{Figyelem:} Mindkét betöltési módnál az aktuális munkamenet elveszik. Ha ezt el szeretnénk kerülni, akkor mentsünk előtte.
 
-\vspace{0.2cm}
-\textbf{Lehetséges hibaüzenet}
-\begin{itemize}
-	\item A kiválasztott mappában nem található gyorsmentés.
-	Megoldás: hozzunk létre egy gyorsmentést.
-\end{itemize}
-
-\subsubsection{Egyedi mentés betöltése}
-
-A fájlkiválasztó segítségével válasszuk ki a betölteni kívánt mentést.
+\end{subsubsection}
 
 \subsection{A játék megállítása}
 
@@ -177,12 +184,11 @@ A \emph{Return To ROM selection} gomb bezárja a játékot és a felhasználói 
 \end{center}
 
 \subsection{Képernyőképek}
-\vspace{0.5cm}
 \begin{figure}[H]
 	\centering
-	\includegraphics[scale=0.3]{shiru.png}
-	\caption{Alter Ego by Shiru}
+	\includegraphics[scale=0.38]{shiru.png}
+	\caption{Alter Ego}
 	\vspace{1cm}
-	\includegraphics[scale=0.3]{croom.png}
-	\caption{Concentration Room by Damian Yerrick}
+	\includegraphics[scale=0.38]{lawn.png}
+	\caption{Lawn Mover}
 \end{figure}

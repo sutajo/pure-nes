@@ -2,18 +2,30 @@
 
 module GUI.InGame where
 
-import qualified Data.Text as Text
+import qualified Data.Text  as Text
+
+import           Data.HashSet as H
+import qualified Data.Vector  as V
+import           Data.Maybe
+import qualified GI.GObject   as GI
 import           GI.Gtk.Declarative
+import           GI.Gtk.Declarative.Attributes.Collected
+import           GI.Gtk.Declarative.EventSource
+import           GI.Gtk.Declarative.State
+import           GI.Gtk.Interfaces.FileChooser
 import           GI.Gtk.Enums
-import           GI.Gtk 
-                    ( Box(..)
-                    , Button(..)
-                    , FileChooserButton(..)
-                    , Label(..)
-                    , fileChooserGetFilename
-                    )
+import qualified GI.Gtk as QGtk (on)
+import           GI.Gtk as Gtk (
+                  Box(..)
+                , Button(..)
+                , FileChooserButton(..)
+                , Label(..)
+                , widgetGetStyleContext
+                , new
+                )
 import           GI.Gtk.Objects.Entry
 import           GI.Gtk.Objects.Image(Image(..))
+import           GI.Gtk.Objects.FileChooserButton
 import           GI.Gtk.Interfaces.Editable
 import           Text.RawString.QQ
 import           Communication
@@ -31,7 +43,7 @@ saveLabel :: Text.Text
 saveLabel = [r|  First, select a folder for your saves.
   Quicksaving creates an anonymous save 
   file that you can access with Quickload.
-  <span weight="bold" foreground="#6FC6AE">Quicksave shortcut:</span><span foreground="blue"> F5</span> or<span foreground="blue"> LB</span>
+  <span weight="bold" foreground="#6FC6AE">Quicksave shortcut:</span><span foreground="blue"> F5</span> or <span foreground="blue">4. controller button</span>
   You can create unique saves by giving it 
   a name and then hitting the save button. 
   |]
@@ -40,10 +52,49 @@ saveLabel = [r|  First, select a folder for your saves.
 loadLabel :: Text.Text
 loadLabel = [r|  Quickload loads the quicksave file located 
   in the selected save folder (if one exists).
-  <span weight="bold" foreground="#6FC6AE">Quickload Shortcut:</span><span foreground="blue"> F9</span> or <span foreground="blue">RB</span>
+  <span weight="bold" foreground="#6FC6AE">Quickload Shortcut:</span><span foreground="blue"> F9</span> or <span foreground="blue">6. controller button</span>
   You can load unique save files using the
   filechooser.
   |]
+
+
+data FileChooserProperties = FileChooserProperties
+  { selectedPath       :: Maybe FilePath
+  , fileChooserClasses :: ClassSet
+  } deriving (Eq, Show)
+
+
+fileChooserButtonFromUri :: Maybe FilePath -> V.Vector (Attribute FileChooserButton Event) -> Widget Event
+fileChooserButtonFromUri maybePath attributes = Widget (CustomWidget {..})
+  where
+    customAttributes = attributes
+    customParams = FileChooserProperties maybePath H.empty
+    customWidget = FileChooserButton
+    customCreate FileChooserProperties{..} = do
+      fileChooser <- Gtk.new FileChooserButton []
+      fileChooserSetAction fileChooser FileChooserActionOpen
+      fileChooserSetCreateFolders fileChooser True
+      case maybePath of
+          Nothing   -> pure True
+          Just path -> fileChooserSetCurrentFolderUri fileChooser (Text.pack path)
+      sc          <- Gtk.widgetGetStyleContext fileChooser
+      updateClasses sc mempty fileChooserClasses
+      return (fileChooser, SomeState (StateTreeWidget (StateTreeNode fileChooser sc mempty ())))
+
+    customPatch :: FileChooserProperties -> FileChooserProperties -> SomeState -> CustomPatch FileChooserButton SomeState 
+    customPatch (old :: FileChooserProperties) (new :: FileChooserProperties) (SomeState st)
+      | old == new = CustomKeep
+      | otherwise = CustomModify $ \(scale :: Gtk.FileChooserButton) -> do
+        updateClasses (stateTreeStyleContext (stateTreeNode st))
+                      (fileChooserClasses old)
+                      (fileChooserClasses new)
+        return (SomeState st)
+
+    customSubscribe _  _ (fileChooser :: Gtk.FileChooserButton) cb = do
+      handler <- QGtk.on fileChooser
+                  #selectionChanged
+                  (cb =<< fmap SavePathChanged (fileChooserGetFilename fileChooser))
+      return (fromCancellation (GI.signalHandlerDisconnect fileChooser handler))
 
 
 inGame :: State -> Widget Event
@@ -128,13 +179,14 @@ inGame Emulating{..} =
                 BoxChild defaultBoxChildProperties $
                     widget Button
                     [ 
-                        #label := "Quick save",
-                        #marginLeft  := 30,
+                        #label := "  Quicksave    ",
+                        #marginLeft  := 5,
                         #marginRight := 10,
-                        on #clicked QuickSavePressed
+                        on #clicked QuickSavePressed,
+                        #sensitive := isJust savePath
                     ]
             ,   BoxChild defaultBoxChildProperties { fill = True } $ 
-                    widget FileChooserButton
+                    fileChooserButtonFromUri savePath
                     [   onM #selectionChanged (fmap SavePathChanged . fileChooserGetFilename),
                         #action := FileChooserActionSelectFolder, #expand := True, #createFolders := True
                     ]
@@ -149,14 +201,18 @@ inGame Emulating{..} =
                         #label := "Save progress",
                         #marginLeft  := 5,
                         #marginRight := 10,
-                        on #clicked SaveButtonPressed
+                        on #clicked SaveButtonPressed,
+                        #sensitive := isJust savePath
                     ]
 
     ,   BoxChild defaultBoxChildProperties { fill = True } $ 
             widget Entry
-                [ #expand := True, #placeholderText := "How should I call this save?",
-                    onM #changed (\e -> SaveNameChanged . Text.unpack <$> editableGetChars e 0 (-1))]
+                [ #expand := True, 
+                  #placeholderText := "How should I call this save?",
+                  onM #changed (\e -> SaveNameChanged . Text.unpack <$> editableGetChars e 0 (-1)),
+                  #sensitive := isJust savePath
                 ]
+            ]
 
 
         -- Loading
@@ -202,10 +258,11 @@ inGame Emulating{..} =
                     BoxChild defaultBoxChildProperties $
                         widget Button
                         [ 
-                            #label := "Quick load",
+                            #label := "Quickload",
                             #marginLeft  := 5,
                             #marginRight := 10,
-                            on #clicked QuickReloadPressed
+                            on #clicked QuickReloadPressed,
+                            #sensitive := isJust savePath
                         ]
                 ,   BoxChild defaultBoxChildProperties {fill = True} $ 
                         widget FileChooserButton 
