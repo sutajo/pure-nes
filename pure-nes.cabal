@@ -108,7 +108,6 @@ library
      , UnboxedSums
      , LambdaCase
      , NamedFieldPuns
-     , StrictData
   default-language: Haskell2010
 
 executable pure-nes

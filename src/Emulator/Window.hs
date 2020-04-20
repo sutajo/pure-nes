@@ -191,6 +191,7 @@ acquireResources romPath comms = do
     }
   glContext     <- glCreateContext window
   renderer      <- SDL.createRenderer window (-1) rendererConfig
+  swapInterval $= SynchronizedUpdates
   screen        <- SDL.createTexture renderer SDL.RGB24 SDL.TextureAccessStreaming (V2 256 240)
   continousMode <- newIORef True
   joys          <- JoyControls.init buttonMappings >>= newIORef
