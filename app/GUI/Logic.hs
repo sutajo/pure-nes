@@ -1,13 +1,15 @@
 module Main where
 
 
-import           Control.Monad  
+import           Control.Monad
+import           Control.Monad.Extra
 import           Control.Monad.IO.Class
 import           Control.Concurrent       hiding (yield)
 import           Control.Concurrent.STM
 import qualified Data.Text                     as Text
 import           GI.Gtk.Declarative.App.Simple as DAS
 import           System.FilePath
+import           System.Directory
 import           Pipes
 import           Emulator.Window
 import           GUI.Window
@@ -29,7 +31,7 @@ only :: Monad m => m a -> m (Maybe b)
 only x = do x; noop
 
 emit :: Monad m => a -> m (Maybe a)
-emit = return . Just 
+emit = return . Just
 
 
 resultEvent :: Monad m => IOResult -> String -> m (Maybe Event)
@@ -110,7 +112,7 @@ update comms e@Emulating{} (LoadPathChanged (Just path))
   = Transition e {loadPath = path} (sendMsg comms (Load path))
 
 update comms e@Emulating{} (SavePathChanged s)
-  = Transition (e {savePath = s}) (sendMsg comms (NewSaveFolder s))
+  = Transition (e {savePath = s}) (sendMsg comms (NewSaveFolder s) >> savePathToDisk s)
 
 update comms Emulating{savePath} ReturnToSelection 
   = Transition (Started Nothing savePath) (sendMsg comms Quit)
@@ -175,6 +177,12 @@ update _  _ Closed
 update _ s _ = Transition s noop
 
 
+saveFolderPersistencePath :: FilePath
+saveFolderPersistencePath = "resources" </> "Emulator" </> "saveFolder" <.> "txt"
+
+
+savePathToDisk :: Maybe FilePath -> IO (Maybe Event)
+savePathToDisk path = only $ whenJust path (writeFile saveFolderPersistencePath)
 
 
 main :: IO ()
@@ -187,8 +195,15 @@ main = do
                 fromSDLWindow = sdlEvents 
               }
     let sdlWindowEventProxy = forever $ liftIO (readChan sdlEvents) >>= yield 
+
+    previousSaveFolder <- do
+      exists <- doesFileExist saveFolderPersistencePath
+      if exists
+      then Just <$> readFile saveFolderPersistencePath
+      else return Nothing 
+
     void $ run App {    view         = visualize threadCount
                       , DAS.update   = Main.update comms
                       , inputs       = [sdlWindowEventProxy]
-                      , initialState = Started Nothing Nothing
+                      , initialState = Started Nothing previousSaveFolder
                     }

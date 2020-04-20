@@ -144,6 +144,8 @@ executable pure-nes
     , raw-strings-qq
     , gi-gobject
     , unordered-containers
+    , extra
+    , directory
   default-extensions: 
     RecordWildCards, 
     LambdaCase, 

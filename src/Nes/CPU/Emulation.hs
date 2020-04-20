@@ -135,7 +135,7 @@ testFlag :: Flag -> Emulator CPU Bool
 testFlag flag = readReg p <&> testFlag' flag
   where testFlag' flag word = word `testBit` (fromEnum flag)
 
--- Hi addr1 == Hi add2
+-- Hi addr1 == Hi addr2
 onDifferentPage :: Word16 -> Word16 -> Bool
 onDifferentPage addr1 addr2 = addr1 .&. 0xFF00 /= addr2 .&. 0xFF00
 

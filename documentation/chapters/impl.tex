@@ -316,7 +316,7 @@ A $\$3F00 - \$3F1F$ címtartományon található paletta indexben kerülnek elt�
 
 \subsection{Alakzattáblázat}
 
-A CHR memóriában található két alakzattáblázat az alakzatokat tárolja egy speciális formátumban. Ha az alakzatokat úgy reprezentálnánk, hogy minden pixelre eltárolnánk egy színkódot, akkor pixelenként 6 bitre lenne szükségünk (mivel 55 színkódból választhatunk). Ehelyett pixelenként csak 2 bitet (egy szignifikáns és egy kevésbé szignifikáns bitet) tárolnunk, amik együtt egy, a palettaindexben található palettán belüli színt azonosítanak. Az attribútumtábla segítségével fogjuk később meghatározni, hogy a vizsgált pixelhez melyik paletta tartozik. Mivel a paletta index írható és olvasható memória is, így a program futási időben, dinamikusan változtathatja, hogy egy paletta milyen színeket tartalmaz, ezáltal pár lépésben átszínezheti az összes alakzatot, ami azt a palettát használja.
+A CHR memóriában található két alakzattáblázat az alakzatokat tárolja egy speciális formátumban. Ha az alakzatokat úgy reprezentálnánk, hogy minden pixelre eltárolnánk egy színkódot, akkor pixelenként 6 bitre lenne szükségünk (mivel 55 színkódból választhatunk). Ehelyett pixelenként csak 2 bitet (egy szignifikáns és egy kevésbé szignifikáns bitet) tárolnunk, amik együtt egy, a palettaindexben található palettán belüli színt azonosítanak. Az attribútumtábla segítségével fogjuk később meghatározni, hogy a vizsgált pixelhez melyik paletta tartozik. Mivel a paletta index írható és olvasható memória is, így a program futási időben, dinamikusan változtathatja, hogy egy paletta milyen színeket tartalmaz, ezáltal pár lépésben átszínezheti az összes alakzatot, ami az adott palettát használja.
 Egy alakzattáblázat 16x16 darab alakzatot tartalmaz és egy alakzat 8x8 pixeles, ebből adódóan a táblázat teljes mérete $16\cdot16\cdot(8\cdot8\cdot2)\div8 = 4096$ bájt. Egy alakzat pixeljeinek bitjeit $(8\cdot8\cdot2)\div8 = 16$ egymást követő bájt tárolja a \ref{fig:patt} ábrán szemléltetett módon. Először 8 bájton keresztül a kevésbé szignifikáns bitek, majd ezután újabb 8 bájton át a szignifikánsabb bitek helyezkednek el.
 
 \begin{figure}[H]
@@ -402,7 +402,7 @@ Az olvasató regiszterek \textbf{R}, az írhatók \textbf{W} betűvel vannak meg
 	\item[OAMADDR(\$2003, W) és OAMDATA(\$2004, R/W):] \hfill \\
 	A processzor ezen két regiszter segítségével képes új adatokkal feltölteni az OAM memóriát.
 	Az alábbi kódrészlet azt szemlélteti, hogy az \emph{adatok} tömb tartalmát hogyan kell a CPU memóriájából
-	az OAM-ba átmásolni egy megadott címtől kezdve.
+	az OAM-ba átmásolni egy megadott címtől kezdve. Az OAMDATA írása után az OAMADDR automatikusan inkrementálódik a másolás gyorsításának érdekében.
 	\begin{lstlisting}
 	OAMADDR := 8 bites OAM cim
 	for i in 1..adatok.hossz

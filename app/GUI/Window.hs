@@ -211,9 +211,9 @@ visualize threadCount s = do
       Window
       [ #title := title
       , on #deleteEvent (const (True, Closed))
+      , #windowPosition := WindowPositionCenter
       , #heightRequest := height
       , #widthRequest := 400
-      , #windowPosition := WindowPositionCenter
       ]
     $ windowContent s
   where

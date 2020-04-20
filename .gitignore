@@ -3,6 +3,7 @@ stack.yaml.lock
 *.bat
 roms/games
 bench/results
+resources/emulator
 waveform
 *~
 opt.exe
