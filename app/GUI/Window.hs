@@ -49,6 +49,7 @@ supportedMappers :: Text
 supportedMappers = 
  [r|Mapper 0 - NROM
 Mapper 2 - UNROM
+Mapper 3 - CNROM
 |]
 
 
@@ -116,7 +117,7 @@ startMenu threadCount selectedRom =
                 widget Label
                 [
                     #marginTop := 10,
-                    #label := ("Available OS threads: " <> (Text.pack (show threadCount)))
+                    #label := ("Available hardware threads: " <> (Text.pack (show threadCount)))
                 ]
             , container Box
                 [#orientation := OrientationVertical, #halign := AlignEnd, #marginRight := 10, #marginTop := 70, #marginBottom := 10 ]

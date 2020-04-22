@@ -37,7 +37,9 @@ data CartridgeException
 
 instance Show CartridgeException where
   show = \case
-    UnsupportedMapper id -> "Mapper " ++ show id ++ " is currently not supported."
+    UnsupportedMapper id ->
+      "Unfortunately you can't play this game yet with this emulator.\n" ++ 
+      "Mapper " ++ show id ++ " is currently not supported."
     ParsingFailed msg -> msg
 
 

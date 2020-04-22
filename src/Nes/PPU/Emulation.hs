@@ -133,7 +133,7 @@ clearVblAfterStatusRead = do
 
 
 getNametableMirroring :: Emulator PPU (Word16 -> Word16)
-getNametableMirroring = ask <&> mirrorNametableAddress
+getNametableMirroring = getMirroring cartridgeAccess
 
 
 cpuReadRegister :: Word16 -> Emulator PPUAccess Word8
@@ -581,6 +581,7 @@ reloadSecondaryOam = do
   candidateAddresses <- do
     let fallOnCurrentScanline y = y /= 0xFF && between 0 (spriteHeight-1) (scanLine - fromIntegral y)
     findCandidateSpritesThat fallOnCurrentScanline 9 [oamAddr, oamAddr+0x4 .. 0xFC]
+    -- Low accuracy: filterM (fmap fallOnCurrentScanline . readOam) [oamAddr, oamAddr+0x4 .. 0xFC]
  
   spritesEnabled <- isRenderingEnabled
   when (length candidateAddresses == 9 && spritesEnabled) $ do
@@ -588,6 +589,7 @@ reloadSecondaryOam = do
 
   sprites <- do
     forM (take 8 candidateAddresses) $ \addr -> do
+    -- Low accuracy: forM candidateAddresses $ \addr -> do
       y          <- readOam addr
       tile       <- readOam (addr+1)
       attributes <- readOam (addr+2)

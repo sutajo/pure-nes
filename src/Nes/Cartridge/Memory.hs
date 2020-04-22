@@ -3,6 +3,7 @@
 module Nes.Cartridge.Memory where
 
 
+import           Data.Bits
 import           Data.ByteString
 import           Data.Serialize (Serialize)
 import qualified Data.Vector.Unboxed.Mutable as VUM
@@ -39,13 +40,14 @@ data Mapper = Mapper {
  ,  ppuWrite    :: Word16 -> Word8 -> IO ()
  ,  serialize   :: IO MapperState
  ,  deserialize :: MapperState -> IO ()
+ ,  mirroringFunction :: IO (Word16 -> Word16)
 } deriving (Generic)
 
 
 data CartridgeAccess = CartridgeAccess {
-    readCartridge  :: Word16 -> IO Word8
-  , writeCartridge :: Word16 -> Word8 -> IO ()
-  , getMirroring   :: Mirroring
+    readCartridge    :: Word16 -> IO Word8
+  , writeCartridge   :: Word16 -> Word8 -> IO ()
+  , getMirroring     :: IO (Word16 -> Word16)
 }
 
 
@@ -68,11 +70,32 @@ dummyMapper =
   dummyWrite 
   (pure $ MapperState []) 
   (\_ -> undefined)
+  (pure (\_ -> undefined))
  where dummyRead = const (pure 0); dummyWrite _ _ = pure ()
 
 
 getCPUAccess :: Cartridge -> CartridgeAccess
-getCPUAccess Cartridge{mapper=Mapper{cpuRead, cpuWrite}, mirror} = CartridgeAccess cpuRead cpuWrite mirror
+getCPUAccess Cartridge{mapper=Mapper{cpuRead, cpuWrite}} = 
+  CartridgeAccess 
+  cpuRead 
+  cpuWrite 
+  (pure $ \_ -> error "Querying mirroring from the CPU is not allowed.")
 
 getPPUAccess :: Cartridge -> CartridgeAccess
-getPPUAccess Cartridge{mapper=Mapper{ppuRead, ppuWrite}, mirror} = CartridgeAccess ppuRead ppuWrite mirror
+getPPUAccess Cartridge{mapper=Mapper{ppuRead, ppuWrite, mirroringFunction}} = CartridgeAccess ppuRead ppuWrite mirroringFunction
+
+
+horizontalMirroring :: Word16 -> Word16
+horizontalMirroring addr = a - ((a .&. 0x800) `shiftR` 1)
+  where a = (addr .&. 0xFFF) .&. complement 0x400
+
+
+verticalMirroring :: Word16 -> Word16
+verticalMirroring = (.&. 0x7FF)
+
+
+getMirroringFunction :: Mirroring -> (Word16 -> Word16)
+getMirroringFunction mirroring = case mirroring of
+  Horizontal -> horizontalMirroring
+  Vertical   -> verticalMirroring
+  __________ -> error $ "PPU emulator does not support this mirroring type: " ++ show mirroring

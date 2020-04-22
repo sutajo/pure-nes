@@ -68,6 +68,8 @@ float maskLight=1.5;
 
 vec2 res = vec2(800.0,600.0); // /3.0
 
+float contrast = 1.10;
+
 //------------------------------------------------------------------------
 
 // sRGB to Linear.
@@ -166,6 +168,8 @@ void main(){
   vec4 fragColor;
   fragColor.rgb=Tri(pos)*Mask(gl_FragCoord.xy);
   fragColor.rgb=ToSrgb(fragColor.rgb);
+
+  fragColor.rgb = ((fragColor.rgb - 0.5f) * max(contrast, 0)) + 0.5f;
   gl_FragColor= vec4(fragColor.rgb, 1.0);
 }
 

@@ -10,8 +10,7 @@ module Nes.PPU.Memory (
     PPUAccess(..),
     powerUp,
     loadPalette,
-    horizontalMirroring,
-    verticalMirroring,
+    getMirroringFunction,
     module Data.Bits,
     module Data.IORef,
     module Data.IORef.Unboxed,
@@ -106,10 +105,7 @@ data PPU = PPU {
     cartridgeAccess   :: CartridgeAccess,
 
     -- Handle to the CPU interrupts
-    interruptAccess   :: InterruptAccess,
-
-    -- Mirroring function
-    mirrorNametableAddress :: Word16 -> Word16
+    interruptAccess   :: InterruptAccess
 }
 
 newtype PPUAccess = PPUAccess { useAccess :: PPU } -- TODO: Narrow this down to only contain fields needed by the CPU
@@ -121,17 +117,11 @@ newtype PPUAccess = PPUAccess { useAccess :: PPU } -- TODO: Narrow this down to 
 2400 -> 2000
 2800 -> 2400
 2C00 -> 2400
--}
+-} 
 
-horizontalMirroring :: Word16 -> Word16
-horizontalMirroring addr = a - ((a .&. 0x800) `shiftR` 1)
-  where a = (addr .&. 0xFFF) .&. complement 0x400
 
-verticalMirroring :: Word16 -> Word16
-verticalMirroring = (.&. 0x7FF)
-
-powerUp :: InterruptAccess -> Cartridge -> Mirroring -> IO PPU
-powerUp interruptAccess cartridge mirroring = 
+powerUp :: InterruptAccess -> Cartridge -> IO PPU
+powerUp interruptAccess cartridge = 
     PPU                             <$>
     pure palette2C02                <*>
     VSM.replicate (256*240*3) 0     <*>
@@ -167,13 +157,7 @@ powerUp interruptAccess cartridge mirroring =
     newIORefU 0                     <*>
     newIORefU 0                     <*>
     return (getPPUAccess cartridge) <*>
-    return interruptAccess               <*>
-    pure (
-      case mirroring of
-        Horizontal -> horizontalMirroring
-        Vertical   -> verticalMirroring
-        __________ -> error $ "PPU emulator does not support this mirroring type: " ++ show mirroring
-      )
+    return interruptAccess
 
 
 data StatusFlag 

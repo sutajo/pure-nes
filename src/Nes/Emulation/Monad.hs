@@ -11,6 +11,7 @@ module Nes.Emulation.Monad (
     accessPPU,
     createPPUAccess,
     directPPUAccess,
+    getMirroring,
     useMemory,
     readMemory,
     writeMemory,
@@ -52,7 +53,7 @@ data Nes =  Nes {
 
 powerUpNes :: Cart.Cartridge -> IO Nes
 powerUpNes cart = do
-  (cpu, ppu) <- CPU.powerUp cart (Cart.mirror cart)
+  (cpu, ppu) <- CPU.powerUp cart
 
   Nes           <$>
     return cpu  <*>
@@ -106,6 +107,11 @@ writeCartridgeWithAccessor :: (component -> Cart.CartridgeAccess) -> Word16 -> W
 writeCartridgeWithAccessor selector addr val = do
   writer <- ask <&> Cart.writeCartridge . selector
   liftIO $ writer addr val
+
+getMirroring :: (component -> Cart.CartridgeAccess) -> Emulator component (Word16 -> Word16)
+getMirroring selector = do
+  getmirroring <- ask <&> Cart.getMirroring . selector
+  liftIO $ getmirroring
 
 getApu :: Emulator Nes APU
 getApu = useMemory apu readIORef

@@ -57,14 +57,11 @@ data PPU = PPU {
     semuPattShifterLo  :: Word16,
     semuPattShifterHi  :: Word16,
     semuAttrShifterLo  :: Word16,
-    semuAttrShifterHi  :: Word16,
-    -- Mirroring function
-    smirroringType :: Mirroring
+    semuAttrShifterHi  :: Word16
 } deriving (Generic, Serialize)
 
 serialize :: Emulator M.PPU PPU
 serialize = do
-  smirroringType <- ask <&> getMirroring . cartridgeAccess
   M.PPU{..}      <- ask
   let spalette = palette
   snametable         <- liftIO $ VU.freeze nametable
@@ -105,10 +102,6 @@ deserialize :: CartridgeAccess -> InterruptAccess -> PPU -> IO M.PPU
 deserialize cartridgeAccess interruptAccess PPU{..} = do
   let 
     palette = spalette
-    mirrorNametableAddress = case smirroringType of
-      Horizontal -> horizontalMirroring
-      Vertical   -> verticalMirroring
-      __________ -> error $ "PPU emulator does not support this mirroring type: " ++ show smirroringType
   screen             <- VSM.replicate (256*240*3) 0
   nametable          <- VU.thaw snametable
   paletteIndices     <- VU.thaw spaletteIndices

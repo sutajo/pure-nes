@@ -48,8 +48,8 @@ data CPU = CPU {
   controllers     ::  IOVector Controls.Controller 
 }
 
-powerUp :: Cartridge -> Mirroring -> IO (CPU, PPU)
-powerUp cart mirroring = do
+powerUp :: Cartridge -> IO (CPU, PPU)
+powerUp cart = do
   p <- newIORefU 0x34
   a <- newIORefU 0
   x <- newIORefU 0
@@ -61,7 +61,7 @@ powerUp cart mirroring = do
   nmi <- newIORefU 0
   let interrupts = InterruptAccess{..}
   ram <- allocateRAM
-  ppu <- PPUMEM.powerUp interrupts cart mirroring
+  ppu <- PPUMEM.powerUp interrupts cart
   let cartridgeAccess = getCPUAccess cart
   let ppuAccess = PPUAccess ppu
   controllers <- VM.replicate 2 Controls.powerUp

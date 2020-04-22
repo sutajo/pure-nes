@@ -179,7 +179,7 @@ inGame Emulating{..} =
                 BoxChild defaultBoxChildProperties $
                     widget Button
                     [ 
-                        #label := "  Quicksave    ",
+                        #label := "   Quicksave   ",
                         #marginLeft  := 5,
                         #marginRight := 10,
                         on #clicked QuickSavePressed,
