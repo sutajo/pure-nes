@@ -32,6 +32,7 @@ library
       Communication
   other-modules:
       Nes.CPU.InterruptAccess
+      Nes.CPU.Disassembler
       Nes.Emulation.Registers
       Nes.Cartridge.Memory
       Nes.Cartridge.Mappers
