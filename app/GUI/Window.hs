@@ -190,7 +190,7 @@ controlsWidget =
                 ("Fullscreen toggle", "R", "Not available"),
                 ("CRT effect toggle", "T", "Not available"),
                 ("Pause", "Space", "Not available"),
-                ("Step 100 cpu instructions (when paused)", "C", "Not available"),
+                ("Step one cpu instruction (when paused)", "C", "Not available"),
                 ("Step one frame (when paused)", "F", "Not available")
             ]
         , BoxChild defaultBoxChildProperties { padding = 15 } $ 

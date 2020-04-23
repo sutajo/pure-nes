@@ -1,11 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Nes.CPU.Disassembler where
+module Nes.CPU.Disassembler (disassemble) where
 
 import Data.Bits
 import Data.Word
 import Data.Text as Text
-import Data.Text.Encoding
 import Text.Printf
 
 data Instruction
@@ -101,15 +100,15 @@ getArgCount = \case
 
 renderAddressingMode :: AddressingMode -> (Text -> Text)
 renderAddressingMode = \case
-    Acc -> \x -> "   " <> x <> "A"
-    Imm -> \x -> "  #" <> x
-    Abx -> \x -> "   " <> x <> ",X"
-    Aby -> \x -> "   " <> x <> ",Y"
-    Zpx -> \x -> "   " <> x <> ",X"
-    Zpy -> \x -> "   " <> x <> ",Y"
-    Izx -> \x -> "  (" <> x <> ",X)"
-    Izy -> \x -> "  (" <> x <> "),Y"
-    ___ -> \x -> "   " <> x
+    Acc -> \x -> " " <> x <> "A"
+    Imm -> \x -> " #" <> x
+    Abx -> \x -> " " <> x <> ",X"
+    Aby -> \x -> " " <> x <> ",Y"
+    Zpx -> \x -> " " <> x <> ",X"
+    Zpy -> \x -> " " <> x <> ",Y"
+    Izx -> \x -> " (" <> x <> ",X)"
+    Izy -> \x -> " (" <> x <> "),Y"
+    ___ -> \x -> " " <> x
 
 type DecodedOpcode = (AddressingMode, Instruction)
 

@@ -18,11 +18,13 @@ import           Data.Maybe
 import           Data.Word
 import           Data.IORef
 import           Data.Time
+import qualified Data.Text.IO                 as TIO
 import           Graphics.Rendering.OpenGL as OpenGL hiding (Load, scale)
 import           SDL hiding (Error)
 import           SDL.Raw.Haptic
 import           System.FilePath
 import           System.Directory
+import           System.Console.ANSI          as ANSI
 import           Foreign hiding (void)
 import           Communication as Comms
 import           Text.RawString.QQ
@@ -31,9 +33,12 @@ import           Emulator.Framerate
 import           Emulator.CrtShader
 import           Nes.Cartridge.INES.Parser hiding (serialize, deserialize)
 import           Nes.Emulation.Monad
+import           Nes.CPU.Disassembler
+import           Nes.CPU.Memory
+import           Nes.CPU.Emulation     as CPU
 import qualified Nes.CPU.Serialization as CPUS
-import qualified Nes.PPU.Emulation as PPU
-import qualified Nes.Controls as Controls (Input(..), Button(..))
+import qualified Nes.PPU.Emulation     as PPU
+import qualified Nes.Controls          as Controls (Input(..), Button(..))
 import           Nes.Emulation.MasterClock
 import           Nes.Serialization (serialize, deserialize)
 
@@ -399,7 +404,15 @@ executeCommand appResources@AppResources{..} command = do
     StepClockCycle -> do
       whenM (liftIO $ readIORef continousMode <&> not) $ do
         oldFrameCount <- emulatePPU $ PPU.getFrameCount
-        emulateCPU $ replicateM_ 100 execCpuInstruction
+        emulateCPU $ do
+          execCpuInstruction
+          pc    <- readReg pc
+          bytes <- mapM CPU.read [pc..pc+20]
+          liftIO $ do
+            clearScreen
+            setSGR [SetColor Foreground Vivid Cyan]
+            TIO.putStrLn $ disassemble pc bytes
+            setSGR [ANSI.Reset]
         (pixels, newFrameCount)  <- emulatePPU $ do
           PPU.drawPalette 
           (,) <$> PPU.accessScreen <*> PPU.getFrameCount
