@@ -51,7 +51,7 @@ A program a fenti konfiguráción történő tesztelés során problémamentesen
 
 \section{Kompatibilis kazetták}
 
-A NES megtervezésekor fontos cél volt, hogy a konzol életciklusa hosszú legyen, de ezt nem volt könnyű gazdaságos módon elérni. Azt a megoldás találták ki, hogy a kazetta a játék mellett tartalmazzon speciális integrált áramköröket, amik igény szerint bővíthették a hardveres erőforrásokat. Ezeket Mapper-nek nevezzük. A későbbi játékok előszeretettel használták ki ezt a lehetőséget. A legtöbb speciális áramkör a megnövelt ROM kezeléséhez volt szükséges, de akadt olyan is, amelyik további hangcsatornákat adott hozzá a hangfeldolgozó egységhez. Az emulátorom jelenleg a 0 és 2-es típusú áramköröket használó kazettákat támogatja, ezáltal 351 játékot képes elindítani \cite{ROM lista}.      
+A NES megtervezésekor fontos cél volt, hogy a konzol életciklusa hosszú legyen, de ezt nem volt könnyű gazdaságos módon elérni. Azt a megoldás találták ki, hogy a kazetta a játék mellett tartalmazzon speciális integrált áramköröket, amik igény szerint bővíthették a hardveres erőforrásokat. A kiegészítőegységek egy konkrét összeállítását \emph{mapper}-nek nevezzük. A későbbi játékok előszeretettel használták ki ezt a lehetőséget. A legtöbb speciális áramkör a megnövelt háttértár kezeléséhez volt szükséges, de akadt olyan is, amelyik további hangcsatornákat adott hozzá a hangfeldolgozó egységhez. Az emulátorom jelenleg a 0, 2 és 3 azonosítójú mapper-eket használó kazettákat támogatja, ezáltal 471 játékot képes elindítani \cite{ROM lista}.      
 
 \section{Főmenü}
 
@@ -69,7 +69,7 @@ A program hibaüzenettel jelzi, ha a kazetta nem kompatibilis vagy a fájl form�
 A főmenü \emph{Show controls} gombjára kattintva megtekinthetjük a gombhozzárendeléseket.
 
 \begin{center}
-	\includegraphics[scale=0.8]{controls.png}
+	\includegraphics[scale=0.74]{controls.png}
 \end{center}
 
 \section{Játék alatt elérhető funkciók}
@@ -105,7 +105,7 @@ A főmenü \emph{Show controls} gombjára kattintva megtekinthetjük a gombhozz�
 A \ref{fig:btns} táblázatban látható módon vannak a fizikai gombok (a billentyűzeten vagy a kontrolleren) az emulált NES virtuális gombjainak megfeleltetve. Például ha a játékon belül a \emph{Select} gombot szeretnénk lenyomni, akkor a billentyűzeten a 3-as, vagy a kontrolleren a 0. gombot kell lenyomnunk.
 A Joystick vezérlők gombkiosztása el szokott térni, ami azt jelenti, hogy a fizikailag ugyanott található gomboknak más az azonosítója. A felhasználó feladata, hogy szükség esetén egy másik programmal módosítsa eszközének kiosztását úgy, hogy az megegyezzen az emulátor szerint elvárttal.
 
-Az \ref{fig:emucontrol} táblázatban felsorolt gombokkal lehet az emulációt irányítani és testre szabni. A szüneteltetés leállítja az emulált komponenseket és elérhetővé teszi a léptetési funkciókat. A teljes rendszert 100 processzorutasítással léptetve láthatjuk, ahogy az aktuális képkocka sorról sorra elő lesz állítva. Ha ennél gyorsabb ütemben szeretnénk léptetni az emulációt, akkor használjuk a képkockánti léptetést. A képre alapértelmezetten rákerül egy katódsugárcsöves megjelenítőket szimuláló effektus, de ezt a funkciót bármikor kikapcsolhatjuk.
+Az \ref{fig:emucontrol} táblázatban felsorolt gombokkal lehet az emulációt irányítani és testre szabni. A szüneteltetés leállítja az emulált komponenseket és elérhetővé teszi a léptetési funkciókat. Képesek vagyunk a teljes rendszert egy processzorutasítással léptetni. Minden léptetésnél láthatjuk a sztenderd kimeneten, hogy milyen utasítások fognak soron következni. Ha ennél gyorsabb ütemben szeretnénk léptetni az emulációt, akkor használjuk a képkockánti léptetést. A képre alapértelmezetten rákerül egy katódsugárcsöves megjelenítőket szimuláló effektus, de ezt a funkciót bármikor kikapcsolhatjuk.
 
 \begin{table}[H]
 	\centering

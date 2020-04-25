@@ -10,11 +10,11 @@ import Communication
 
 main :: IO ()
 main = do
-    gtkMessages    <- newTChanIO
+    dummy          <- newTChanIO
     sdlEvents      <- newChan
     let comms = CommResources { 
-                toSDLWindow   = gtkMessages, 
-                fromSDLWindow = sdlEvents 
+                toEmulatorWindow   = dummy, 
+                fromEmulatorWindow = sdlEvents 
               }
     (path : _) <- getArgs
 

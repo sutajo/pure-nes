@@ -20,8 +20,8 @@ import           Communication
 -- | Launch the emulator on a new, bound thread
 launchEmulator :: FilePath -> CommResources -> IO ()
 launchEmulator path comms = do
-  toSDLWindow' <- atomically $ dupTChan (toSDLWindow comms)
-  void . forkOS $ runEmulatorWindow path comms { toSDLWindow = toSDLWindow' }
+  toEmulatorWindow' <- atomically $ dupTChan (toEmulatorWindow comms)
+  void . forkOS $ runEmulatorWindow path comms { toEmulatorWindow = toEmulatorWindow' }
 
 
 noop :: Monad m => m (Maybe a)
@@ -43,7 +43,7 @@ resultEvent result op =
 
 
 sendMsg :: CommResources -> Command -> IO (Maybe Event)
-sendMsg CommResources{toSDLWindow} = only . atomically . writeTChan toSDLWindow
+sendMsg CommResources{toEmulatorWindow} = only . atomically . writeTChan toEmulatorWindow
 
 -- | If a field should change while displaying a message
 --   then update the nested emulation state
@@ -191,8 +191,8 @@ main = do
     gtkMessages    <- newBroadcastTChanIO
     sdlEvents      <- newChan
     let comms = CommResources { 
-                toSDLWindow   = gtkMessages, 
-                fromSDLWindow = sdlEvents 
+                toEmulatorWindow   = gtkMessages, 
+                fromEmulatorWindow = sdlEvents 
               }
     let sdlWindowEventProxy = forever $ liftIO (readChan sdlEvents) >>= yield 
 

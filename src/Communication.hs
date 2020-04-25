@@ -61,8 +61,8 @@ data Command
   deriving (Eq) 
 
 data CommResources = CommResources {
-  toSDLWindow   :: TChan Command,
-  fromSDLWindow :: Chan Event 
+  toEmulatorWindow   :: TChan Command,
+  fromEmulatorWindow :: Chan Event 
 }
 
 data EmulationException
@@ -83,5 +83,5 @@ readAllTChan tchan = unfoldM (tryReadTChan tchan)
 
 sendMessageOnException :: IO a -> CommResources -> IO a
 sendMessageOnException op comms = op `catch` \(e :: SomeException) -> do
-  writeChan (fromSDLWindow comms) (Error $ show e)
+  writeChan (fromEmulatorWindow comms) (Error $ show e)
   throw e

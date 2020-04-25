@@ -1,5 +1,5 @@
 module Nes.Emulation.MasterClock (
-    execCpuInstruction,
+    syncCPUwithPPU,
     emulateFrame,
     resetNes
 ) where
@@ -14,21 +14,21 @@ import qualified Nes.APU.Emulation as APU
 
 
 
-execCpuInstruction :: Emulator CPU ()
-execCpuInstruction = do
-  masterClocks <- CPU.processInterrupts >> CPU.clock
-  directPPUAccess $ replicateM_ (masterClocks * 3) PPU.clock
+syncCPUwithPPU :: Emulator CPU ()
+syncCPUwithPPU = do
+  clocks <- CPU.processInterrupts >> CPU.runNextInstruction
+  directPPUAccess $ replicateM_ (clocks * 3) PPU.clock
   {-
-  replicateM_ masterclocks $ do
+  replicateM_ clocks $ do
     apuState <- getApu
-    let (output, newApuState) = APU.clock apuState masterClocks
+    let (output, newApuState) = APU.clock apuState clocks
     setApu newApuState
   -}
 
 emulateFrame :: Emulator Nes FrameBuffer
 emulateFrame = do
   initialFrameCount <- emulatePPU PPU.getFrameCount
-  emulateCPU $ untilM_ execCpuInstruction (directPPUAccess PPU.getFrameCount <&> (/= initialFrameCount))
+  emulateCPU $ untilM_ syncCPUwithPPU (directPPUAccess PPU.getFrameCount <&> (/= initialFrameCount))
   emulatePPU PPU.accessScreen
 
 

@@ -17,13 +17,13 @@ import qualified Data.Vector.Unboxed as VU
 import           GHC.Generics
 import           Text.Printf
 import           Nes.Emulation.Monad
-import           Nes.CPU.InterruptAccess
+import           Nes.CPU.InterruptRegisters
 import           Nes.CPU.Emulation
 import qualified Nes.CPU.Memory      as M
 import qualified Nes.Controls        as Controls
 import           Nes.Cartridge.Memory (CartridgeAccess)
 
-data SerializedInterruptAccess = SerializedInterruptAccess {
+data SerializedInterruptRegisters = SerializedInterruptRegisters {
   nmi :: Word8,
   irq :: Word8
 } deriving (Generic, Serialize)
@@ -42,7 +42,7 @@ data CPU = CPU {
   --Registers
   registers       :: CPURegisters,
   
-  interruptAccess ::  SerializedInterruptAccess,
+  interruptAccess ::  SerializedInterruptRegisters,
   ram             ::  VU.Vector Word8,
   controllers     ::  V.Vector Controls.Controller
 } deriving (Generic, Serialize)
@@ -50,15 +50,15 @@ data CPU = CPU {
 instance Show CPURegisters where
   show CPURegisters{..} = printf "Cpu { a = 0x%X, x = 0x%X, y = 0x%X, pc = 0x%X, s = 0x%X, p = 0x%X, cycles = %d }" a x y pc s p cyc
 
-serializeInterruptAccess :: Emulator M.CPU SerializedInterruptAccess
+serializeInterruptAccess :: Emulator M.CPU SerializedInterruptRegisters
 serializeInterruptAccess = 
-  SerializedInterruptAccess  <$>
+  SerializedInterruptRegisters  <$>
   readReg (M.nmi . M.interrupts) <*>
   readReg (M.irq . M.interrupts)
 
-deserializeInterruptAccess :: SerializedInterruptAccess -> IO InterruptAccess
-deserializeInterruptAccess SerializedInterruptAccess{..} =
-  InterruptAccess <$>
+deserializeInterruptAccess :: SerializedInterruptRegisters -> IO InterruptRegisters
+deserializeInterruptAccess SerializedInterruptRegisters{..} =
+  InterruptRegisters <$>
   newIORefU nmi   <*>
   newIORefU irq
 
@@ -84,7 +84,7 @@ serialize =
 deserialize :: 
   CartridgeAccess -> 
   PPUAccess       -> 
-  InterruptAccess -> 
+  InterruptRegisters -> 
   CPU             -> 
   IO M.CPU
 deserialize ca pa ia CPU{..} = 

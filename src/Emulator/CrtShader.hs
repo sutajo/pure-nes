@@ -194,7 +194,7 @@ newShader shaderType source = do
     shaderSourceBS shader $= source
     compileShader shader
     success <- compileStatus shader
-    when (not success) $ do
+    unless success $ do
       setSGR [SetColor Foreground Vivid Red]
       putStrLn $ "Failed to compile " ++ show shaderType ++ ":"
       setSGR [SetColor Foreground Vivid Yellow]
@@ -210,10 +210,10 @@ createProgramFrom shaders = do
     attachedShaders program $= shaders 
     linkProgram program
     linkSuccess <- linkStatus program
-    when (not linkSuccess) $ throw ShaderLinkingError
+    unless linkSuccess $ throw ShaderLinkingError
     validateProgram program
     validateSuccess <- validateStatus program
-    when (not validateSuccess) $ throw ShaderLinkingError
+    unless validateSuccess $ throw ShaderLinkingError
     performMajorGC
     return program
 

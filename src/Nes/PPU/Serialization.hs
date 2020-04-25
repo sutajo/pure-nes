@@ -15,7 +15,7 @@ import qualified Data.Vector.Unboxed          as VU
 import qualified Data.Vector.Storable.Mutable as VSM
 import           Data.Vector.Serialize()
 import           Nes.Emulation.Monad hiding (PPU)
-import           Nes.CPU.InterruptAccess
+import           Nes.CPU.InterruptRegisters
 import qualified Nes.PPU.Memory as M
 import           Nes.Cartridge.Memory hiding (serialize, deserialize)
 
@@ -98,7 +98,7 @@ serialize = do
   return PPU{..}
 
 
-deserialize :: CartridgeAccess -> InterruptAccess -> PPU -> IO M.PPU
+deserialize :: CartridgeAccess -> InterruptRegisters -> PPU -> IO M.PPU
 deserialize cartridgeAccess interruptAccess PPU{..} = do
   let 
     palette = spalette

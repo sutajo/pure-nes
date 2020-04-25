@@ -95,7 +95,7 @@ assembleCartridge INES{..} = do
     mirror = if flags6 `testBit` 3 then FourScreen else (toEnum . fromEnum) (flags6 `testBit` 0)
   when (mapperId `M.notMember` mappersById) $ throw (UnsupportedMapper mapperId)
   let hasChrRam = BS.length chr_rom_bs == 0
-  chr_rom <- if hasChrRam then VUM.new 0x2000 else toVector chr_rom_bs
+  chr     <- if hasChrRam then VUM.new 0x2000 else toVector chr_rom_bs
   prg_rom <- toVector prg_rom_bs
   prg_ram <- VUM.new (if prg_ram_size == 0 then 0x2000 else fromIntegral prg_ram_size)
   let 

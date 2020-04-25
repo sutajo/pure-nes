@@ -56,7 +56,7 @@ data Cartridge = Cartridge {
     mapperId     :: Word8,
     mapper       :: Mapper,
     mirror       :: Mirroring,
-    chr_rom      :: VUM.IOVector Word8,
+    chr          :: VUM.IOVector Word8,
     prg_rom      :: VUM.IOVector Word8,
     prg_ram      :: VUM.IOVector Word8
 } deriving (Generic)

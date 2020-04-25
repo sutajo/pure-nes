@@ -38,7 +38,7 @@ import           Nes.Emulation.Registers
 --Addresses $3F10/$3F14/$3F18/$3F1C are mirrors of $3F00/$3F04/$3F08/$3F0C
 
 accessMemory :: (PPU -> a) -> Emulator PPU a
-accessMemory memory = ask <&> memory
+accessMemory = asks
 
 accessScreen :: Emulator PPU FrameBuffer
 accessScreen = accessMemory screen
@@ -605,8 +605,8 @@ reloadSecondaryOam = do
       case spriteHeight of
         8 -> do
           let
-            row        =  flip $ fromIntegral (scanLine - fromIntegral y)
-            pattOffset = fromIntegral tile `shiftL` 4
+            row         = flip $ fromIntegral (scanLine - fromIntegral y)
+            pattOffset  = fromIntegral tile `shiftL` 4
             totalOffset = basePattAddr .|. pattOffset .|. row
           pattLsb <- read totalOffset
           pattMsb <- read (totalOffset+8)

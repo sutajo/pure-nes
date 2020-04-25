@@ -34,7 +34,7 @@ serialize = do
   let shasChrRam = hasChrRam
   let smapperId = mapperId
   let smirror   = mirror
-  schr_rom <- liftIO $ VU.freeze chr_rom
+  schr_rom <- liftIO $ VU.freeze chr
   sprg_rom <- liftIO $ VU.freeze prg_rom
   sprg_ram <- liftIO $ VU.freeze prg_ram
   smapperState <- liftIO $ CM.serialize mapper
@@ -46,7 +46,7 @@ deserialize Cartridge{..} = do
   let hasChrRam = shasChrRam
   let mapperId = smapperId
   let mirror   = smirror
-  chr_rom <- VU.thaw schr_rom
+  chr     <- VU.thaw schr_rom
   prg_rom <- VU.thaw sprg_rom
   prg_ram <- VU.thaw sprg_ram
   let mapper = CM.dummyMapper

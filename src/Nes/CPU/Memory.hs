@@ -4,7 +4,7 @@ module Nes.CPU.Memory (
   CPU(..),
   Flag(..),
   Interrupt(..),
-  InterruptAccess(..),
+  InterruptRegisters(..),
   RAM,
   Register8,
   Register16,
@@ -14,16 +14,14 @@ module Nes.CPU.Memory (
 
 import           Data.Vector.Mutable as VM
 import qualified Data.Vector.Unboxed.Mutable  as VUM
-import           Nes.CPU.InterruptAccess
+import           Nes.Emulation.Registers
+import           Nes.CPU.InterruptRegisters
 import           Nes.PPU.Memory as PPUMEM
 import           Nes.Cartridge.Memory
 import qualified Nes.Controls           as Controls
 
 
 type RAM = VUM.IOVector Word8
-
-type Register8  = IORefU Word8
-type Register16 = IORefU Word16
 
 allocateRAM :: IO RAM
 allocateRAM = VUM.new 0x800
@@ -38,10 +36,10 @@ data CPU = CPU {
   pc         ::  Register16,     -- program counter
   s          ::  Register8,      -- stack pointer
   p          ::  Register8,      -- status register
-  cyc        ::  IORefU Int,     -- elapsed cycles
+  cyc        ::  Register Int,     -- elapsed cycles
 
 
-  interrupts      ::  InterruptAccess,
+  interrupts      ::  InterruptRegisters,
   ram             ::  RAM,
   ppuAccess       ::  PPUAccess,
   cartridgeAccess ::  CartridgeAccess,
@@ -59,7 +57,7 @@ powerUp cart = do
   cyc  <- newIORefU 0
   irq <- newIORefU 0
   nmi <- newIORefU 0
-  let interrupts = InterruptAccess{..}
+  let interrupts = InterruptRegisters{..}
   ram <- allocateRAM
   ppu <- PPUMEM.powerUp interrupts cart
   let cartridgeAccess = getCPUAccess cart

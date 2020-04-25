@@ -1,4 +1,4 @@
-\chapter{Fejlesztői dokumentáció} % Developer guide
+\chapter{Fejlesztői dokumentáció I: A NES működésének ismertetése} % Developer guide
 \label{ch:impl}
 
 \section{A NES felépítése}
@@ -18,9 +18,9 @@ A NES emulációjához a következő komponenseket kell megismernünk és megval
 	\item[Ricoh RP2C02:]
 	\hfill \\
 	A képfeldolgozó egység, rövid nevén PPU (Picture Processing Unit).
-	\item[NROM és UNROM:] 
+	\item[NROM, UNROM és CNROM:] 
 	\hfill \\
-	Az emulátor által támogatott két kazettatípus integrált áramkörei.
+	Az emulátor által támogatott három kazettatípus.
 	\item[Sztenderd NES kontroller:] 
 	\hfill \\
 	A konzol alapértelmezett beviteli eszköze.
@@ -44,7 +44,7 @@ Minden komponens rendelkezik egy saját órajelfrekvenciával, amit egy központ
 
 \subsection{Opkód} 
 Egy opkód a 6502 esetében csupán egyetlen bájt, amiből az utasításdekódoló egyértelműen meg tudja határozni a végrehajtandó utasítást és annak címzési módját.
-Ezt a hozzárendelést az opkódmátrix írja le. Az emulációhoz emellett azt is tárolni kell az opkódmátrixban, hogy a végrehajtandó művelet hány központi órajel alatt fejeződik be, ugyanis csak ennek ismeretében tudjuk a CPU-t és a PPU-t precízen egymáshoz szinkronizálni.
+Ezt a hozzárendelést az opkódmátrix írja le. Az emulációhoz emellett azt is tárolni kell az opkódmátrixban, hogy a végrehajtandó művelet hány CPU-órajel alatt fejeződik be, ugyanis csak ennek ismeretében tudjuk a CPU-t és a PPU-t precízen egymáshoz szinkronizálni.
 
 \begin{figure}[H]
 	\centering
@@ -316,8 +316,8 @@ A $\$3F00 - \$3F1F$ címtartományon található paletta indexben kerülnek elt�
 
 \subsection{Alakzattáblázat}
 
-A CHR memóriában található két alakzattáblázat az alakzatokat tárolja egy speciális formátumban. Ha az alakzatokat úgy reprezentálnánk, hogy minden pixelre eltárolnánk egy színkódot, akkor pixelenként 6 bitre lenne szükségünk (mivel 55 színkódból választhatunk). Ehelyett pixelenként csak 2 bitet (egy szignifikáns és egy kevésbé szignifikáns bitet) tárolnunk, amik együtt egy, a palettaindexben található palettán belüli színt azonosítanak. Az attribútumtábla segítségével fogjuk később meghatározni, hogy a vizsgált pixelhez melyik paletta tartozik. Mivel a paletta index írható és olvasható memória is, így a program futási időben, dinamikusan változtathatja, hogy egy paletta milyen színeket tartalmaz, ezáltal pár lépésben átszínezheti az összes alakzatot, ami az adott palettát használja.
-Egy alakzattáblázat 16x16 darab alakzatot tartalmaz és egy alakzat 8x8 pixeles, ebből adódóan a táblázat teljes mérete $16\cdot16\cdot(8\cdot8\cdot2)\div8 = 4096$ bájt. Egy alakzat pixeljeinek bitjeit $(8\cdot8\cdot2)\div8 = 16$ egymást követő bájt tárolja a \ref{fig:patt} ábrán szemléltetett módon. Először 8 bájton keresztül a kevésbé szignifikáns bitek, majd ezután újabb 8 bájton át a szignifikánsabb bitek helyezkednek el.
+A CHR memóriában található két alakzattáblázat tárolja  az alakzatokat egy speciális formátumban. Ha az alakzatokat úgy reprezentálnánk, hogy minden pixelre eltárolnánk egy színkódot, akkor pixelenként 6 bitre lenne szükségünk (mivel 55 színkódból választhatunk). Ehelyett pixelenként csak 2 bitet (egy szignifikáns és egy kevésbé szignifikáns bitet) tárolnunk, amik együtt egy, a palettaindexben található palettán belüli színt azonosítanak. Az attribútumtábla segítségével fogjuk később meghatározni, hogy a vizsgált pixelhez melyik paletta tartozik. Mivel a paletta index írható és olvasható memória is, így a program futási időben, dinamikusan változtathatja, hogy egy paletta milyen színeket tartalmaz, ezáltal pár lépésben átszínezheti az összes alakzatot, ami az adott palettát használja.
+Egy alakzattáblázat 16x16 darab alakzatot tartalmaz és egy alakzat 8x8 pixeles, ebből adódóan a táblázat teljes mérete $16\cdot16\cdot(8\cdot8\cdot2)\div8 = 4096$ bájt. Egy alakzat pixeljeinek bitjeit $(8\cdot8\cdot2)\div8 = 16$ egymást követő bájt tárolja a \ref{fig:patt} ábrán szemléltetett módon. Először 8 bájton keresztül az alakzat sorainak kevésbé szignifikáns bitjei, majd ezután újabb 8 bájton át a szignifikánsabb bitek sorakoznak. Az oszlopok és bitek sorszámozása fel van cserélve, tehát az $i.$ oszlophoz egy bájton belül a $7-i.$ bit tartozik.  
 
 \begin{figure}[H]
 	\centering
@@ -340,26 +340,25 @@ A képfeldolgozó két réteget képes kezelni hardveresen, ezek a háttér és 
 Általában a képkocka azon részei tartoznak a háttérhez, amik ritkán változnak (például feliratok, számlálók, mozdulatlan képek) és a kirajzolásukhoz nem szükséges további transzformáció (eltolás, tükrözés). A háttérben az alakzatok 30 sorból és 32 oszlopból álló négyzetrácsot alkotnak (ebből és az alakzatok méretéből ered a NES 256*240 pixeles felbontása).
 A háttér rétegben egyesével nem lehet alakzatokat eltolni, csak az egész háttér eltolása lehetséges. A sprite rétegben nagyobb flexibilitás áll rendelkezésre, ugyanis itt egyenként, pixel pontosságú eltolással, valamint horizontális és/vagy vertikális tükrözéssel rajzolhatjuk ki az alakzatokat. A sprite rétegnél legfeljebb 64 alakzat szerepelhet egy képkockán (ez a megkötés a később ismertetett OAM méretéből adódik).  
 
-\subsection{Névtáblázat}
+\subsection{Névtáblázatok}
 
-A háttérréteg négyzetrácsának elrendezését a névtáblázatok tárolják. A névtáblázat a háttér 960 darab alakzatcellájának mindegyikéhez eltárolja a cellába rajzolandó alakzat sorszámát. Ez a sorszám relatív, ugyanis mindig azon az alakzattáblázaton belül értendő, amit a CONTROLLER regiszterrel a program kiválasztott.
+A háttérréteg négyzetrácsának elrendezését a névtáblázatok tárolják. Egy névtáblázat a háttér 960 darab alakzatcellájának mindegyikéhez eltárolja a cellába rajzolandó alakzat sorszámát. Ez a sorszám relatív, ugyanis mindig azon az alakzattáblázaton belül értendő, amit a CONTROLLER regiszterrel a program kiválasztott.
 
-\subsection{Attribútum táblák}
+\subsection{Attribútumtáblázatok}
 
-Minden névtáblához tartozik egy 64 bájtos attribútumtáblázat, ahol minden bájt egy 4*4 alakzatcellából álló terület palettáit határozza meg. A bájtok 4 darab 2 bites részre vannak felosztva, ahol mindegyik rész egy 2*2 cellából álló terület palettájának sorszámát (0-3) kódolja el. Ennek a reprezentációnak a következménye, hogy a háttér 4 cellából álló csoportjai mindig egy palettán osztoznak.
-
-A 16 cellát lefedő bájt a következőképpen van felosztva a 4 cellás területek között:
+Minden névtáblához tartozik egy 64 bájtos attribútumtáblázat, ahol minden bájt egy 4*4 alakzatcellából álló terület palettáit határozza meg. A bájtok 4 darab 2 bites részre vannak felosztva, ahol mindegyik rész egy 2*2 cellából álló terület palettájának sorszámát (0-3) kódolja el. Ennek a reprezentációnak a következménye, hogy a háttér 4 cellából álló csoportjai mindig egy palettán osztoznak. A 16 cellát lefedő bájt felosztása a 4 cellás területek között a \ref{fig:attr} ábrán van szemléltetve.
 
 \begin{figure}[H]
 	\centering
-	\includegraphics[width=0.4\linewidth]{attrtable.png}
+	\includegraphics[width=0.45\linewidth]{attrtable.png}
+	\caption{Attribútumbájtok felosztása}
+	\label{fig:attr}
 \end{figure}
-
 
 \subsection{Háttéreltolás}
 
 A háttéreltolással pixelpontossággal megszabhatjuk, hogy a háttér mely része legyen látható a játékos számára.
-Az eltolás miatt van szükség több névtáblára, ugyanis a lecsúszó háttérrész a valamelyik másik névtáblából lesz kiolvasva. 
+Az eltolás miatt van szükség több névtáblára, ugyanis a lecsúszó háttérrész nem az aktív, hanem háttértükrözéstől függően valamelyik másik névtáblából lesz kiolvasva. 
 
 \subsection{OAM (Object Attribute Memory)}
 
@@ -463,7 +462,7 @@ type RGB_Kód = (byte, byte, byte)
 RGB_Kód színKeresés(byte palettaSorszám, byte index)
 
 // Az eredményül kapott pixeleket tároló kétdimenziós tömb
-RGBKod pixelek[256][240]
+RGB_Kód pixelek[256][240]
 
 procedure HáttérKirajzol
 begin
@@ -480,7 +479,7 @@ begin
 		  byte NTB_Eltolás := cellaSor * 32 + cellaOszlop 
 		  
 		  // A névtáblabájt kiolvasása
-			byte NTB := olvas(aktivNevtabla + NTB_Eltolas)
+			byte NTB := olvas(aktívNévtáblázat + NTB_Eltolás)
 			
 			// A cellához tartozó attribútumbájt eltolása a névtábla
 			// kezdőcíméhez viszonyítva.
@@ -501,8 +500,8 @@ begin
 			
 			// Az attribútumbájtnak a cellához tartozó 2 bites része lesz a palettasorszám.
 			// Ki kell számolni, hogy a cella melyik (bal felső, jobb felső, stb.)
-			// kvadránsába esik a bájt által lefedett 4*4-es területnek, ugyanis így
-			// kapjuk meg, hogy a bájtot 0, 2, 4 vagy 6 bittel kell jobbra csúsztatni.
+			// kvadránsába esik a bájt által lefedett 4*4-es területnek, ugyanis így kapjuk meg,
+			// hogy a bájt melyik 2 bitjére van szükségünk
 			byte kvadráns := (cellaSor & 0b10)*2 + (cellaOszlop & 0b10) 
 			byte palettaSorszám :=
 				(ATB >> kvadráns) & 0b11
@@ -517,25 +516,26 @@ begin
 				cim alakzatSor := alakzatCím + pixelSor
 				
 				// A sor alsó bitjei
-				byte alakzatLSB = olvas(alakzatSor)
+				byte alakzatLSB := olvas(alakzatSor)
 				
 				// A sor felső bitjei		
-				byte alakzatMSB = olvas(alakzatSor + 8)
+				byte alakzatMSB := olvas(alakzatSor + 8)
 				
 				for pixelOszlop 0..7
 				begin
 					// A pixelhez tartozó 2 bittel a palettán belüli szín meghatározása
 					byte palettaIndex := 
-						(bit(alakzatMSB, pixelOszlop) << 1) | bit(alakzatLSB, pixelOszlop)
+					  (bit(alakzatMSB, 7-pixelOszlop) << 1) | bit(alakzatLSB, 7-pixelOszlop)
 					
 					// A pixel X koordinátája a képernyőn (0-255)
-					byte X = cellaOszlop * 8 + (7 - pixelOszlop)
+					byte X := cellaOszlop * 8 + pixelOszlop
 					
 					// A pixel Y koordinátája a képernyőn (0-239)
-					byte Y = cellaSor * 8 + pixelSor
+					byte Y := cellaSor * 8 + pixelSor
 				
 					// Az RGB kód kikeresése és beállítása
-					pixelek[X][Y] := szinKeres(palettaSorszám, palettaIndex)
+					pixelek[X][Y] := 
+						színKeresés(palettaSorszám, palettaIndex)
 				end
 			end
 		end
@@ -551,50 +551,185 @@ A 240 sor mindegyikénél a kirajzolás megkezdése előtt ki kell értékelni, 
 
 \clearpage
 
+\chapter{Fejlesztői dokumentáció II: Megvalósítás} % Developer guide
+
+\section{A feladat specifikációja}
+
+A feladat a NES játékkonzolt valós időben emulálni képes szoftver implementálása, ahol a játékos a játék irányítása mellett képes a virtuális gép állapotának elmentésére és betöltésére, valamint az emuláció vezérlésére. A játékokat billentyűzettel vagy kontrollerrel lehet irányítani. A program felhasználói felülettel is rendelkezik, amivel szintén tudunk mentéseket kezelni és szüneteltethetjük az emulációt.
+
+\section{Fejlesztői környezet}
+
+A programot Haskell nyelven írtam és a GHC 8.10.1-es verziójával fordítottam. Szerkesztőprogramként a Visual Studio Code-ot használtam. A Haskell-ben írt függőségi könyvtárak telepítéséhez a Stack eszközt használtam.
+Az SDL2-őt és a GTK-t Linux-on a beépített csomagkezelővel, Windows-on az MSYS2 konzol csomagkezelőjével telepítettem.
+
 \section{Megvalósítási terv}
 
-\subsection{Technológiák}
+\subsection{NES emuláció}
 
-\section{Az emulátor megvalósítása}
+Minden komponenshez (CPU, PPU, kazetták) tartozik egy \emph{Memory} modul, ami definiálja a komponens emulációja során használt rekordokat. A \emph{Serialization} modulok ezen rekordok mentését/betöltését tartalmazzák. A CPU és a PPU \emph{Emulation} moduljai tartalmazzák a hozzájuk tartozó rekordokon végezhető műveleteket.
 
-\subsection{Az emulációt magába záró monád}
+A \emph{Monad} modul definiálja az emulációs monádot és az abban elérhető primitív műveleteket.
+A \emph{MasterClock} modul összefogja a komponenseket és szinkronizálja azok emulációját.
+A \emph{Controls} modul a NES sztenderd kontrollerének emulációját tartalmazza.   
 
-\begin{lstlisting}[language=Haskell,  basicstyle=\tiny]
-import           Control.Monad.Reader
+A \emph{JoyControls} modul a fizikai kontrollerek kezelését végzi (újonnan csatlakoztatott kontroller és annak rezgőmotorjának inicializálása, gombnyomások megfeleltetése parancsoknak).
 
-newtype Emulator c v = Emulator (ReaderT c IO v) 
-	deriving (Functor, Applicative, Monad, MonadIO, MonadReader v)
+A \emph{Window} modul az SDL2 multimédia-könyvtárat és az OpenGL-t használva megjeleníti az előállított képkockákat, kezeli a billentyűzet gomblenyomásait és futtatja a parancsokat feldolgozó ciklust. A \emph{CrtShader} modulban a CRT effektusért felelős OpenGL shaderek találhatók.
+Végül, de nem utolsó sorban a \emph{Framerate} modul függvényeivel tudjuk szabályozni a képkockaszámot (fix vagy korlátozatlan számú képkocka/másodperc).
+
+A \emph{Communication} modul definiálja azokat az eseményeket, amiket az emulációs ablak a felhasználói felületnek küldhet (mentés/betöltés eredménye, megjelenítendő figyelmeztetés/hibaüzenet), illetve azokat a parancsokat, amiket attól fogadhat (szüneteltetés, mentés/betöltés, leállítás, stb.).
+
+\subsection{Felhasználói felület}
+
+A GTK (GIMP Toolkit) egy nyílt forráskódú, kezelőfelületek tervezésére szolgáló szoftvercsomag.
+Az API-ja javarészt imperatív stílusú, például a widget-ek létrehozását követően mellékhatásos függvényekkel tudjuk beállítani az attribútumokat és az eseménykezelőket. A Haskellben elérhető \emph{gi-gtk-declarative} könyvtár ezzel szemben egy deklaratív GTK API-t ad a kezünkbe, aminek segítségével röviden és tömören tudjuk összetett vezérlőelemek megjelenését leírni. 
+A \emph{gi-gtk-declarative-app-simple} erre építve definiál felhasználói felületek vezérléséhez egy egyszerű architektúrát, ahol a felületet állapotgépnek tekintjük és az állapotátmeneteket események váltják ki. A felület létrehozásához elég a kezdőállapotot, az állapotmegjelenítő $(state \rightarrow widget)$ függvényt és az állapotátmenet-függvényt definiálni.
+
+\begin{description}
+	\item[A felhasználói felület moduljai]
+	\item[State:]
+	A felhasználói felület állapotai (Főmenü, Irányítási beállítások, Emuláció, Üzenet).
+	Minden állapothoz tartozik egy rekord, ami a megjelenítéshez és az állapotátmenetekhez szükséges információkat tárolja.
+	\item[InGame:]
+	Az emulációs állapotnál használt megjelenítőfüggvényt tartalmazza.
+	\item[Window:]
+	A teljes felület megjelenítőfüggvényét tartalmazza, ami minden állapotot lefed.
+	\item[Logic:]
+	Az állapotátmenet-függvényt tartalmazza.
+\end{description}
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=1\linewidth]{statetrans.png}
+	\caption{A felület reakciói az eseményekre}
+	\label{fig:states}
+\end{figure}
+
+A \ref{fig:states} ábra az állapotátmenet-függvényt hivatott vizualizálni. Ha egy eseménynél a zárójelben lévő feltétel nem teljesül, akkor az \emph{Üzenet} állapotba lépünk ahol megjelenítjük a hibaüzenetet/figyelmeztetést. Innen az \emph{Ok} gomb lenyomására visszatérünk az előző állapotba. A felület bármelyik állapotban bezárható, ekkor a teljes program terminál (az emulációs ablak is bezárul).
+
+\section{Az emulációt magába záró monád}
+
+A CPU, a PPU, valamint a teljes NES emulációjához érdemes egy monádot bevezetni, hogy ne kelljen mindenhol explicit paraméterként átadni a komponens rekordját. A ReaderT monádtranszformer miatt ez bármely ponton elérhető (olvasható) lesz. A \emph{runEmulator} függvénnyel lefuttathatjuk az emuláció mellékhatásait. Az \emph{emulateSubcomponent} függvény célja, hogy a komponensek emulációját egyesítve lehetséges legyen a teljes rendszer emulációja.
+
+\begin{lstlisting}[language=Haskell]
+import Control.Monad.Reader
+
+newtype Emulator component value 
+	= Emulator (ReaderT component IO value) 
+	deriving 
+	(Functor, Applicative, Monad, MonadIO, MonadReader component)
 
 runEmulator :: c -> Emulator c v -> IO v
-runEmulator component (Emulator effect) = runReaderT effect component
+runEmulator component (Emulator effect) 
+	= runReaderT effect component
 
 emulateSubcomponent :: (c -> s) -> Emulator s v -> Emulator c v
-emulateSubcomponent component (Emulator effect) = Emulator (withReaderT component effect)
-
-emulateCPU :: Emulator CPU v -> Emulator Nes v
-emulateCPU = emulateSubcomponent cpu
+emulateSubcomponent subcomponent (Emulator effect) 
+	= Emulator (withReaderT subcomponent effect)
 
 \end{lstlisting}
 
+\section{Adatreprezentáció}
 
+A teljesítmény fontos szempont volt, ezért a regisztereket változtatható és u.n. \emph{unboxed} (közvetlenül az értéket tárolják és nem egy mutatót az értékre) referenciákkal ábrázoltam. Az egyes memóriarészeket (CPU RAM, PRG, CHR, stb...) külön-külön, változtatható és unboxed vektorokkal reprezentálom.
 
-\subsection{Adatreprezentáció}
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=1\linewidth]{data.png}
+	\caption{Az emulációnál használt rekordok}
+\end{figure}
 
-A hatékony megvalósítás első lépése a megfelelő adatreprezentáció.
+A CPU és a PPU osztozik a megszakítási regisztereken, ezért a PPU megszakításokat tud küldeni a CPU-nak.
 
-\section{A processzor megvalósítása}
+A kazetta memóriáját a \emph{Cartridge} rekord tárolja. Ehhez közvetlenül nem tudunk hozzáférni, mert a mapper típusa szabja meg, hogy hogyan kell a virtuális címeket fizikai címekre átfordítani. A CPU és a PPU a \emph{CartridgeAccess} rekord függvényeit használva tudja olvasni és írni a kazettát. Ezeket mindkét komponens személyre szabva kapja meg, így tehát a CPU esetében a \emph{readCartridge} függvény a mapper \emph{cpuRead} függvényének felel meg.
 
-\section{A képfeldolgozó megvalósítása}
+\section{A CPU emulációja}
 
-\section{Inputkezelés megvalósítása}
+\subsection{Az utasításkészlet implementálása}
+
+\subsection{Egy processzorutasítás végrehajtása}
+Az első lépés, hogy az utasítás opkódját kiolvassuk.
+\vspace{0.3cm}
+\begin{lstlisting}[language=Haskell]
+fetch :: Emulator CPU Opcode
+fetch = readReg pc >>= read
+\end{lstlisting}
+
+Az opkódmátrix segítségével meg kell keresnünk az opkódhoz tartozó utasítást és ciklusszámot. Az opkódmátrix eltárolásának egy egyszerű módja a case elágazás.
+
+\begin{lstlisting}[language=Haskell]
+data DecodedOpcode = DecodedOpcode {
+	instruction   :: Emulator CPU (),
+	cycles        :: Int
+}
+
+decodeOpcode :: Opcode -> DecodedOpcode
+decodeOpcode opcode = case opcode of
+	0x00 -> DecodedOpcode (implied >> brk) 7;
+	...
+\end{lstlisting}
+\vspace{0.3cm}
+Az implementációmnál a dekódolt opkód nem külön, hanem az utasítással "egybeégetve" tartalmazza a címzési módot (így könnyebb volt kezelni azt, hogy nem mindegyik címzési mód ad vissza eredményül címet). A címzési módokat megvalósító függvények arra számítanak, hogy a PC már az opkódot követő bájtra mutat, ezért a végrehajtás előtt meg kell növelni a PC értékét eggyel.
+A \emph{cycle} eljárással megnöveljük az eltelt ciklusok számát a statikusan ismert értékkel, az \emph{elapsedCycles} függvénnyel pedig megnézzük, hogy a végrehajtás után ténylegesen hány ciklus telt el.
+Így tehát a végső \emph{runNextInstruction} eljárás:
+\vspace{0.3cm}
+\begin{lstlisting}[language=Haskell]
+import Data.Functor (<&>)
+
+elapsedCycles :: Emulator CPU a -> Emulator CPU Int
+elapsedCycles operation = do
+	cyclesBefore <- readReg cyc
+	operation
+	readReg cyc <&> (\cyclesAfter -> cyclesAfter - cyclesBefore)
+
+runInstruction :: DecodedOpcode -> Emulator CPU ()
+runInstruction DecodedOpcode{instruction, cycles} = do
+	modifyReg pc (+1)
+	instruction
+	cycle cycles
+
+runNextInstruction :: Emulator CPU Int
+runNextInstruction 
+ 	= elapsedCycles $ (fetch <&> decodeOpcode) >>= runInstruction
+\end{lstlisting}
+
+\section{A PPU emulációja}
+
+\section{A CPU és a PPU szinkronizációja}
+Az emuláció valójában szekvenciálisan történik, de arra oda kell figyelnünk, hogy egy processzorutasítás végrehajtása után megfelelő számú PPU léptetés történjen meg. Mivel a \emph{runNextInstruction} visszaadja eredményül, hogy hány CPU órajel telt el elméletben az utasítás alatt, így már nem nehéz összehangolni a két komponenst annak tudatában, hogy a PPU órajel-frekvenciája háromszorosa a CPU órajel-frekvenciájának.
+A CPU-nak van hozzáférése a PPU-hoz, ezért ezt a CPU szintjén is meg tudjuk tenni.
+\begin{lstlisting}[language=Haskell]
+syncCPUwithPPU :: Emulator CPU ()
+syncCPUwithPPU = do
+	clocks <- CPU.processInterrupts >> CPU.runNextInstruction
+	directPPUAccess $ replicateM_ (clocks * 3) PPU.clock
+\end{lstlisting}
+
+\section{Megszakítások}
+
+\section{iNES fájlok betöltése}
+
+\section{Mapperek megvalósítása}
+
+\section{Mentés és betöltés}
+
+\section{Inputkezelés}
 
 \section{A grafikus felhasználói felület}
 
-\section{Interakció a felhasználóval}
+\subsection{Állapotmegjelenítés}
 
-\subsection{UML Use-Case diagram}
+\subsection{Állapotátmenetek}
 
-\section{Tesztelés}
+\section{Teljesítmény}
+
+\chapter{Tesztelés}
+
+\section{Egységtesztek}
+
+\section{Vizuális tesztelés}
+
+\chapter{Bővítési lehetőségek}
 
 
 

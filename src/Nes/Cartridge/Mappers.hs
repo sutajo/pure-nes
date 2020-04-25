@@ -31,7 +31,7 @@ nrom Cartridge{..} = pure Mapper{..}
   mirroringFunction = pure $ getMirroringFunction mirror
   serialize = pure $ MapperState []
   deserialize _ = pure ()
-  chr_rom_size = VUM.length chr_rom
+  chr_size = VUM.length chr
   prg_ram_size = VUM.length prg_ram
   mirrored  addr = fromIntegral $ (addr - 0x8000) .&. 0x3FFF
   intact addr = fromIntegral (addr `clearBit` 15)
@@ -49,11 +49,11 @@ nrom Cartridge{..} = pure Mapper{..}
     case VUM.length prg_rom of
       0x4000 ->  mirrored
       0x8000 ->  intact
-  mkChrAddr addrUnsafe = fromIntegral addrUnsafe .&. (chr_rom_size - 1)
+  mkChrAddr addrUnsafe = fromIntegral addrUnsafe .&. (chr_size - 1)
   ppuRead :: Word16 -> IO Word8
-  ppuRead addrUnsafe = VUM.read chr_rom (mkChrAddr addrUnsafe)
+  ppuRead addrUnsafe = VUM.read chr (mkChrAddr addrUnsafe)
   ppuWrite addrUnsafe val = if hasChrRam
-    then VUM.write chr_rom (mkChrAddr addrUnsafe) val 
+    then VUM.write chr (mkChrAddr addrUnsafe) val 
     else pure () -- On NROM writing ROM is a nop. See: https://forums.nesdev.com/viewtopic.php?f=3&t=17584
 
 
@@ -118,7 +118,7 @@ mmc1 Cartridge{..} = do
     ppuRead addr = 
       let addrInt = fromIntegral addr in
       if hasChrRam 
-      then VUM.read chr_rom (fromIntegral addrInt .&. 0x1FFF)
+      then VUM.read chr (fromIntegral addrInt .&. 0x1FFF)
       else do
         ctrl <- readIORefU control
         chr0 <- readIORefU chrb0
@@ -127,15 +127,15 @@ mmc1 Cartridge{..} = do
          (if addr `testBit` 12 
           then do
             chr0 <- readIORefU chrb0
-            VUM.read chr_rom $ 0x1000 * fromIntegral chr0 + (addrInt .&. 0x0FFF)
+            VUM.read chr $ 0x1000 * fromIntegral chr0 + (addrInt .&. 0x0FFF)
           else do
             chr1 <- readIORefU chrb1
-            VUM.read chr_rom $ 0x1000 * fromIntegral chr1 + (addrInt .&. 0x0FFF))
+            VUM.read chr $ 0x1000 * fromIntegral chr1 + (addrInt .&. 0x0FFF))
         else 
-          VUM.read chr_rom $ 0x2000 * (fromIntegral chr0 `shiftR` 1) + (addrInt .&. 0x1FFF)
+          VUM.read chr $ 0x2000 * (fromIntegral chr0 `shiftR` 1) + (addrInt .&. 0x1FFF)
 
     ppuWrite addr val = do
-      when hasChrRam (VUM.write chr_rom (fromIntegral addr .&. 0x1FFF) val)
+      when hasChrRam (VUM.write chr (fromIntegral addr .&. 0x1FFF) val)
 
   resetControl
   return Mapper{..}
@@ -162,10 +162,10 @@ unrom Cartridge{..} = do
       | addr < 0x8000 = VUM.write prg_ram (fromIntegral (addr - 0x6000)) val 
       | otherwise = control `writeIORefU` (fromIntegral val `rem` prgBanks)
 
-    ppuRead addr = VUM.read chr_rom $ fromIntegral addr
+    ppuRead addr = VUM.read chr $ fromIntegral addr
     ppuWrite addr val = 
       if hasChrRam
-      then VUM.write chr_rom (fromIntegral addr) val
+      then VUM.write chr (fromIntegral addr) val
       else pure ()
   return Mapper{..}
 
@@ -191,9 +191,9 @@ cnrom Cartridge{..} = do
     ppuAddr addr = do
       readIORefU control <&> (\reg -> fromIntegral reg * 0x2000 + (fromIntegral addr .&. 0x1FFF))
 
-    ppuRead  addrIn = ppuAddr addrIn >>= VUM.read chr_rom
+    ppuRead  addrIn = ppuAddr addrIn >>= VUM.read chr
     ppuWrite addrIn val = do
       addr <- ppuAddr addrIn
-      when hasChrRam (VUM.write chr_rom addr val)
+      when hasChrRam (VUM.write chr addr val)
 
   return Mapper{..}

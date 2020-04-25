@@ -43,11 +43,11 @@ runTest returnLoc expectedCode path romName = do
 
 runPPUTest = runTest (emulatePPU $ PPU.read 0x20A4) 0x31 blargg_ppu_tests
 
-runVblNmi = runTestWith (emulateCPU execCpuInstruction) blargg_vbl_nmi
+runVblNmi = runTestWith (emulateCPU syncCPUwithPPU) blargg_vbl_nmi
 
-runSpriteZero = runTestWith (emulateCPU execCpuInstruction) blargg_spriteZero
+runSpriteZero = runTestWith (emulateCPU syncCPUwithPPU) blargg_spriteZero
 
-runSpriteOverflow = runTestWith (emulateCPU execCpuInstruction) blargg_spriteOverflow
+runSpriteOverflow = runTestWith (emulateCPU syncCPUwithPPU) blargg_spriteOverflow
 
 tests :: [TestTree]
 tests =

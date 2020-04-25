@@ -31,7 +31,7 @@ library
       Emulator.Window
       Communication
   other-modules:
-      Nes.CPU.InterruptAccess
+      Nes.CPU.InterruptRegisters
       Nes.CPU.Disassembler
       Nes.Emulation.Registers
       Nes.Cartridge.Memory

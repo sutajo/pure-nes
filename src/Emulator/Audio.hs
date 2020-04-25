@@ -17,6 +17,8 @@ import           Control.Exception
 import           SDL
 import           Nes.APU.Oscillator
 
+-- This example is from: https://github.com/haskell-game/sdl2/blob/master/examples/AudioExample.hs
+
 data AudioResources = AudioResources {
   device :: AudioDevice
 }

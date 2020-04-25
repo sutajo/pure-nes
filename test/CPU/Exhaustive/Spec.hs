@@ -50,7 +50,7 @@ runTestWith stepper path romName = do
       liftIO $ assertEqual (msg ++ "\nTest exitcode indicates failure.") 0 returnCode
 
 runTest :: FilePath -> String -> Assertion
-runTest = runTestWith (emulateCPU clock) 
+runTest = runTestWith (emulateCPU runNextInstruction) 
 
 tests :: [TestTree]
 tests =

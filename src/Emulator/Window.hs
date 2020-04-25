@@ -220,7 +220,7 @@ releaseResources AppResources{..} = do
   destroyRenderer renderer
   destroyWindow window
   SDL.quit
-  writeChan (fromSDLWindow commRes) SDLWindowClosed
+  writeChan (fromEmulatorWindow commRes) SDLWindowClosed
 
 
 -- | Main loop
@@ -244,7 +244,7 @@ runApp appResources@AppResources{..} = do
 pollCommands :: AppResources -> IO [Command]
 pollCommands res@AppResources{..} = do
   sdlCommands <- (catMaybes . map (translateSDLEvent . eventPayload)) <$> SDL.pollEvents
-  gtkCommands <- atomically $ readAllTChan (toSDLWindow commRes)
+  gtkCommands <- atomically $ readAllTChan (toEmulatorWindow commRes)
   return (gtkCommands ++ sdlCommands)
 
 
@@ -291,7 +291,7 @@ updateScreen AppResources{..} pixels = liftIO $ do
 
 
 -- | Send an event to the GUI through a Chan
-sendEvent AppResources{..} = writeChan (fromSDLWindow commRes)
+sendEvent AppResources{..} = writeChan (fromEmulatorWindow commRes)
 
 
 -- | Write the NES state to a file
@@ -341,7 +341,7 @@ executeCommand appResources@AppResources{..} command = do
   maybeSaveFolder <- liftIO $ readIORef saveFolder 
 
   let 
-    sendEvent = writeChan (fromSDLWindow commRes)
+    sendEvent = writeChan (fromEmulatorWindow commRes)
 
     withQuickSave f = 
       maybe 
@@ -405,7 +405,7 @@ executeCommand appResources@AppResources{..} command = do
       whenM (liftIO $ readIORef continousMode <&> not) $ do
         oldFrameCount <- emulatePPU $ PPU.getFrameCount
         emulateCPU $ do
-          execCpuInstruction
+          runNextInstruction
           pc    <- readReg pc
           bytes <- mapM CPU.read [pc..pc+20]
           liftIO $ do

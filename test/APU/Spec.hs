@@ -21,9 +21,9 @@ import           Nes.Cartridge.INES.Parser hiding (readCartridge)
 import           CPU.Exhaustive.Spec (runTestWith)
 
 
-runMixer   = runTestWith (emulateCPU execCpuInstruction) "roms/tests/apu/apu_mixer/"
+runMixer   = runTestWith (emulateCPU syncCPUwithPPU) "roms/tests/apu/apu_mixer/"
 
-runApuTest = runTestWith (emulateCPU execCpuInstruction) "roms/tests/apu/apu_test/rom_singles/"
+runApuTest = runTestWith (emulateCPU syncCPUwithPPU) "roms/tests/apu/apu_test/rom_singles/"
 
 tests :: [TestTree]
 tests = [

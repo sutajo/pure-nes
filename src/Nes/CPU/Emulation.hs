@@ -2,7 +2,7 @@
 
 module Nes.CPU.Emulation (
   reset,
-  clock,
+  runNextInstruction,
   fetch,
   writeReg,
   readReg,
@@ -20,7 +20,7 @@ import           Control.Monad.Loops
 import           Nes.Emulation.Monad hiding (bit)
 import           Nes.CPU.Memory as CPUMEM
 import qualified Nes.APU.Emulation as APU
-import qualified Nes.PPU.Emulation as PPU hiding (clock)
+import qualified Nes.PPU.Emulation as PPU hiding (runNextInstruction)
 
 data Penalty = None | BoundaryCross
 
@@ -837,7 +837,7 @@ irq = do
     cycle 7
 
 
-tickInterruptTimer :: (InterruptAccess -> Register8) -> Emulator CPU () -> Emulator CPU ()
+tickInterruptTimer :: (InterruptRegisters -> Register8) -> Emulator CPU () -> Emulator CPU ()
 tickInterruptTimer timer interrupt = do
   remainingClocks <- readReg (timer . interrupts)
 
@@ -882,17 +882,13 @@ reset = do
   cycle 7
 
 
-runInstruction :: Emulator CPU () -> Int -> Emulator CPU ()
-runInstruction instruction cycles = do
+runInstruction :: DecodedOpcode -> Emulator CPU ()
+runInstruction DecodedOpcode{instruction, cycles} = do
   modifyReg pc (+1)
   instruction
   cycle cycles
   setFlag Unused True
 
 
-clock :: Emulator CPU Int
-clock = do
-  DecodedOpcode{instruction, cycles} <- do
-    fetch <&> decodeOpcode
-
-  elapsedCycles $ runInstruction instruction cycles
+runNextInstruction :: Emulator CPU Int
+runNextInstruction = elapsedCycles $ (fetch <&> decodeOpcode) >>= runInstruction

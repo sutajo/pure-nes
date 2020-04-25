@@ -100,17 +100,17 @@ writeMemory comp addr val = useMemory comp $ (\arr -> VUM.write arr (fromEnum ad
 
 readCartridgeWithAccessor :: (component -> Cart.CartridgeAccess) -> Word16 -> Emulator component Word8
 readCartridgeWithAccessor selector addr = do
-  reader <- ask <&> Cart.readCartridge . selector
+  reader <- asks (Cart.readCartridge . selector)
   liftIO $ reader addr
 
 writeCartridgeWithAccessor :: (component -> Cart.CartridgeAccess) -> Word16 -> Word8 -> Emulator component ()
 writeCartridgeWithAccessor selector addr val = do
-  writer <- ask <&> Cart.writeCartridge . selector
+  writer <- asks (Cart.writeCartridge . selector)
   liftIO $ writer addr val
 
 getMirroring :: (component -> Cart.CartridgeAccess) -> Emulator component (Word16 -> Word16)
 getMirroring selector = do
-  getmirroring <- ask <&> Cart.getMirroring . selector
+  getmirroring <- asks (Cart.getMirroring . selector)
   liftIO $ getmirroring
 
 getApu :: Emulator Nes APU
@@ -121,20 +121,20 @@ setApu val = useMemory apu (`writeIORef` val)
 
 -- Cpu interrupts
 
-sendPendingInterrupt :: (InterruptAccess -> Register8) -> Word8 -> (component -> InterruptAccess) -> Emulator component ()
+sendPendingInterrupt :: (InterruptRegisters -> Register8) -> Word8 -> (component -> InterruptRegisters) -> Emulator component ()
 sendPendingInterrupt register pendingCycles component = 
-  (ask <&> register . component) >>= \reg -> liftIO $ reg `writeIORefU` pendingCycles
+  asks (register . component) >>= \reg -> liftIO $ reg `writeIORefU` pendingCycles
 
-sendPendingNmi :: Word8 -> (component -> InterruptAccess) -> Emulator component ()
+sendPendingNmi :: Word8 -> (component -> InterruptRegisters) -> Emulator component ()
 sendPendingNmi = sendPendingInterrupt nmi
 
-sendNmi :: (component -> InterruptAccess) -> Emulator component ()
+sendNmi :: (component -> InterruptRegisters) -> Emulator component ()
 sendNmi = sendPendingNmi 1
 
-sendPendingIrq :: Word8 -> (component -> InterruptAccess) ->Emulator component ()
+sendPendingIrq :: Word8 -> (component -> InterruptRegisters) ->Emulator component ()
 sendPendingIrq = sendPendingInterrupt irq
 
-sendIrq :: (component -> InterruptAccess) -> Emulator component ()
+sendIrq :: (component -> InterruptRegisters) -> Emulator component ()
 sendIrq = sendPendingIrq 1
 
 -- Controller access

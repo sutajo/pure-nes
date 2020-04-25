@@ -23,7 +23,7 @@ runBench name = bench name $ perRunEnv resource computation
       computation nes = do
         runEmulator nes $ do
           resetNes
-          untilM_ (emulateCPU execCpuInstruction) (emulatePPU isRenderingEnabled)
+          untilM_ (emulateCPU syncCPUwithPPU) (emulatePPU isRenderingEnabled)
 
 main :: IO ()
 main = do

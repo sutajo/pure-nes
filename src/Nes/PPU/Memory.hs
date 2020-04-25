@@ -30,11 +30,11 @@ import           Data.Functor
 import           Data.Word
 import           Data.IORef
 import           Data.IORef.Unboxed
-import           Nes.CPU.InterruptAccess
+import           Nes.CPU.InterruptRegisters
 import           Nes.Emulation.Registers
 import           Nes.Cartridge.Memory
 
-type    Pixel = (Word8, Word8, Word8)
+type Pixel = (Word8, Word8, Word8)
 
 newtype Palette = Palette (VU.Vector Pixel) deriving (Show, Generic, Serialize)
 
@@ -85,11 +85,11 @@ data PPU = PPU {
     pvtFineX          :: Register8,
 
     -- Registers used for emulation
-    emuCycle          :: IORefU Int,
-    emuScanLine       :: IORefU Int,
-    emuFrameCount     :: IORefU Word,
-    emuClocks         :: IORefU Word,
-    emuLastStatusRead :: IORefU Word,
+    emuCycle          :: Register Int,
+    emuScanLine       :: Register Int,
+    emuFrameCount     :: Register Word,
+    emuClocks         :: Register Word,
+    emuLastStatusRead :: Register Word,
     emuNmiPending     :: Register8,
     emuNmiOccured     :: Register8,
     emuNextNT         :: Register8,
@@ -105,7 +105,7 @@ data PPU = PPU {
     cartridgeAccess   :: CartridgeAccess,
 
     -- Handle to the CPU interrupts
-    interruptAccess   :: InterruptAccess
+    interruptAccess   :: InterruptRegisters
 }
 
 newtype PPUAccess = PPUAccess { useAccess :: PPU } -- TODO: Narrow this down to only contain fields needed by the CPU
@@ -120,7 +120,7 @@ newtype PPUAccess = PPUAccess { useAccess :: PPU } -- TODO: Narrow this down to 
 -} 
 
 
-powerUp :: InterruptAccess -> Cartridge -> IO PPU
+powerUp :: InterruptRegisters -> Cartridge -> IO PPU
 powerUp interruptAccess cartridge = 
     PPU                             <$>
     pure palette2C02                <*>
