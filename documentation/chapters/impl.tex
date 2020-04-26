@@ -137,7 +137,7 @@ szükséges operandus nem regiszterben, hanem a memóriában van. A címzési m�
 	Az operandus címének kiszámítása: $ (arg1 + index) \mod 256 $
 	\item[Indexelt abszolút mód (abx, aby, 2):] Az argumentumok egy teljes memóriacímet alkotnak, amihez hozzáadjuk a megadott index regiszter értékét. 
 	\item[Implicit mód (0):] nincs szükség argumentumra, mert az utasítás regiszterekkel dolgozik.
-	\item[Relatív mód (rel, 1):] Az elágazási utasítások használják ezt a címzési módot. Elágazásoknál ha a feltétel teljesül, akkor az argumentummal el kell tolni a programszámlálót. Az elágazási utasítások feltételeit lásd az \emph{\nameref{instructionset}} szekcióban.
+	\item[Relatív mód (rel, 1):] Az elágazási utasítások használják ezt a címzési módot. Elágazásoknál, ha a feltétel teljesül, akkor az argumentummal el kell tolni a programszámlálót. Az elágazási utasítások feltételeit lásd az \emph{\nameref{instructionset}} szekcióban.
 	\item[Indirekt mód (ind, 2):] 
 	Erre a címzési módra a JMP utasításnál van szükség.
 	A két argumentum bájt együtt egy teljes memóriacímet alkot, legyen ez \emph{m}.
@@ -212,19 +212,17 @@ Memóriatükrözésről beszélünk, amikor fizikailag ugyanazt a memóriaterül
 \label{instructionset}
 
 \begin{compactdesc}
-	\item Aritmetikai és logikai egység (ALU)
-	\begin{compactdesc}
-		\item[ADC:] Összeadás
-		\item[SBC:] Kivonás
-		\item[AND:] Logikai ÉS művelet
-		\item[ASL:] Bájt balra elcsúsztatása
-		\item[LSR:] Bájt jobbra elcsúsztatása
-		\item[ORA:] Logikai VAGY
-		\item[EOR:] Kizárásos VAGY
-		\item[INC, INX, INY:] növelés eggyel
-		\item[DEC, DEX, DEY:] csökkentés eggyel
-		\item[ROL, ROR:] bájt forgatása
-	\end{compactdesc}
+	\item Aritmetikai és logikai egység (ALU) \hfill \\
+	\textbf{ADC:} Összeadás;
+	\textbf{SBC:} Kivonás;
+	\textbf{AND:} Logikai ÉS művelet;
+	\textbf{ASL:} Bájt balra elcsúsztatása;
+	\textbf{LSR:} Bájt jobbra elcsúsztatása;
+	\textbf{ORA:} Logikai VAGY;
+	\textbf{EOR:} Kizárásos VAGY;
+	\textbf{INC, INX, INY:} növelés eggyel;
+	\textbf{DEC, DEX, DEY:} csökkentés eggyel;
+	\textbf{ROL, ROR:} bájt forgatása;
 	\item 
 	Összehasonlítás, tesztelés
 	\begin{compactdesc}
@@ -272,22 +270,22 @@ A PRG jellemzően csak olvasható memória (ROM), ahol a processzor által végr
 
 \subsection{Az iNES fájlformátum}
 
-Az iNES fájlformátumot egy korai NES emulátor vezette be a NES játékok bináris formában történő terjesztésére. A fájl elején található 16 bájtos fejléc többek között a mapper áramkör azonosítóját, a képfeldolgozó névtábláinak tükrözési módját, valamint a PRG ROM és a CHR memóriák típusát (ROM/RAM) és méretét határozza meg. A fejléc után ezek tartalma található.
+Az iNES fájlformátumot egy korai NES emulátor vezette be a NES játékok bináris formában történő terjesztésére. A fájl elején található 16 bájtos fejléc többek között a mapper áramkör azonosítóját, a képfeldolgozó névtábláinak tükrözési módját, valamint a PRG ROM, PRG RAM és a CHR méretét határozza meg. A fejléc után ezek tartalma található.
 
 \section{A képfeldolgozó egység}
 
 \subsection{Színpaletta}
 
 A képpontok végső RGB színkódjának meghatározása többféle módon is lehetséges. A gyors, de kevésbé pontos módszer, ha egy fix palettával dolgozunk. A paletta hozzárendel egy $\$0$ és $\$3F$ közötti azonosítóhoz egy színkódot, így tehát 55 különböző színt tudunk megjeleníteni. A lassabb, de pontosabb módszer, hogy az analóg NTSC videójelre történő konverziót is emuláljuk. Az emulátoromnál a gyorsabb módszert implementáltam.
-
+\iffalse
 \vspace{0.3cm}
 \begin{figure}[H]
 	\centering
 	\includegraphics{palette.png}
 	\caption{A 2C02 színpalettája}
 \end{figure}
-
 \clearpage
+\fi
 
 \subsection{Paletta indexek}
 
@@ -310,7 +308,7 @@ A $\$3F00 - \$3F1F$ címtartományon található paletta indexben kerülnek elt�
 		$ \$3F1D - \$3F1F $ & 3. sprite paletta \\
 		\hline
 	\end{tabular}
-	\caption{A paletta RAM struktúrája}
+	\caption{A paletta indexek címei}
 	\label{fig:paletteram}
 \end{table}
 
@@ -443,7 +441,7 @@ Az olvasató regiszterek \textbf{R}, az írhatók \textbf{W} betűvel vannak meg
 Ezen a ponton már minden részletet ismerünk ahhoz, hogy megérthessük a háttérkirajzolás logikáját. A következő pszeudokód azt szemlélteti, hogy a fent említett táblázatokat és a paletta indexet hogyan kell együtt használni a háttér kiszámolásához. Az egyszerűség kedvéért a háttéreltolást itt nem veszem figyelembe. Sajnos ez az algoritmus ebben a formában emulációra nem alkalmas, mert nehézzé teszi a processzor párhuzamos, megfelelő szinkronizációval történő futtatását.
 \vspace{0.3cm}
 
-\begin{lstlisting}
+\begin{lstlisting}[backgroundcolor = \color{white}, language=c]
 
 // Egy bájt indexedik bitjének kiolvasása (0/1)
 byte bit(byte bájt, int index)
@@ -555,12 +553,12 @@ A 240 sor mindegyikénél a kirajzolás megkezdése előtt ki kell értékelni, 
 
 \section{A feladat specifikációja}
 
-A feladat a NES játékkonzolt valós időben emulálni képes szoftver implementálása, ahol a játékos a játék irányítása mellett képes a virtuális gép állapotának elmentésére és betöltésére, valamint az emuláció vezérlésére. A játékokat billentyűzettel vagy kontrollerrel lehet irányítani. A program felhasználói felülettel is rendelkezik, amivel szintén tudunk mentéseket kezelni és szüneteltethetjük az emulációt.
+A feladat a NES játékkonzol CPU-ját, PPU-ját és kazettáit valós időben emulálni képes szoftver implementálása, ahol a játékos a játék irányítása mellett képes a virtuális gép állapotának elmentésére és betöltésére, valamint az emuláció vezérlésére. A játékokat billentyűzettel vagy kontrollerrel lehet irányítani. A program felhasználói felülettel is rendelkezik, amivel szintén tudunk mentéseket kezelni és szüneteltethetjük az emulációt.
 
 \section{Fejlesztői környezet}
 
 A programot Haskell nyelven írtam és a GHC 8.10.1-es verziójával fordítottam. Szerkesztőprogramként a Visual Studio Code-ot használtam. A Haskell-ben írt függőségi könyvtárak telepítéséhez a Stack eszközt használtam.
-Az SDL2-őt és a GTK-t Linux-on a beépített csomagkezelővel, Windows-on az MSYS2 konzol csomagkezelőjével telepítettem.
+Az SDL2 és a GTK könyvtárakat Linux-on a beépített csomagkezelővel, Windows-on az MSYS2 konzol csomagkezelőjével telepítettem.
 
 \section{Megvalósítási terv}
 
@@ -595,7 +593,7 @@ A \emph{gi-gtk-declarative-app-simple} erre építve definiál felhasználói fe
 	\item[Window:]
 	A teljes felület megjelenítőfüggvényét tartalmazza, ami minden állapotot lefed.
 	\item[Logic:]
-	Az állapotátmenet-függvényt tartalmazza.
+	Az állapotátmenet-függvényt tartalmazza, ami a felhasználói felület állapotváltozásaikor képes olyan mellékhatásokat is végrehajtani, mint például parancsok küldése az emulációs ablaknak. 
 \end{description}
 
 \begin{figure}[H]
@@ -605,7 +603,7 @@ A \emph{gi-gtk-declarative-app-simple} erre építve definiál felhasználói fe
 	\label{fig:states}
 \end{figure}
 
-A \ref{fig:states} ábra az állapotátmenet-függvényt hivatott vizualizálni. Ha egy eseménynél a zárójelben lévő feltétel nem teljesül, akkor az \emph{Üzenet} állapotba lépünk ahol megjelenítjük a hibaüzenetet/figyelmeztetést. Innen az \emph{Ok} gomb lenyomására visszatérünk az előző állapotba. A felület bármelyik állapotban bezárható, ekkor a teljes program terminál (az emulációs ablak is bezárul).
+A \ref{fig:states} ábra az állapotátmenet-függvényt hivatott vizualizálni. A dőlt betűs részek gombnyomásokat, a kövér betűs részek eseményeket jelölnek. Ha egy eseménynél a zárójelben lévő feltétel nem teljesül, akkor az \emph{Üzenet} állapotba lépünk, ahol megjelenítjük a hibaüzenetet/figyelmeztetést. Innen az \emph{Ok} gomb lenyomására visszatérünk az előző állapotba. A felület bármelyik állapotban bezárható, ekkor a teljes program terminál (az emulációs ablak is bezárul).
 
 \section{Az emulációt magába záró monád}
 
@@ -639,16 +637,230 @@ A teljesítmény fontos szempont volt, ezért a regisztereket változtatható é
 	\caption{Az emulációnál használt rekordok}
 \end{figure}
 
-A CPU és a PPU osztozik a megszakítási regisztereken, ezért a PPU megszakításokat tud küldeni a CPU-nak.
+A CPU és a PPU osztozik a megszakítási "regisztereken", ezért a PPU megszakításokat tud küldeni a CPU-nak.
 
 A kazetta memóriáját a \emph{Cartridge} rekord tárolja. Ehhez közvetlenül nem tudunk hozzáférni, mert a mapper típusa szabja meg, hogy hogyan kell a virtuális címeket fizikai címekre átfordítani. A CPU és a PPU a \emph{CartridgeAccess} rekord függvényeit használva tudja olvasni és írni a kazettát. Ezeket mindkét komponens személyre szabva kapja meg, így tehát a CPU esetében a \emph{readCartridge} függvény a mapper \emph{cpuRead} függvényének felel meg.
 
-\section{A CPU emulációja}
+\section{Mentés és betöltés}
 
-\subsection{Az utasításkészlet implementálása}
+Ennek a funkciónak a megvalósítása sokféleképp lehetséges. Én azt a megoldást választottam, hogy azokhoz a rekordokhoz, amik változtatható referenciákat és vektorokat tartalmaznak, definiáltam egy "tiszta" rekordot, ami csak a komponens tárolandó adattagjait tartalmazza (például a PPU framebuffer-ét felesleges tárolni). A tiszta rekordokhoz automatikusan generálni lehet szerializáló műveleteket (erre a \emph{cereal} könyvtárat használtam), így tehát csak annyi dolgom volt, hogy rekordok közti konverziót implementáljam.
 
-\subsection{Egy processzorutasítás végrehajtása}
-Az első lépés, hogy az utasítás opkódját kiolvassuk.
+\begin{lstlisting}[language=Haskell]
+data SerializedPPU = SerializedPPU {
+...
+secondaryOam      :: [Sprite],
+ppuCtrl           :: Word8,
+ppuMask           :: Word8,
+...
+} deriving (Generic, Serialize)
+\end{lstlisting}
+
+\section{Főmodulok áttekintése}
+
+\subsection{Nes.Cartridge.Memory}
+A modul a Cartridge, Mapper és CartridgeAccess rekordok definícióját és a hozzájuk kapcsolódó függvényeket, valamint a névtáblázattükrözési függvényeket tartalmazza.
+
+\begin{description}
+	\item[$\bullet\:$ getCPUAccess :: Cartridge $\rightarrow$ CartridgeAccess] \hfill \\
+	Hozzáférés kérése a kazettához a CPU számára.
+	\item[$\bullet\:$ getPPUAccess :: Cartridge $\rightarrow$ CartridgeAccess] \hfill \\
+	Hozzáférés kérése a kazettához a PPU számára.
+	\item[$\bullet\:$ horizontalMirroring :: Word16 $\rightarrow$ Word16] \hfill \\
+	Horizontális tükrözés.
+	\item[$\bullet\:$ verticalMirroring :: Word16 $\rightarrow$ Word16] \hfill \\
+	Vertikális tükrözés.
+\end{description}
+
+\subsection{Nes.Cartridge.INES.Parser}
+
+\begin{description}
+	\item[$\bullet\:$ iNESloader :: Get INES] \hfill \\
+	Az iNES fájlokat betöltő parser.
+	\item[$\bullet\:$ tryLoadingINES :: FilePath $\rightarrow$ IO INES] \hfill \\
+	Az iNES parser futtatása a megadott fájlon, hiba esetén kivétel dobása.
+	\item[$\bullet\:$ assembleCartridge :: INES $\rightarrow$ IO Cartridge] \hfill \\
+	Az iNES fájl tartalmából az emuláció során használt kazettareprezentáció előállítása.
+	\item[$\bullet\:$ loadCartridge :: FilePath $\rightarrow$ IO Cartridge] \hfill \\
+	Adott elérési útvonalról egy kazetta betöltése.
+	\begin{lstlisting}[language=Haskell]
+	import Control.Monad (>=>)
+	
+	loadCartridge = tryLoadingINES >=> assembleCartridge
+	\end{lstlisting}
+\end{description}
+
+\subsection{Nes.Cartridge.Mappers}
+
+Ez a modul a mapper-ek implementációit tartalmazza. Ha új mapper-t szeretnénk hozzáadni az emulátorhoz, akkor elég pusztán itt definiálni számára egy konstruktort. A kazetta összeszerelésénél a mapper konstruktora megkapja a félkész kazettát és visszaadja az írásra/olvasásra szolgáló függvényeket tartalmazó rekordot, amik a megfelelő logikával fordítják át a címeket.
+A konstruktorok azért nem tiszta függvények, hogy tetszőleges belső állapotot létre lehessen hozni bennük. (belső regiszterekhez referenciák létrehozása)   
+
+\begin{description}
+	\item[$\bullet\:$ mappersById :: Map Word8 (Cartridge $\rightarrow$ IO Mapper)]
+	\item[$\bullet\:$ nrom  :: Cartridge $\rightarrow$ IO Mapper]
+	\item[$\bullet\:$ unrom :: Cartridge $\rightarrow$ IO Mapper]
+	\item[$\bullet\:$ cnrom :: Cartridge $\rightarrow$ IO Mapper]
+\end{description}
+
+\subsection{Nes.Emulation.Monad}
+Az emuláció során használt primitív műveletek.
+\begin{description}
+	\item[$\bullet\:$ powerUpNes :: Cartridge $\rightarrow$ IO Nes] \hfill \\
+	"Behelyezzük" a kazettát és inicializáljuk a komponenseket.
+	\item[$\bullet\:$ useMemory :: (comp $\rightarrow$ ref) $\rightarrow$ (ref $\rightarrow$ IO val) $\rightarrow$ Emulator comp val]
+	Kényelmi függvény arra, hogy a komponens rekordjának egy adott mezőjével műveletet végezzünk.
+	\begin{lstlisting}[language=Haskell]
+	useMemory memory action = asks memory >>= liftIO . action
+	\end{lstlisting}
+	\item[$\bullet\:$ readMemory és writeMemory]
+	Komponens vektorral reprezentált memóriájának közvetlen olvasása és írása (a memóriatérkép nincs figyelembe véve).
+	\item[$\bullet\:$ readCartridgeWithAccessor és writeCartridgeWithAccessor]
+	A kazettához a CPU-nak és a PPU-nak is saját hozzáférése van, amit ezekkel a függvényekkel tudnak használni.
+	\begin{lstlisting}[language=Haskell]
+	readCartridgeWithAccessor :: 
+		(component -> CartridgeAccess) -> 
+		Word16 -> 
+		Emulator component Word8
+	writeCartridgeWithAccessor ::
+		(component -> CartridgeAccess) -> 
+		Word16 ->
+		Word8 -> 
+		Emulator component ()
+	\end{lstlisting}
+\end{description}
+
+\subsection{Nes.CPU.Emulation}
+A 6502 teljes utasításkészletét tartalmazó modul. Néhány segédfüggvény, eljárás:
+
+\begin{description}
+	\item[$\bullet\:$ readReg :: Prim a $\Rightarrow$ (CPU $\rightarrow$ Register a) $\rightarrow$ Emulator CPU a] \hfill \\
+	A megadott regiszter olvasása. A regiszterek csak primitív, kicsomagolható típusokat tárolhatnak.
+	\item[$\bullet\:$ read :: Word16 $\rightarrow$ Emulator CPU Word8] \hfill \\
+	Olvasás a memóriából. A memóriatérkép és a cím alapján dönti el, hogy honnan (RAM, PPU regiszterek, stb...) kell olvasni.
+	\item[$\bullet\:$ write :: Word16 $\rightarrow$ Word8 $\rightarrow$ Emulator CPU ()] \hfill \\
+	Írás a memóriába. Hasonlóan itt is a memóriatérképet kell figyelembe venni.
+	\item[$\bullet\:$ push :: Word8 $\rightarrow$ Emulator CPU ()] \hfill \\
+	Bájt felrakása a stack-re.
+	\item[$\bullet\:$ pushAddress :: Word16 $\rightarrow$ Emulator CPU ()] \hfill \\
+	Cím felrakása a stack-re. Mivel a stack a kisebb címek felé nő, ezért először a szignifikánsabb bájtot kell felrakni, hogy tartsuk a kicsi-az-elején bájtsorrendet.
+	\begin{lstlisting}[language=Haskell]
+	pushAddress addr = do
+		let (high, low) = splitWord16 addr 
+		push high
+		push low
+	\end{lstlisting}
+	\item[$\bullet\:$ nmi :: Emulator CPU ()] \hfill \\
+	NMI megszakítás érkezésekor meghívott eljárás. Elmenti a programszámlálót és a státusz-regisztert a stack-re és a megszakítási vektor által mutatott címen folytatja a végrehajtást.
+	\item[$\bullet\:$ processInterrupts :: Emulator CPU ()] \hfill \\
+	Az interrupt-ok nem érkeznek meg azonnal a processzorhoz, hanem időre van szükségük.
+	Ennél a virtuális gépnél az interrupt regiszterek tárolják, hogy még hány utasítást kell végrehajtani a megszakításig. A processInterrupts eljárás csökkenti a számlálókat és ha valamelyik számláló eléri a nullát, akkor meghívja a megfelelő megszakítást feldolgozó eljárást. 
+	\item[$\bullet\:$ oamDma :: Word8 $\rightarrow$ Emulator CPU ()] \hfill \\
+	Adott memórialapról másolás DMA-val a PPU OAM-ba.
+\end{description}
+
+\subsection{Nes.PPU.Emulation}
+
+\begin{description}
+	\item[$\bullet\:$ cpuReadRegister és cpuWriteRegister] \hfill \\
+	A Nes.CPU.Emulation modul számára kiexportált függvények, amivel a CPU kommunikálhat a PPU-val.
+	\item[$\bullet\:$ getColor :: Word8 $\rightarrow$ Word8 $\rightarrow$ Emulator PPU Pixel] \hfill \\
+	Visszaadja, hogy adott palettán belül az $i.$ színnek mi az RGB kódja. 
+	\item[$\bullet\:$ clock :: Emulator PPU ()] \hfill \\
+	A PPU állapotának léptetésére használt függvény. A PPU sorfolytonosan halad végig a képernyőn és állítja elő a pixeleket, amik vagy a háttérrétegből vagy a sprite-rétegből kerülnek ki. Emellett a háttérréteg következő celláinak adatait is előre  betölti.
+	A vertikális váltás (a CRT TV elektronágyúja a jobb alsó sarokból visszaáll a bal felső sarokba) ideje alatt tétlen (lásd az időzítési diagramot).
+\end{description}
+
+\subsection{Nes.Emulation.Controls}
+
+\begin{description}
+	\item[$\bullet\:$ press :: Button $\rightarrow$ Controller $\rightarrow$ Controller] \hfill \\
+	Ezzel a függvénnyel nyomhatunk le egy gombot a virtuális kontrolleren.
+	\item[$\bullet\:$ release :: Button $\rightarrow$ Controller $\rightarrow$ Controller] \hfill \\
+	Ezzel a függvénnyel engedhetünk fel egy gombot a virtuális kontrolleren.
+	\item[$\bullet\:$ read :: Controller $\rightarrow$ (Word8, Controller)] \hfill \\
+		A CPU ezzel a függvénnyel kérdezheti le a kontroller gombjainak állapotát.
+		Az $i.$ meghívása a függvénynek visszaadja az $i.$ gomb állapotát. (0 - felengedve, 1 - lenyomva) Az állapotváltoztató hatás a típusból egyértelműen látható.
+	\item[$\bullet\:$ write :: Word8 $\rightarrow$ Controller $\rightarrow$ Controller] \hfill \\
+		A CPU a kontroller írásával vissza tudja állítani a kontrollert az alaphelyzetbe (a 0. gombot fogja újra a \emph{read} művelet lekérdezni).
+	
+\end{description}
+
+\subsection{Nes.Emulation.MasterClock}
+
+\begin{description}
+	\item[$\bullet\:$ syncCPUwithPPU :: Emulator CPU ()] \hfill \\
+	CPU utasítás végrehajtása, majd a megfelelő számú PPU órajel emulálása a szinkronizáció megőrzése érdekében.
+	\item[$\bullet\:$ emulateFrame :: Emulator Nes FrameBuffer] \hfill \\
+	Addig léptetjük a rendszert az előző függvénnyel, amíg nem végzünk a képkockával.
+	\item[$\bullet\:$ resetNes :: Emulator Nes ()] \hfill \\
+	Visszaállítja alaphelyzetbe a komponenseket. 
+\end{description}
+
+\subsection{Communication}
+
+\subsection{Emulator.JoyControls}
+
+\begin{description}
+	\item[$\bullet\:$ init :: ButtonMappings $\rightarrow$ IO JoyControlState] \hfill \\
+	Létrehozza azt a rekordot, amiben a gombhozzárendeléseket és csatlakoztatott kontrollereket tartjuk nyilván.
+	\item[$\bullet\:$ manageButtonEvent] \hfill \\
+	Visszaadja, hogy a gombnyomáshoz milyen parancsok tartoznak (gyorsmentés, gyorsbetöltés vagy játékirányítás). 
+	\item[$\bullet\:$ manageHatEvent] \hfill \\
+	A DPAD Fel/Le/Balra/Jobbra/Középen eseményeit figyeli és kiadja a megfelelő parancsokat a virtuális kontroller módosítására. Mivel a virtuális kontrollernél nincs Középen állapota a DPAD-nak, ezért arra is figyelni kell, hogy ezt az állapotot \emph{"engedd fel az előző DPAD gombot"} parancsként kell továbbküldeni.
+	\item[$\bullet\:$ manageDeviceEvent] \hfill \\
+	Figyeli a kontrollercsatlakoztatásokat és az eltávolításokat.
+	Az új kontrollereket inicializálja és eltárolja a rekordban, a kihúzottakat eltávolítja.
+\end{description}
+
+\subsection{Emulator.Framerate}
+
+\begin{description}
+	\item[$\bullet\:$ uncapped :: MonadIO m $\Rightarrow$ m Bool $\rightarrow$ m ()] \hfill \\
+	A megadott műveletet futtatja olyan gyorsan, amilyen gyorsan azt lehet addig, amíg a művelet igaz értékkel nem jelzi, hogy terminálni szeretne.
+	\item[$\bullet\:$ cappedAt :: MonadIO m $\Rightarrow$ m Bool $\rightarrow$ Word32 $\rightarrow$ m ()] \hfill \\
+	A megadott műveletet futtatja a második paraméterben megadott frekvenciával (Hz), amíg a művelet igaz értékkel nem jelzi, hogy terminálni szeretne.
+\end{description}
+
+\subsection{Emulator.CrtShader}
+
+\begin{description}
+	\item[$\bullet\:$ newShader :: ShaderType $\rightarrow$ ByteString $\rightarrow$ IO Shader] \hfill \\
+	Új GLSL shader lefordítása forráskódból. Fordítási hiba esetén kiírja a hibaüzenetet majd kivételt dob.
+	\item[$\bullet\:$ createProgramFrom :: [Shader] $\rightarrow$ IO Program] \hfill \\
+	Linkeli és validálja a shader-ekből készített programot, hiba esetén kivételt dob.
+	\item[$\bullet\:$ getCrtShaderProgram :: IO Program] \hfill \\
+	A modul exportált eljárása, ami létrehozza a CRT effektust megvalósító shader programot.
+	\begin{lstlisting}[language=Haskell]
+	impport Control.Monad ((=<<), sequence)
+	
+	getCrtShaderProgram = 
+		createProgramFrom =<< sequence 
+		[
+			newShader VertexShader crtVertexShader, 
+			newShader FragmentShader crtFragmentShader
+		]
+	\end{lstlisting}
+\end{description}
+
+\subsection{Emulator.Window}
+
+\begin{description}
+	\item[$\bullet\:$ translateSDLEvent :: SDL.EventPayload $\rightarrow$ Maybe Command] \hfill \\
+	Megadja egy beérkező eseményhez a hozzá tartozó parancsot.
+	\item[$\bullet\:$ acquireResources :: FilePath $\rightarrow$ CommResources $\rightarrow$ IO AppResources] \hfill Inicializálja az SDL2 és OpenGL könyvtárakat, a létrehozott ablakot, render-ert, kirajzolásnál használt textúrát, stb. visszaadja egy rekordban.
+	\item[$\bullet\:$ releaseResources :: AppResources $\rightarrow$ IO ()] \hfill \\
+	Felszabadítja a lefoglalt erőforrásokat és leállítja az SDL-t.
+	\item[$\bullet\:$ pollCommands :: AppResources $\rightarrow$ IO [Command]] \hfill \\
+	Lekérdezi az emulátornak adott parancsokat, amiket kiadhattak billentyűzettel, kontrollerrel vagy akár a felhasználói felülettel is. 
+	\item[$\bullet\:$ executeCommand :: AppResources $\rightarrow$ Command $\rightarrow$ Emulator Nes ()] \hfill
+	Az eljárás végrehajtja a paraméterül kapott parancsot.
+	\item[$\bullet\:$ updateScreen :: AppResources $\rightarrow$ IOVector Word8 $\rightarrow$ Emulator Nes ()] \hfill
+	A paraméterül kapott vektor a megjelenítendő kép nyers pixeladatait tartalmazza RGB24 formátumban. A vektor tartalmát feltölti a videómemóriában tárolt textúrába, majd ezután egy OpenGL (be van kapcsolva a CRT shader) vagy SDL (ki van kapcsolva) hívással kirajzolja a textúrát a képernyőre.
+	\item[$\bullet\:$ runEmulatorWindow :: FilePath $\rightarrow$ CommResources $\rightarrow$ IO ()] \hfill
+	A modul exportált eljárása, ami egy ciklusban futtatja a parancsok végrehajtását és az emuláció léptetését. A grafikus felület ezt az eljárást indítja el egy új szálon.
+\end{description}
+
+\section{Egy processzorutasítás végrehajtása}
+Ideje, hogy felhasználjuk a Nes.CPU.Emulation modulban implementált tömérdek mennyiségű utasítást. Az első lépés, hogy az utasítás opkódját kiolvassuk.
 \vspace{0.3cm}
 \begin{lstlisting}[language=Haskell]
 fetch :: Emulator CPU Opcode
@@ -690,10 +902,8 @@ runInstruction DecodedOpcode{instruction, cycles} = do
 
 runNextInstruction :: Emulator CPU Int
 runNextInstruction 
- 	= elapsedCycles $ (fetch <&> decodeOpcode) >>= runInstruction
+ 	= elapsedCycles (fetch <&> decodeOpcode >>= runInstruction)
 \end{lstlisting}
-
-\section{A PPU emulációja}
 
 \section{A CPU és a PPU szinkronizációja}
 Az emuláció valójában szekvenciálisan történik, de arra oda kell figyelnünk, hogy egy processzorutasítás végrehajtása után megfelelő számú PPU léptetés történjen meg. Mivel a \emph{runNextInstruction} visszaadja eredményül, hogy hány CPU órajel telt el elméletben az utasítás alatt, így már nem nehéz összehangolni a két komponenst annak tudatában, hogy a PPU órajel-frekvenciája háromszorosa a CPU órajel-frekvenciájának.
@@ -705,31 +915,67 @@ syncCPUwithPPU = do
 	directPPUAccess $ replicateM_ (clocks * 3) PPU.clock
 \end{lstlisting}
 
-\section{Megszakítások}
-
-\section{iNES fájlok betöltése}
-
-\section{Mapperek megvalósítása}
-
-\section{Mentés és betöltés}
-
-\section{Inputkezelés}
-
 \section{A grafikus felhasználói felület}
 
 \subsection{Állapotmegjelenítés}
 
+\begin{lstlisting}[language=Haskell]
+inGame :: State -> Widget Event
+inGame Emulating{isRunning, romName} = 
+	container Box
+	[#orientation := OrientationVertical, #valign := AlignCenter]
+	[
+		...
+	, BoxChild defaultBoxChildProperties $ 
+		widget Button
+		[ 
+			#label :=
+			 ((if isRunning then "Pause " else "Resume ") <> romName)
+		,	on #clicked TogglePause
+		]
+		...
+	]
+\end{lstlisting}
+
 \subsection{Állapotátmenetek}
+
+\begin{lstlisting}[language=Haskell]
+update comms Emulating{savePath} ReturnToSelection 
+	= Transition (Started Nothing savePath) (sendMsg comms Quit)
+\end{lstlisting}
+
+
+\begin{lstlisting}[language=Haskell]
+update _ e@Emulating{savePath = Nothing} QuickSavePressed
+= Transition e (emit $ chooseSaveFolderFirst)
+\end{lstlisting}
 
 \section{Teljesítmény}
 
 \chapter{Tesztelés}
 
-\section{Egységtesztek}
+A fejlesztés a Test Driven Development (TDD) módszer szerint folyt. Mielőtt belekezdtem volna egy CPU utasítás vagy PPU eljárás implementálásába, a teszteket kibővítettem, hogy az új kódrészeket is lefedjék, ezáltal mindig tudtam, hogy jó irányba haladok-e.
 
-\section{Vizuális tesztelés}
+Az emulátorok tesztelésére vannak kifejezetten erre a célre készített NES ROM-ok, amik tökéletes aprólékossággal ellenőrzik, hogy minden utasítás az elvárt módon változtatja-e a hardver belső állapotát. Azért döntöttem ezek használata mellett, mert ilyen pontosságú tesztek írása 6502 Assembly-ben rengeteg időt vett volna el és a saját tesztek lefedettsége meg se közelítette volna a professzionális tesztek által nyújtott lefedettséget. 
 
-\chapter{Bővítési lehetőségek}
+\section{CPU tesztek}
+
+\subsection{Nestest}
+Ez volt az első teszt, amin a CPU átment. Részletesen végigteszteli az összes utasítást (beleértve néhány illegálisat is). A utasítások címzési módját és sorrendjét is variálja. Összesen 8991 utasítást hajt végre.
+
+\subsection{Instr\_test\_v5}
+16 tesztet tartalmaz, amik a címzési módokat, stack műveleteket, elágazásokat és megszakításokat tesztelik. Remek hibaüzenetek ír a \$6004 címtől kezdve egy nullával terminált sztring segítségével.
+
+\subsection{Instr\_Misc}
+2 teszteset ellenőrzi az abszolút indexelt címzés és az elágazások szélsőséges eseteit.
+
+\section{PPU tesztek}
+
+\subsection{PPU\_vbl\_nmi}
+Az itt található 5 tesztcsomag a vertical blanking period státusz-flaget (be/kikapcsolása megfelelő időben történik), az NMI megszakítást (bekövetkezik-e, a PPU regiszterek befolyásolják-e) és a páros-páratlan képkockák 1 PPU órajelciklusnyi hosszkülönbségét ellenőrzik.
+
+\subsection{PPU\_sprite\_hit és PPU\_sprite\_overflow}
+12 tesztcsomag, amik a sprite réteggel kapcsolatos státusz flag-eket ellenőrzik (Sprite 0 Hit, Sprite Overflow).
 
 
 

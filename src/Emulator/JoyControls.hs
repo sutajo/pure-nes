@@ -90,15 +90,14 @@ getEventJoyHaptic JoyControlState {connectedJoys} (JoyButtonEventData id _ _) = 
   return $ joy >>= haptic
 
 
-manageButtonEvent :: ControllerId -> JoyControlState -> JoyButtonEventData -> IO (Maybe Command)
+manageButtonEvent :: Player -> JoyControlState -> JoyButtonEventData -> IO (Maybe Command)
 manageButtonEvent _ s e@(JoyButtonEventData _ 4 JoyButtonPressed) = getEventJoyHaptic s e <&> Just . QuickSave
 manageButtonEvent _ s e@(JoyButtonEventData _ 6 JoyButtonPressed) = getEventJoyHaptic s e <&> Just . QuickLoad
-manageButtonEvent cid JoyControlState{..} (JoyButtonEventData _ btn state) =
+manageButtonEvent player JoyControlState{..} (JoyButtonEventData _ btn state) =
   let 
-    command = case cid of
-      0 -> PlayerOneInput
-      1 -> PlayerTwoInput
-      _ -> error "Invalid controller id"
+    command = case player of
+      PlayerOne -> PlayerOneInput
+      PlayerTwo -> PlayerTwoInput
     mappedButton = buttonMappings M.!? btn
     action = case state of
       JoyButtonPressed  -> Press

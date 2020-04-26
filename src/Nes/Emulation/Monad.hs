@@ -89,7 +89,7 @@ directPPUAccess = accessPPU . createPPUAccess
 -- Memory access
 
 useMemory :: (component -> reference) -> (reference -> IO value) -> Emulator component value
-useMemory memory action = ask >>= liftIO . action . memory
+useMemory memory action = asks memory >>= liftIO . action
 {-# INLINE useMemory #-}
 
 readMemory :: Enum addr => (c -> VUM.IOVector Word8) -> addr -> Emulator c Word8
@@ -123,7 +123,7 @@ setApu val = useMemory apu (`writeIORef` val)
 
 sendPendingInterrupt :: (InterruptRegisters -> Register8) -> Word8 -> (component -> InterruptRegisters) -> Emulator component ()
 sendPendingInterrupt register pendingCycles component = 
-  asks (register . component) >>= \reg -> liftIO $ reg `writeIORefU` pendingCycles
+  useMemory (register . component) $ \reg -> reg `writeIORefU` pendingCycles
 
 sendPendingNmi :: Word8 -> (component -> InterruptRegisters) -> Emulator component ()
 sendPendingNmi = sendPendingInterrupt nmi

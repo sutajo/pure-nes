@@ -111,12 +111,12 @@ inGame Emulating{..} =
             [#orientation := OrientationVertical, #valign := AlignCenter, #margin := 10, #expand := True ]
             [
                 BoxChild defaultBoxChildProperties { padding = 10 } $ 
-                    widget Image [ #file := Text.append "resources/GUI/" (if running then "pause.png" else "play.png")]
+                    widget Image [ #file := Text.append "resources/GUI/" (if isRunning then "pause.png" else "play.png")]
             ,   BoxChild defaultBoxChildProperties { padding = 10, fill = True } $ 
                     widget Button
                     [ 
-                        #label := Text.append (if running then "Pause " else "Resume ") romName,
-                        on #clicked (SwitchMode True)
+                        #label := ((if isRunning then "Pause " else "Resume ") <> romName),
+                        on #clicked (TogglePause True)
                     ]
             ]
 

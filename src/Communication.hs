@@ -11,7 +11,7 @@ import SDL hiding (Error, Event)
 import SDL.Raw.Types (Haptic)
 import Nes.Controls as Controls (Input)
 
-type ControllerId = Int
+data Player = PlayerOne | PlayerTwo deriving (Enum)
 
 data IOResult = IOResult { errorMsg :: Maybe String, time :: String }
 
@@ -31,7 +31,7 @@ data Event
   | SDLWindowClosed
   | MessageText String MessageIcon
   | Error String
-  | SwitchMode { forwardToSDLWindow :: Bool }
+  | TogglePause { forwardToSDLWindow :: Bool }
   | QuickSavePressed
   | SaveButtonPressed
   | QuickReloadPressed

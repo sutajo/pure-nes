@@ -106,7 +106,7 @@ assembleCartridge INES{..} = do
 
 
 loadCartridge :: FilePath -> IO Cartridge
-loadCartridge path = tryLoadingINES path >>= assembleCartridge
+loadCartridge = tryLoadingINES >=> assembleCartridge
 
 
 

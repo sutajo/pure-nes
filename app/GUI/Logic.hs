@@ -135,9 +135,9 @@ update _ m@Message{} (MessageText newMsg newIcon)
 
 -- Pause and resume
 
-update comms s (SwitchMode shouldForward)
+update comms s (TogglePause shouldForward)
   = Transition 
-    (updateNestedEmulationState (\ e@Emulating{running = r} -> e {running = not r}) s) 
+    (updateNestedEmulationState (\ e@Emulating{isRunning = r} -> e {isRunning = not r}) s) 
     (if shouldForward then sendMsg comms (SwitchEmulationMode False) else noop)
 
 

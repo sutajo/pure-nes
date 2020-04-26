@@ -16,7 +16,7 @@ data State
     }
   | Emulating { 
       romName           :: Text, 
-      running           :: Bool,
+      isRunning         :: Bool,
       savePath          :: Maybe FilePath, 
       loadPath          :: FilePath, 
       saveRomName       :: String,

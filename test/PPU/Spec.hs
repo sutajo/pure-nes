@@ -52,12 +52,13 @@ runSpriteOverflow = runTestWith (emulateCPU syncCPUwithPPU) blargg_spriteOverflo
 tests :: [TestTree]
 tests =
   [
+    {-
     testGroup "Memory access" [
       testCase "Palette RAM" $ runPPUTest "palette_ram.nes",
       testCase "Sprite  RAM" $ runPPUTest "sprite_ram.nes",
       testCase "VRAM"        $ runPPUTest "vram_access.nes"
     ],
-
+    -}
     testGroup "Synchronization" [
       testCase "Vbl basics"      $ runVblNmi "01-vbl_basics.nes",
       testCase "Vbl set time"    $ runVblNmi "02-vbl_set_time.nes",

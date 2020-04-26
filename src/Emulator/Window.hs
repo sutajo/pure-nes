@@ -145,7 +145,7 @@ This is not a save file or it may have been corrupted.
 
 -- | Main entry point of the window
 runEmulatorWindow :: FilePath -> CommResources -> IO ()
-runEmulatorWindow romPath comms = do
+runEmulatorWindow romPath comms = runInBoundThread $ do
   bracket (acquireResources romPath comms) releaseResources runApp 
   bye
 
@@ -164,7 +164,7 @@ loadNes path = do
     powerUpNes cartridge
 
 
-acquireResources :: String -> CommResources -> IO AppResources
+acquireResources :: FilePath -> CommResources -> IO AppResources
 acquireResources romPath comms = do
   reboot    <- newIORef False
   nes       <- (loadNes romPath >>= newIORef) `sendMessageOnException` comms
@@ -375,7 +375,7 @@ executeCommand appResources@AppResources{..} command = do
 
     JoyButtonCommand eventData -> do
       controllerId <- liftIO $ readIORef joyIsSecondCtrl
-      liftIO (manageButtonEvent (fromEnum controllerId) joys eventData) >>= \case
+      liftIO (manageButtonEvent (toEnum.fromEnum $ controllerId) joys eventData) >>= \case
         Just command -> executeCommand appResources command
         _            -> pure ()
 
@@ -396,7 +396,7 @@ executeCommand appResources@AppResources{..} command = do
       screen <- emulatePPU PPU.accessScreen
       liftIO $ do
         modifyIORef' continousMode not
-        when shouldForward (sendEvent (SwitchMode False))
+        when shouldForward (sendEvent (TogglePause False))
         continous <- readIORef continousMode
         when (not continous) (liftIO $ VSM.set screen 0)
         putStrLn ("Switched to " ++ (if continous then "continous" else "step-by-step") ++ " mode.")

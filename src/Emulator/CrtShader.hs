@@ -220,9 +220,7 @@ createProgramFrom shaders = do
 
 getCrtShaderProgram :: IO Program
 getCrtShaderProgram = 
-  createProgramFrom 
-  =<< 
-  sequence 
+  createProgramFrom =<< sequence 
   [
     newShader VertexShader crtVertexShader, 
     newShader FragmentShader crtFragmentShader

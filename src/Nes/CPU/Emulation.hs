@@ -17,6 +17,7 @@ import           Prelude hiding (read, cycle, and)
 import           Control.Applicative
 import           Control.Monad.Extra
 import           Control.Monad.Loops
+import           Nes.Emulation.Registers
 import           Nes.Emulation.Monad hiding (bit)
 import           Nes.CPU.Memory as CPUMEM
 import qualified Nes.APU.Emulation as APU
@@ -50,13 +51,13 @@ mergeWord8 low high = (fromIntegral high `shiftL` 8) .|. fromIntegral low
 stackBase :: Word16
 stackBase = 0x0100
 
-readReg :: Prim a => (CPU -> IORefU a) -> Emulator CPU a
+readReg :: Prim a => (CPU -> Register a) -> Emulator CPU a
 readReg = flip useMemory readIORefU
 
-writeReg :: Prim a => (CPU -> IORefU a) -> a -> Emulator CPU ()
+writeReg :: Prim a => (CPU -> Register a) -> a -> Emulator CPU ()
 writeReg reg val = useMemory reg (flip writeIORefU val)
 
-modifyReg :: Prim a => (CPU -> IORefU a) -> (a -> a) -> Emulator CPU ()
+modifyReg :: Prim a => (CPU -> Register a) -> (a -> a) -> Emulator CPU ()
 modifyReg reg f = readReg reg >>= writeReg reg . f
 
 readRAM :: Word16 -> Emulator CPU Word8
@@ -336,7 +337,7 @@ jsr addr = do
   readReg pc <&> decrement >>= pushAddress
   jmp addr 
 
-ld :: (CPU -> IORefU Word8) -> Word16 -> Emulator CPU ()
+ld :: (CPU -> Register Word8) -> Word16 -> Emulator CPU ()
 ld reg addr = do
   read addr >>= writeReg reg
   a' <- readReg reg
@@ -462,7 +463,7 @@ sed = setFlag DecimalMode True
 sei :: Emulator CPU ()
 sei = setFlag InterruptDisable True
 
-st :: (CPU -> IORefU Word8) -> Word16 -> Emulator CPU ()
+st :: (CPU -> Register Word8) -> Word16 -> Emulator CPU ()
 st reg addr = readReg reg >>= write addr
 
 sta = st a
@@ -891,4 +892,4 @@ runInstruction DecodedOpcode{instruction, cycles} = do
 
 
 runNextInstruction :: Emulator CPU Int
-runNextInstruction = elapsedCycles $ (fetch <&> decodeOpcode) >>= runInstruction
+runNextInstruction = elapsedCycles (fetch <&> decodeOpcode >>= runInstruction)
