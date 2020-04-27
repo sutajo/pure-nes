@@ -556,9 +556,9 @@ A feladat a NES játékkonzol CPU-ját, PPU-ját és kazettáit valós időben e
 
 \section{Fejlesztői környezet}
 
-A programot Haskell nyelven írtam és a GHC 8.10.1-es verziójával fordítottam. Szerkesztőprogramként Visual Studio Code-ot használtam. A Haskell-ben írt függőségi könyvtárak telepítéséhez a Stack eszközt használtam.
+A programot Haskell nyelven írtam és a GHC 8.10.1-es verziójával fordítottam. Szerkesztőprogramként Visual Studio Code-ot használtam. A Haskell-ben írt függőségi könyvtárak telepítéséhez a Stack\footnote{Haskell Tool Stack: \href{https://docs.haskellstack.org/en/stable/README/}{https://docs.haskellstack.org/en/stable/README/}} eszközt használtam.
 Az SDL2 és a GTK könyvtárakat Linux-on a disztribúció csomagkezelőjével, Windows-on az MSYS2 konzol csomagkezelőjével telepítettem. 
-
+\clearpage
 \subsubsection{Csomagok telepítése}
 \begin{itemize}
 	\item Windows (MSYS2 konzollal):
@@ -633,7 +633,7 @@ A \emph{gi-gtk-declarative-app-simple} erre építve definiál felhasználói fe
 	\item[Window:]
 	Az \emph{Üzenet}, \emph{Irányítási beállítások} és \emph{Főmenű} állapotok megjelenítéséhez használt segédfüggvényeket (\emph{messageWidget, controlsWidget, startMenu}), valamint a segédfüggvények egyesítésével kapott függvényt (\emph{visualize}) tartalmazza, ami minden állapotot meg tud jeleníteni.
 	\item[Logic (Main):]
-	Az állapotátmenet-függvényt (\emph{update}) tartalmazza, ami kezeli a felületről vezérlőelemeitől vagy az emulációs ablaktól érkező eseményeket és képes ezek hatására parancsokat küldeni az emulációs ablaknak. 
+	Az állapotátmenet-függvényt (\emph{update}) tartalmazza, ami kezeli a felület vezérlőelemeitől vagy az emulációs ablaktól érkező eseményeket, azok hatására frissíti a jelenlegi állapotot, átmegy egy teljesen új állapotba vagy parancsot küld a másik ablaknak.
 \end{compactdesc}
 
 \begin{figure}[H]
@@ -720,6 +720,8 @@ A modul a Cartridge, Mapper és CartridgeAccess rekordok definícióját és a h
 \end{description}
 
 \subsection{Nes.Cartridge.INES.Parser}
+
+Műveletek a kazetta betöltéséhez az iNES fájlból.
 
 \begin{description}
 	\item[$\bullet\:$ iNESloader :: Get INES] \hfill \\
