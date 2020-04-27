@@ -38,18 +38,17 @@ mkResultTimeLabel (IOResult x t) = prefix x <> (Text.pack t) <>  [r| </span> |]
     prefix (Just _) = [r| <span size="larger" foreground="#E24C4B"> |]
 
 
-saveAsQuick :: String
-saveAsQuick = [r|
-You can't name your save as 'quick' 
-as it would overwrite the previous quicksave.
-|]
-
-
 supportedMappers :: Text
 supportedMappers = 
  [r|Mapper 0 - NROM
 Mapper 2 - UNROM
 Mapper 3 - CNROM
+|]
+
+saveAsQuick :: Text
+saveAsQuick = [r|
+You can't name your save as 'quick' 
+as it would overwrite the previous quicksave.
 |]
 
 
@@ -225,13 +224,9 @@ visualize threadCount s = do
         e@Emulating{} -> 
             inGame e
 
-        Started{selectedRom} -> 
+        MainMenu{selectedRom} -> 
             startMenu threadCount selectedRom
 
         ShowControls _ ->
             controlsWidget
-            
-
-chooseSaveFolderFirst :: Event
-chooseSaveFolderFirst = MessageText "You need to choose a save folder first." Alert
                       

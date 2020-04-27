@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Main where
 
 
@@ -42,6 +44,11 @@ resultEvent result op =
     Just msg -> emit $ MessageText (prefix ++ msg) Cross
 
 
+
+chooseSaveFolderFirst :: State -> State
+chooseSaveFolderFirst = Message "You need to choose a save folder first." Alert
+
+
 sendMsg :: CommResources -> Command -> IO (Maybe Event)
 sendMsg CommResources{toEmulatorWindow} = only . atomically . writeTChan toEmulatorWindow
 
@@ -57,20 +64,20 @@ update :: CommResources -> State -> Event -> Transition State Event
 
 -- New filepath selected in the main menu
 
-update _ s@Started{} (FileSelectionChanged p) 
+update _ s@MainMenu{} (FileSelectionChanged p) 
   = Transition s{selectedRom = p} (return Nothing)
 
 
 -- Show controls and then return if Ok was pressed
 
-update _ s@Started{} ShowControlsPressed = Transition (ShowControls s) noop
+update _ s@MainMenu{} ShowControlsPressed = Transition (ShowControls s) noop
 
 update _ (ShowControls s) MessageAck = Transition s noop
 
 
 -- Start the emulator thread
 
-update comms (Started (Just path) savePath) StartEmulator 
+update comms (MainMenu (Just path) savePath) StartEmulator 
   = Transition 
     (Emulating (Text.pack . takeBaseName $ path) True savePath "" "" Nothing Nothing) 
     (only $ launchEmulator path comms >> (sendMsg comms . NewSaveFolder) savePath)
@@ -78,23 +85,23 @@ update comms (Started (Just path) savePath) StartEmulator
 
 -- Warnings related to saving and loading
 
-update _ s@(Started Nothing _) StartEmulator
+update _ s@(MainMenu Nothing _) StartEmulator
   = Transition s (return . Just $ MessageText "No ROM selected." Alert)
 
 update _ e@Emulating{savePath = Nothing} SaveButtonPressed
-  = Transition e (emit $ chooseSaveFolderFirst)
+  = Transition (chooseSaveFolderFirst e) noop
 
 update _ e@Emulating{saveRomName = ""} SaveButtonPressed 
   = Transition e (emit $ MessageText "You need to give a name to your save file." Alert)
 
 update _ e@Emulating{savePath = Nothing} QuickSavePressed
-  = Transition e (emit $ chooseSaveFolderFirst)
+  = Transition (chooseSaveFolderFirst e) noop
 
 update _ e@Emulating{saveRomName = "quick"} SaveButtonPressed 
-  = Transition e (emit $ MessageText saveAsQuick Alert)
+  = Transition (Message saveAsQuick Alert e) noop
 
 update _ e@Emulating{ savePath = Nothing } QuickReloadPressed
-  = Transition e (emit $ chooseSaveFolderFirst)
+  = Transition (chooseSaveFolderFirst e) noop
 
 
 -- Send commands to the SDL event loop
@@ -115,8 +122,10 @@ update comms e@Emulating{} (SavePathChanged s)
   = Transition (e {savePath = s}) (sendMsg comms (NewSaveFolder s) >> savePathToDisk s)
 
 update comms Emulating{savePath} ReturnToSelection 
-  = Transition (Started Nothing savePath) (sendMsg comms Quit)
+  = Transition (MainMenu Nothing savePath) (sendMsg comms Quit)
 
+update _ _ ReturnToSelection 
+  = Transition (MainMenu Nothing Nothing) noop
 
 -- Update record fields
 
@@ -144,8 +153,13 @@ update comms s (TogglePause shouldForward)
 -- Return to main menu if the SDL window was closed
 
 update _ Emulating{savePath} SDLWindowClosed 
-  = Transition (Started Nothing savePath) noop
+  = Transition (MainMenu Nothing savePath) noop
 
+update _ (Message _ _ Emulating{savePath}) SDLWindowClosed 
+  = Transition (MainMenu Nothing savePath) noop
+
+update _ _ SDLWindowClosed 
+  = Transition (MainMenu Nothing Nothing) noop
 
 -- Displaying messages
 
@@ -160,11 +174,13 @@ update comms (Message _ _ stateBefore) MessageAck
 -- and then return to the main menu
 
 update _ Emulating{savePath} (Error msg) 
-  = Transition (Message (Text.pack msg) Cross (Started Nothing savePath)) noop
+  = Transition (Message (Text.pack msg) Cross (MainMenu Nothing savePath)) noop
 
+update _ (Message _ _ Emulating{savePath}) (Error msg) 
+  = Transition (Message (Text.pack msg) Cross (MainMenu Nothing savePath)) noop
 
 update _ _ (Error msg) 
-  = Transition (Message (Text.pack msg) Cross (Started Nothing Nothing)) noop
+  = Transition (Message (Text.pack msg) Cross (MainMenu Nothing Nothing)) noop
 
 -- Exit the application
 
@@ -205,5 +221,5 @@ main = do
     void $ run App {    view         = visualize threadCount
                       , DAS.update   = Main.update comms
                       , inputs       = [sdlWindowEventProxy]
-                      , initialState = Started Nothing previousSaveFolder
+                      , initialState = MainMenu Nothing previousSaveFolder
                     }

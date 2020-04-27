@@ -4,7 +4,7 @@ import           Data.Text (Text)
 import           Communication
 
 data State
-  = Started { 
+  = MainMenu { 
       selectedRom        :: Maybe FilePath,
       previousSaveFolder :: Maybe FilePath
     }

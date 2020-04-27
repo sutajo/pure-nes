@@ -5,11 +5,12 @@
 
 \begin{figure}[H]
 	\centering
-	\includegraphics[scale=0.22]{mobo.jpg}
+	\includegraphics[scale=0.20]{mobo.jpg}
 	\caption{A NES alaplapja}
 \end{figure}
 
-A NES emulációjához a következő komponenseket kell megismernünk és megvalósítanunk:
+Ennek az ismertetőnek az a célja, hogy az olvasó magas szinten átlássa a NES legfontosabb egységeinek működését. A részletek megértéséhez a forráskód tanulmányozását, valamint a \emph{Nesdev} oldalt ajánlom.
+A NES emulációjához az alábbi komponenseket kellett megismernem, amik közül a CPU és a PPU működését fogom később részletesebben áttekinteni.
 
 \begin{compactdesc}
 	\item[Ricoh RP2A03:] 
@@ -441,7 +442,7 @@ Az olvasató regiszterek \textbf{R}, az írhatók \textbf{W} betűvel vannak meg
 Ezen a ponton már minden részletet ismerünk ahhoz, hogy megérthessük a háttérkirajzolás logikáját. A következő pszeudokód azt szemlélteti, hogy a fent említett táblázatokat és a paletta indexet hogyan kell együtt használni a háttér kiszámolásához. Az egyszerűség kedvéért a háttéreltolást itt nem veszem figyelembe. Sajnos ez az algoritmus ebben a formában emulációra nem alkalmas, mert nehézzé teszi a processzor párhuzamos, megfelelő szinkronizációval történő futtatását.
 \vspace{0.3cm}
 
-\begin{lstlisting}[backgroundcolor = \color{white}, language=c]
+\begin{lstlisting}[backgroundcolor = \color{white}, language=c, basicstyle=\scriptsize]
 
 // Egy bájt indexedik bitjének kiolvasása (0/1)
 byte bit(byte bájt, int index)
@@ -501,8 +502,7 @@ begin
 			// kvadránsába esik a bájt által lefedett 4*4-es területnek, ugyanis így kapjuk meg,
 			// hogy a bájt melyik 2 bitjére van szükségünk
 			byte kvadráns := (cellaSor & 0b10)*2 + (cellaOszlop & 0b10) 
-			byte palettaSorszám :=
-				(ATB >> kvadráns) & 0b11
+			byte palettaSorszám := (ATB >> kvadráns) & 0b11
 				
 			// Az alakzat kezdőcíme az alakzattáblában
 			// Segítség: egy alakzat (8*8*2)/8 = 16 bájtot foglal
@@ -532,8 +532,7 @@ begin
 					byte Y := cellaSor * 8 + pixelSor
 				
 					// Az RGB kód kikeresése és beállítása
-					pixelek[X][Y] := 
-						színKeresés(palettaSorszám, palettaIndex)
+					pixelek[X][Y] := színKeresés(palettaSorszám, palettaIndex)
 				end
 			end
 		end
@@ -557,12 +556,52 @@ A feladat a NES játékkonzol CPU-ját, PPU-ját és kazettáit valós időben e
 
 \section{Fejlesztői környezet}
 
-A programot Haskell nyelven írtam és a GHC 8.10.1-es verziójával fordítottam. Szerkesztőprogramként a Visual Studio Code-ot használtam. A Haskell-ben írt függőségi könyvtárak telepítéséhez a Stack eszközt használtam.
-Az SDL2 és a GTK könyvtárakat Linux-on a beépített csomagkezelővel, Windows-on az MSYS2 konzol csomagkezelőjével telepítettem.
+A programot Haskell nyelven írtam és a GHC 8.10.1-es verziójával fordítottam. Szerkesztőprogramként Visual Studio Code-ot használtam. A Haskell-ben írt függőségi könyvtárak telepítéséhez a Stack eszközt használtam.
+Az SDL2 és a GTK könyvtárakat Linux-on a disztribúció csomagkezelőjével, Windows-on az MSYS2 konzol csomagkezelőjével telepítettem. 
 
-\section{Megvalósítási terv}
+\subsubsection{Csomagok telepítése}
+\begin{itemize}
+	\item Windows (MSYS2 konzollal):
+	\begin{lstlisting}[language=bash]
+	pacman -S mingw-w64-x86_64-SDL2
+	pacman -S mingw-w64-x86_64-gtk3
+	\end{lstlisting}
+	\item Linux:
+	\begin{lstlisting}[language=bash]
+	$ sudo apt-get install libgirepository1.0-dev
+	$ sudo apt-get install libwebkit2gtk-4.0-dev
+	$ sudo apt-get install libgtksourceview-3.0-dev
+	$ sudo apt-get install libsdl2-dev
+	\end{lstlisting}
+\end{itemize}
 
-\subsection{NES emuláció}
+\subsubsection{Fordítás}
+\begin{itemize}
+	\item Windows: A fordításnál be kell állítani az alábbi környezeti változókat, hogy 
+	az MSYS2-vel telepített könyvtárakról tudjon a Stack. A lenti példában az alapértelmezett MSYS2 útvonalakat állítom be.
+	\begin{lstlisting}[language=bash]
+	SET PATH=C:\msys64\mingw64\bin;C:\msys64\usr\bin;%PATH%
+	SET PKG_CONFIG_PATH=C:\msys64\mingw64\lib\pkgconfig
+	SET XDG_DATA_DIRS=C:\msys64\mingw64\share
+	stack build
+	\end{lstlisting}
+	Ha az első fordításnál hibát kapunk a \emph{gi-*} függőségek telepítésénél, akkor másoljuk a 
+	\emph{C:$\textbackslash$msys64$\textbackslash$mingw64$\textbackslash$bin$\textbackslash$zlib1.dll} fájlt a Stack által telepített GHC \emph{mingw/bin} mappájába. Ha már van ilyen fájl ott, akkor készítsünk róla másolatot, majd cseréljük le.
+	\footnote{További információk: \href{https://github.com/haskell-gi/haskell-gi/wiki/Using-haskell-gi-in-Windows}{https://github.com/haskell-gi/haskell-gi/wiki/Using-haskell-gi-in-Windows}}
+
+	\item Linux:
+	\begin{lstlisting}[language=bash]
+	$ stack build
+	\end{lstlisting}
+\end{itemize}
+
+\subsubsection{Futtatás}
+A programot a következő paranccsal tudjuk elindítani:
+\begin{lstlisting}[language=bash]
+stack exec pure-nes
+\end{lstlisting}
+
+\section{Az emulációhoz kapcsolódó modulok}
 
 Minden komponenshez (CPU, PPU, kazetták) tartozik egy \emph{Memory} modul, ami definiálja a komponens emulációja során használt rekordokat. A \emph{Serialization} modulok ezen rekordok mentését/betöltését tartalmazzák. A CPU és a PPU \emph{Emulation} moduljai tartalmazzák a hozzájuk tartozó rekordokon végezhető műveleteket.
 
@@ -572,44 +611,45 @@ A \emph{Controls} modul a NES sztenderd kontrollerének emulációját tartalmaz
 
 A \emph{JoyControls} modul a fizikai kontrollerek kezelését végzi (újonnan csatlakoztatott kontroller és annak rezgőmotorjának inicializálása, gombnyomások megfeleltetése parancsoknak).
 
-A \emph{Window} modul az SDL2 multimédia-könyvtárat és az OpenGL-t használva megjeleníti az előállított képkockákat, kezeli a billentyűzet gomblenyomásait és futtatja a parancsokat feldolgozó ciklust. A \emph{CrtShader} modulban a CRT effektusért felelős OpenGL shaderek találhatók.
-Végül, de nem utolsó sorban a \emph{Framerate} modul függvényeivel tudjuk szabályozni a képkockaszámot (fix vagy korlátozatlan számú képkocka/másodperc).
+Az \emph{AppResources} modulban található rekord az emulátor teljes állapotát tárolja (virtuális gép, shaderek, ablak, stb.).
+A \emph{Window} modul az SDL2 multimédia-könyvtárat és az OpenGL-t használva megjeleníti az előállított képkockákat. A \emph{CrtShader} modulban a CRT effektusért felelős OpenGL shaderek találhatók. A \emph{Framerate} modul függvényeivel tudjuk szabályozni a képkockaszámot (fix vagy korlátozatlan számú képkocka/másodperc). A \emph{Logic} modul fogadja az SDL-től érkező gombnyomás-eseményeket, feldolgozza a parancsokat és lépteti az emulációt.
 
-A \emph{Communication} modul definiálja azokat az eseményeket, amiket az emulációs ablak a felhasználói felületnek küldhet (mentés/betöltés eredménye, megjelenítendő figyelmeztetés/hibaüzenet), illetve azokat a parancsokat, amiket attól fogadhat (szüneteltetés, mentés/betöltés, leállítás, stb.).
+A \emph{Communication} modul definiálja azokat az eseményeket (\emph{Event}), amiket az emulációs ablak a felhasználói felületnek küldhet (mentés/betöltés eredménye, megjelenítendő figyelmeztetés/hibaüzenet), illetve azokat a parancsokat (\emph{Command}), amiket attól fogadhat (szüneteltetés, mentés/betöltés, leállítás, stb.).
 
-\subsection{Felhasználói felület}
+\section{A felhasználói felületnél használt technológiák}
 
 A GTK (GIMP Toolkit) egy nyílt forráskódú, kezelőfelületek tervezésére szolgáló szoftvercsomag.
 Az API-ja javarészt imperatív stílusú, például a widget-ek létrehozását követően mellékhatásos függvényekkel tudjuk beállítani az attribútumokat és az eseménykezelőket. A Haskellben elérhető \emph{gi-gtk-declarative} könyvtár ezzel szemben egy deklaratív GTK API-t ad a kezünkbe, aminek segítségével röviden és tömören tudjuk összetett vezérlőelemek megjelenését leírni. 
 A \emph{gi-gtk-declarative-app-simple} erre építve definiál felhasználói felületek vezérléséhez egy egyszerű architektúrát, ahol a felületet állapotgépnek tekintjük és az állapotátmeneteket események váltják ki. A felület létrehozásához elég a kezdőállapotot, az állapotmegjelenítő $(state \rightarrow widget)$ függvényt és az állapotátmenet-függvényt definiálni.
 
-\begin{description}
+\section{A felhasználói felülethez kapcsolódó modulok}
+
+\begin{compactdesc}
 	\item[A felhasználói felület moduljai]
 	\item[State:]
-	A felhasználói felület állapotai (Főmenü, Irányítási beállítások, Emuláció, Üzenet).
-	Minden állapothoz tartozik egy rekord, ami a megjelenítéshez és az állapotátmenetekhez szükséges információkat tárolja.
+	A felhasználói felület állapotait reprezentáló algebrai adattípus (\emph{State}) definíciója található ebben a modulban. Minden állapothoz tartoznak adatmezők, amik a megjelenítéshez és az állapotátmenetekhez szükséges információkat tárolják (lásd \ref{fig:guistate} ábra).
 	\item[InGame:]
-	Az emulációs állapotnál használt megjelenítőfüggvényt tartalmazza.
+	Az emulációs állapot megjelenítéséhez használt segédfüggvényt (\emph{inGame}) tartalmazza, ami az állapot adatmezőiből összeállítja a deklaratív vezérlő-leírást.
 	\item[Window:]
-	A teljes felület megjelenítőfüggvényét tartalmazza, ami minden állapotot lefed.
-	\item[Logic:]
-	Az állapotátmenet-függvényt tartalmazza, ami a felhasználói felület állapotváltozásaikor képes olyan mellékhatásokat is végrehajtani, mint például parancsok küldése az emulációs ablaknak. 
-\end{description}
+	Az \emph{Üzenet}, \emph{Irányítási beállítások} és \emph{Főmenű} állapotok megjelenítéséhez használt segédfüggvényeket (\emph{messageWidget, controlsWidget, startMenu}), valamint a segédfüggvények egyesítésével kapott függvényt (\emph{visualize}) tartalmazza, ami minden állapotot meg tud jeleníteni.
+	\item[Logic (Main):]
+	Az állapotátmenet-függvényt (\emph{update}) tartalmazza, ami kezeli a felületről vezérlőelemeitől vagy az emulációs ablaktól érkező eseményeket és képes ezek hatására parancsokat küldeni az emulációs ablaknak. 
+\end{compactdesc}
 
 \begin{figure}[H]
 	\centering
 	\includegraphics[width=1\linewidth]{statetrans.png}
-	\caption{A felület reakciói az eseményekre}
+	\caption{}
 	\label{fig:states}
 \end{figure}
 
-A \ref{fig:states} ábra az állapotátmenet-függvényt hivatott vizualizálni. A dőlt betűs részek gombnyomásokat, a kövér betűs részek eseményeket jelölnek. Ha egy eseménynél a zárójelben lévő feltétel nem teljesül, akkor az \emph{Üzenet} állapotba lépünk, ahol megjelenítjük a hibaüzenetet/figyelmeztetést. Innen az \emph{Ok} gomb lenyomására visszatérünk az előző állapotba. A felület bármelyik állapotban bezárható, ekkor a teljes program terminál (az emulációs ablak is bezárul).
+A \ref{fig:states} ábra a felület eseményeit és azoknak állapotváltoztató hatásait hivatott vizualizálni. A dőlt betűs részek gombnyomásokat, a kövér betűs részek eseményeket jelölnek. Ha egy eseménynél a zárójelben lévő feltétel nem teljesül, akkor egy negyedik, \emph{Üzenet} nevű állapotba lépünk, ahol megjelenítjük a hibaüzenetet/figyelmeztetést. Innen az \emph{Ok} gomb lenyomására visszatérünk az előző állapotba. A felület bármelyik állapotban bezárható, ekkor a teljes program terminál (az emulációs ablak is bezárul).
 
 \section{Az emulációt magába záró monád}
 
 A CPU, a PPU, valamint a teljes NES emulációjához érdemes egy monádot bevezetni, hogy ne kelljen mindenhol explicit paraméterként átadni a komponens rekordját. A ReaderT monádtranszformer miatt ez bármely ponton elérhető (olvasható) lesz. A \emph{runEmulator} függvénnyel lefuttathatjuk az emuláció mellékhatásait. Az \emph{emulateSubcomponent} függvény célja, hogy a komponensek emulációját egyesítve lehetséges legyen a teljes rendszer emulációja.
-
-\begin{lstlisting}[language=Haskell]
+\vspace{0.2cm}
+\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
 import Control.Monad.Reader
 
 newtype Emulator component value 
@@ -624,7 +664,6 @@ runEmulator component (Emulator effect)
 emulateSubcomponent :: (c -> s) -> Emulator s v -> Emulator c v
 emulateSubcomponent subcomponent (Emulator effect) 
 	= Emulator (withReaderT subcomponent effect)
-
 \end{lstlisting}
 
 \section{Adatreprezentáció}
@@ -655,7 +694,16 @@ ppuMask           :: Word8,
 } deriving (Generic, Serialize)
 \end{lstlisting}
 
-\section{Főmodulok áttekintése}
+\section{Fontos modulok részletes áttekintése}
+
+A program összes modulját és az azok közti függőségeket a \ref{fig:modules} ábrán láthatjuk.
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=1\linewidth]{modules2.png}
+	\caption{A program moduljainak függőségi gráfja}
+	\label{fig:modules}
+\end{figure}
 
 \subsection{Nes.Cartridge.Memory}
 A modul a Cartridge, Mapper és CartridgeAccess rekordok definícióját és a hozzájuk kapcsolódó függvényeket, valamint a névtáblázattükrözési függvényeket tartalmazza.
@@ -665,10 +713,10 @@ A modul a Cartridge, Mapper és CartridgeAccess rekordok definícióját és a h
 	Hozzáférés kérése a kazettához a CPU számára.
 	\item[$\bullet\:$ getPPUAccess :: Cartridge $\rightarrow$ CartridgeAccess] \hfill \\
 	Hozzáférés kérése a kazettához a PPU számára.
-	\item[$\bullet\:$ horizontalMirroring :: Word16 $\rightarrow$ Word16] \hfill \\
-	Horizontális tükrözés.
-	\item[$\bullet\:$ verticalMirroring :: Word16 $\rightarrow$ Word16] \hfill \\
-	Vertikális tükrözés.
+	\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
+	getPPUAccess :: Cartridge -> CartridgeAccess
+	getPPUAccess Cartridge{mapper=Mapper{ppuRead, ppuWrite, mirroringFunction}} = CartridgeAccess ppuRead ppuWrite mirroringFunction
+	\end{lstlisting}
 \end{description}
 
 \subsection{Nes.Cartridge.INES.Parser}
@@ -715,7 +763,7 @@ Az emuláció során használt primitív műveletek.
 	Komponens vektorral reprezentált memóriájának közvetlen olvasása és írása (a memóriatérkép nincs figyelembe véve).
 	\item[$\bullet\:$ readCartridgeWithAccessor és writeCartridgeWithAccessor]
 	A kazettához a CPU-nak és a PPU-nak is saját hozzáférése van, amit ezekkel a függvényekkel tudnak használni.
-	\begin{lstlisting}[language=Haskell]
+	\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
 	readCartridgeWithAccessor :: 
 		(component -> CartridgeAccess) -> 
 		Word16 -> 
@@ -763,7 +811,11 @@ A 6502 teljes utasításkészletét tartalmazó modul. Néhány segédfüggvény
 	\item[$\bullet\:$ cpuReadRegister és cpuWriteRegister] \hfill \\
 	A Nes.CPU.Emulation modul számára kiexportált függvények, amivel a CPU kommunikálhat a PPU-val.
 	\item[$\bullet\:$ getColor :: Word8 $\rightarrow$ Word8 $\rightarrow$ Emulator PPU Pixel] \hfill \\
-	Visszaadja, hogy adott palettán belül az $i.$ színnek mi az RGB kódja. 
+	Visszaadja, hogy adott palettán belül az $i.$ színnek mi az RGB kódja.
+	\item[$\bullet\:$ getBackgroundColor :: Emulator PPU (Word8, Word8)] \hfill \\
+	Kinyeri a háttér csúsztatóregisztereiből a jelenlegi pixelhez tartozó háttérpaletta sorszámát és az azon belüli indexet.  
+	\item[$\bullet\:$ overlaySpriteColor :: (Word8, Word8) $\rightarrow$ Emulator PPU Pixel] \hfill \\
+	Kombinálja az háttérszínt a sprite-rétegből származó színnel figyelembe véve a sprite-ok prioritását (háttér előtt/mögött). Az eredmény a pixel végső RGB kódja.
 	\item[$\bullet\:$ clock :: Emulator PPU ()] \hfill \\
 	A PPU állapotának léptetésére használt függvény. A PPU sorfolytonosan halad végig a képernyőn és állítja elő a pixeleket, amik vagy a háttérrétegből vagy a sprite-rétegből kerülnek ki. Emellett a háttérréteg következő celláinak adatait is előre  betölti.
 	A vertikális váltás (a CRT TV elektronágyúja a jobb alsó sarokból visszaáll a bal felső sarokba) ideje alatt tétlen (lásd az időzítési diagramot).
@@ -829,8 +881,8 @@ A 6502 teljes utasításkészletét tartalmazó modul. Néhány segédfüggvény
 	Linkeli és validálja a shader-ekből készített programot, hiba esetén kivételt dob.
 	\item[$\bullet\:$ getCrtShaderProgram :: IO Program] \hfill \\
 	A modul exportált eljárása, ami létrehozza a CRT effektust megvalósító shader programot.
-	\begin{lstlisting}[language=Haskell]
-	impport Control.Monad ((=<<), sequence)
+	\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
+	import Control.Monad ((=<<), sequence)
 	
 	getCrtShaderProgram = 
 		createProgramFrom =<< sequence 
@@ -841,35 +893,45 @@ A 6502 teljes utasításkészletét tartalmazó modul. Néhány segédfüggvény
 	\end{lstlisting}
 \end{description}
 
-\subsection{Emulator.Window}
+\subsection{Emulator.Logic}
 
 \begin{description}
 	\item[$\bullet\:$ translateSDLEvent :: SDL.EventPayload $\rightarrow$ Maybe Command] \hfill \\
-	Megadja egy beérkező eseményhez a hozzá tartozó parancsot.
+	Megadja egy beérkező eseményhez a hozzátartozó parancsot.
+	\item[$\bullet\:$ pollCommands :: AppResources $\rightarrow$ IO [Command]] \hfill \\
+	Lekérdezi az SDL eseményeket és átfordítja őket belső parancsokra. A felhasználói felület által küldött parancsokat kiolvassa az \emph{AppResources}-ban lévő csatornából (\emph{TChan}). A végeredmény a két lista konkatenációja. 
+	\item[$\bullet\:$ executeCommand :: AppResources $\rightarrow$ Command $\rightarrow$ Emulator Nes ()] \hfill
+	Az eljárás végrehajtja a paraméterül kapott parancsot.
+	\item[$\bullet\:$ advanceEmulation :: ViewFunction $\rightarrow$ AppResources $\rightarrow$ Emulator Nes Bool] \hfill
+	Végrehajtja az összes parancsot, lépteti az emulációt (ha az nincs szüneteltetve) és a paraméterül kapott megjelenítőfüggvénnyel frissíti a képernyőt.
+	\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
+	type ViewFunction = AppResources -> IOVector Word8 -> Emulator Nes ()
+	\end{lstlisting}
+\end{description}
+
+\subsection{Emulator.Window}
+
+\begin{description}
 	\item[$\bullet\:$ acquireResources :: FilePath $\rightarrow$ CommResources $\rightarrow$ IO AppResources] \hfill Inicializálja az SDL2 és OpenGL könyvtárakat, a létrehozott ablakot, render-ert, kirajzolásnál használt textúrát, stb. visszaadja egy rekordban.
 	\item[$\bullet\:$ releaseResources :: AppResources $\rightarrow$ IO ()] \hfill \\
 	Felszabadítja a lefoglalt erőforrásokat és leállítja az SDL-t.
-	\item[$\bullet\:$ pollCommands :: AppResources $\rightarrow$ IO [Command]] \hfill \\
-	Lekérdezi az emulátornak adott parancsokat, amiket kiadhattak billentyűzettel, kontrollerrel vagy akár a felhasználói felülettel is. 
-	\item[$\bullet\:$ executeCommand :: AppResources $\rightarrow$ Command $\rightarrow$ Emulator Nes ()] \hfill
-	Az eljárás végrehajtja a paraméterül kapott parancsot.
-	\item[$\bullet\:$ updateScreen :: AppResources $\rightarrow$ IOVector Word8 $\rightarrow$ Emulator Nes ()] \hfill
+	\item[$\bullet\:$ updateScreen :: ViewFunction] \hfill \\
 	A paraméterül kapott vektor a megjelenítendő kép nyers pixeladatait tartalmazza RGB24 formátumban. A vektor tartalmát feltölti a videómemóriában tárolt textúrába, majd ezután egy OpenGL (be van kapcsolva a CRT shader) vagy SDL (ki van kapcsolva) hívással kirajzolja a textúrát a képernyőre.
-	\item[$\bullet\:$ runEmulatorWindow :: FilePath $\rightarrow$ CommResources $\rightarrow$ IO ()] \hfill
+	\item[$\bullet\:$ runEmulatorWindow :: FilePath $\rightarrow$ CommResources $\rightarrow$ IO ()] \hfill \\
 	A modul exportált eljárása, ami egy ciklusban futtatja a parancsok végrehajtását és az emuláció léptetését. A grafikus felület ezt az eljárást indítja el egy új szálon.
 \end{description}
 
 \section{Egy processzorutasítás végrehajtása}
 Ideje, hogy felhasználjuk a Nes.CPU.Emulation modulban implementált tömérdek mennyiségű utasítást. Az első lépés, hogy az utasítás opkódját kiolvassuk.
 \vspace{0.3cm}
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
 fetch :: Emulator CPU Opcode
 fetch = readReg pc >>= read
 \end{lstlisting}
-
+\vspace{0.2cm}
 Az opkódmátrix segítségével meg kell keresnünk az opkódhoz tartozó utasítást és ciklusszámot. Az opkódmátrix eltárolásának egy egyszerű módja a case elágazás.
-
-\begin{lstlisting}[language=Haskell]
+\vspace{0.2cm}
+\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
 data DecodedOpcode = DecodedOpcode {
 	instruction   :: Emulator CPU (),
 	cycles        :: Int
@@ -885,7 +947,7 @@ Az implementációmnál a dekódolt opkód nem külön, hanem az utasítással "
 A \emph{cycle} eljárással megnöveljük az eltelt ciklusok számát a statikusan ismert értékkel, az \emph{elapsedCycles} függvénnyel pedig megnézzük, hogy a végrehajtás után ténylegesen hány ciklus telt el.
 Így tehát a végső \emph{runNextInstruction} eljárás:
 \vspace{0.3cm}
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
 import Data.Functor (<&>)
 
 elapsedCycles :: Emulator CPU a -> Emulator CPU Int
@@ -908,7 +970,7 @@ runNextInstruction
 \section{A CPU és a PPU szinkronizációja}
 Az emuláció valójában szekvenciálisan történik, de arra oda kell figyelnünk, hogy egy processzorutasítás végrehajtása után megfelelő számú PPU léptetés történjen meg. Mivel a \emph{runNextInstruction} visszaadja eredményül, hogy hány CPU órajel telt el elméletben az utasítás alatt, így már nem nehéz összehangolni a két komponenst annak tudatában, hogy a PPU órajel-frekvenciája háromszorosa a CPU órajel-frekvenciájának.
 A CPU-nak van hozzáférése a PPU-hoz, ezért ezt a CPU szintjén is meg tudjuk tenni.
-\begin{lstlisting}[language=Haskell]
+\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
 syncCPUwithPPU :: Emulator CPU ()
 syncCPUwithPPU = do
 	clocks <- CPU.processInterrupts >> CPU.runNextInstruction
@@ -916,10 +978,54 @@ syncCPUwithPPU = do
 \end{lstlisting}
 
 \section{A grafikus felhasználói felület}
+\label{lab:gui}
+
+\subsection{Állapotok}
+
+A felhasználói felület állapotait egy rekurzív algebrai adattípussal modelleztem. A \ref{fig:guistate} ábra mutatja, hogy az adattípusnak milyen konstruktorai vannak és azok milyen mezőkkel rendelkeznek.
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[scale = 0.25]{states.png}
+	\caption{A felhasználói felület négy állapota}
+	\label{fig:guistate}
+\end{figure}
+
+\subsection{Állapotátmenetek}
+
+A mintaillesztési szintaxissal nagyon tömören megfogalmazhatjuk azokat a feltételeket, amiknek teljesülniük kell egy állapotátmenet bekövetkezéséhez.
+\vspace{0.2cm}
+\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
+update :: CommResources -> State -> Event -> Transition State Event
+update comms Emulating{savePath} ReturnToSelection 
+  = Transition (MainMenu Nothing savePath) (sendMsg comms Quit)
+\end{lstlisting}
+\vspace{0.2cm}
+Amikor emuláció közben rányom a felhasználó a főmenübe vezető gombra, akkor a MainMenu állapotba lépünk (és megőrizzük a kiválasztott mentési mappát), mellékhatásként pedig küldünk egy leállási parancsot az emulációs ablaknak a \emph{CommResources} rekordban lévő csatornával. 
+\vspace{0.2cm}
+\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
+data MessageIcon = Info | Alert | Cross
+
+saveAsQuick = "You can't name your save as ..."
+
+update _ e@Emulating{saveRomName = "quick"} SaveButtonPressed 
+  = Transition (Message saveAsQuick Alert e) noop
+\end{lstlisting}
+
+A második példa azt az eshetőséget kezeli, amikor a felhasználó \emph{quick} néven szeretne egyedi mentést létrehozni. Ennek hatására az \emph{Üzenet} állapotba lépünk át ahol megjelenítünk egy figyelmeztető üzenetet (\ref{fig:warning} ábra). Arra is emlékeznünk kell, hogy melyik állapotból jöttünk, hogy később ugyanabba az állapotba térhessünk vissza. 
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[scale = 0.9]{alertmsg.png}
+	\caption{A kiváltott figyelmeztetés}
+	\label{fig:warning}
+\end{figure}
 
 \subsection{Állapotmegjelenítés}
 
-\begin{lstlisting}[language=Haskell]
+A szemléltetés kedvéért kiragadtam egy részt az \emph{inGame} állapotmegjelenítő-függvényből, ahol azt láthatjuk, hogy a gomb feliratában a játék neve előtt a \emph{Pause} vagy \emph{Resume} szöveg lesz, az állapottól függően.
+\vspace{0.2cm}
+\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
 inGame :: State -> Widget Event
 inGame Emulating{isRunning, romName} = 
 	container Box
@@ -935,48 +1041,55 @@ inGame Emulating{isRunning, romName} =
 		]
 		...
 	]
+	
 \end{lstlisting}
 
-\subsection{Állapotátmenetek}
+A fenti függvény emellett még a következőkről is gondoskodni tud:
+\begin{compactitem}
+	\item Ha még nincs mentési mappa kiválasztva, akkor ne legyenek kattinthatók az érintett funkciók gombjai
+	\item Ha már volt mentési mappa kiválasztva korábbi futtatásnál, akkor a mappaválasztó URI-ját állítsuk be erre
+	\item Ha már volt mentési próbálkozás, akkor ikonnal jelezzük a sikerességét, mutassuk az időpontját
+	\item Ha már volt betöltési próbálkozás, akkor azt is hasonlóan jelenítsük meg
+	\item Szüneteltetésnél és folytatásnál változzon a funkcióhoz tartozó gomb felirata és az ikon
+\end{compactitem}
 
-\begin{lstlisting}[language=Haskell]
-update comms Emulating{savePath} ReturnToSelection 
-	= Transition (Started Nothing savePath) (sendMsg comms Quit)
-\end{lstlisting}
-
-
-\begin{lstlisting}[language=Haskell]
-update _ e@Emulating{savePath = Nothing} QuickSavePressed
-= Transition e (emit $ chooseSaveFolderFirst)
-\end{lstlisting}
-
-\section{Teljesítmény}
-
-\chapter{Tesztelés}
+\section{Tesztelés}
 
 A fejlesztés a Test Driven Development (TDD) módszer szerint folyt. Mielőtt belekezdtem volna egy CPU utasítás vagy PPU eljárás implementálásába, a teszteket kibővítettem, hogy az új kódrészeket is lefedjék, ezáltal mindig tudtam, hogy jó irányba haladok-e.
 
 Az emulátorok tesztelésére vannak kifejezetten erre a célre készített NES ROM-ok, amik tökéletes aprólékossággal ellenőrzik, hogy minden utasítás az elvárt módon változtatja-e a hardver belső állapotát. Azért döntöttem ezek használata mellett, mert ilyen pontosságú tesztek írása 6502 Assembly-ben rengeteg időt vett volna el és a saját tesztek lefedettsége meg se közelítette volna a professzionális tesztek által nyújtott lefedettséget. 
 
-\section{CPU tesztek}
+\subsection{CPU tesztek}
 
-\subsection{Nestest}
+\begin{description}
+\item[Nestest] \hfill \\
 Ez volt az első teszt, amin a CPU átment. Részletesen végigteszteli az összes utasítást (beleértve néhány illegálisat is). A utasítások címzési módját és sorrendjét is variálja. Összesen 8991 utasítást hajt végre.
 
-\subsection{Instr\_test\_v5}
+\item[Instr\_test\_v5] \hfill \\
 16 tesztet tartalmaz, amik a címzési módokat, stack műveleteket, elágazásokat és megszakításokat tesztelik. Remek hibaüzenetek ír a \$6004 címtől kezdve egy nullával terminált sztring segítségével.
 
-\subsection{Instr\_Misc}
+\item[Instr\_Misc] \hfill \\
 2 teszteset ellenőrzi az abszolút indexelt címzés és az elágazások szélsőséges eseteit.
 
-\section{PPU tesztek}
+\end{description}
 
-\subsection{PPU\_vbl\_nmi}
+\subsection{PPU tesztek}
+
+\begin{description}
+\item[PPU\_vbl\_nmi] \hfill \\
 Az itt található 5 tesztcsomag a vertical blanking period státusz-flaget (be/kikapcsolása megfelelő időben történik), az NMI megszakítást (bekövetkezik-e, a PPU regiszterek befolyásolják-e) és a páros-páratlan képkockák 1 PPU órajelciklusnyi hosszkülönbségét ellenőrzik.
 
-\subsection{PPU\_sprite\_hit és PPU\_sprite\_overflow}
+\item[PPU\_sprite\_hit és PPU\_sprite\_overflow] \hfill \\
 12 tesztcsomag, amik a sprite réteggel kapcsolatos státusz flag-eket ellenőrzik (Sprite 0 Hit, Sprite Overflow).
 
+\end{description}
 
+\subsection{Eredmények}
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[scale=0.6]{tests2.png}
+	\includegraphics[scale=0.6]{tests.png}
+\end{figure}
 
 

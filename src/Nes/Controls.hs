@@ -35,12 +35,12 @@ data Input
   deriving (Eq)
 
 data Controller = Controller {
-    activeButtons :: !Word8,
-    index         :: !Int
+    buttons :: !Word8,
+    index   :: !Int
 } deriving (Show, Generic, Serialize)
 
 modify :: (Word8 -> Int -> Word8) -> Button -> Controller -> Controller
-modify f k c@Controller {activeButtons = btns} = c { activeButtons = btns `f` (fromEnum k) }
+modify f k c@Controller {buttons = btns} = c { buttons = btns `f` (fromEnum k) }
 
 press :: Button -> Controller -> Controller
 press = modify setBit
@@ -56,14 +56,14 @@ processInput input = case input of
 powerUp :: Controller
 powerUp =
   let 
-    activeButtons = 0
+    buttons = 0
     index = 0
   in Controller{..}
 
 read :: Controller -> (Word8, Controller)
 read c@Controller{..} = 
   let 
-    byte = (activeButtons `shiftR` index) .&. 0x1
+    byte = (buttons `shiftR` index) .&. 0x1
     newController = c {index = index + 1}
   in 
   if index == 8 
