@@ -33,8 +33,8 @@ greetings = do
   putStrLn "Starting Pure-Nes Emulator."
   putStr "SDL Version: "
   print =<< SDL.version
-  putStr "Detected audio devices: "
-  print =<< SDL.getAudioDeviceNames ForPlayback
+  --putStr "Detected audio devices: "
+  --print =<< SDL.getAudioDeviceNames ForPlayback
 
 
 bye = putStrLn "Emulator closed successfully."

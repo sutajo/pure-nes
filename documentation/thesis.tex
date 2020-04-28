@@ -33,7 +33,7 @@
 
 % Irodalomjegyzék hozzáadása
 % Add bibliography file
-\addbibresource{thesis.bib}
+%\addbibresource{thesis.bib}
 
 % A dolgozat
 % The document
@@ -84,12 +84,13 @@
 
 % Irodalomjegyzék (kötelező)
 % Bibliography (mandatory)
-\addcontentsline{toc}{chapter}{\biblabel}
-\printbibliography[title=\biblabel]
-\cleardoublepage
+%\addcontentsline{toc}{chapter}{\biblabel}
+\bibliographystyle{abbrv}
+%\printbibliography[title=\biblabel]
+%\cleardoublepage
 
 \begin{thebibliography}{9}
-	\bibitem{ROM lista} 
+	\bibitem{romlist} 
 	NES ROM-ok listája.
 	\newline
 	\url{http://tuxnes.sourceforge.net/nesmapper.txt}
@@ -101,48 +102,68 @@
 	\url{http://archive.6502.org/datasheets/rockwell_r650x_r651x.pdf}
 	\newline Dátum: 2020.04.01.
 	
+	\bibitem{6502opc} 
+	6502 opkódok.
+	\newline
+	\url{http://www.oxyron.de/html/opcodes02.html}
+	\newline Dátum: 2020.04.01.
+	
 	\bibitem{6502instr} 
 	6502 utasításkészlet leírása.
 	\newline
 	\url{http://obelisk.me.uk/6502/reference.html}
 	\newline Dátum: 2020.04.01.
 	
-	\bibitem{Nesdev}
+	\bibitem{ref}
 	\textit{Nesdev.}
 	NES referencia útmutató.
 	\newline
 	\url{http://wiki.nesdev.com/w/index.php/NES_reference_guide}
 	\newline Dátum: 2020.04.01.
 	
-	\bibitem{Nesdev}
+	\bibitem{cpuref}
 	\textit{Nesdev.}
 	NES CPU referencia útmutató.
 	\newline
-	\url{http://wiki.nesdev.com/w/index.php/NES_reference_guide}
+	\url{http://wiki.nesdev.com/w/index.php/CPU}
 	\newline Dátum: 2020.04.01.
 	
-	\bibitem{Nesdev}
+	\bibitem{cpumem}
+	\textit{Nesdev.}
+     CPU memóriatérkép.
+	\newline
+	\url{http://wiki.nesdev.com/w/index.php/CPU_memory_map}
+	\newline Dátum: 2020.04.01.
+	
+	\bibitem{memmirror}
+	\textit{Nesdev.}
+	Memóriatükrözés.
+	\newline
+	\url{http://wiki.nesdev.com/w/index.php/Mirroring#Memory_Mirroring}
+	\newline Dátum: 2020.04.01.
+	
+	\bibitem{ppuref}
 	\textit{Nesdev.}
 	NES PPU referencia útmutató.
 	\newline
-	\url{http://wiki.nesdev.com/w/index.php/NES_reference_guide}
+	\url{http://wiki.nesdev.com/w/index.php/PPU}
 	\newline Dátum: 2020.04.01.
 	
-	\bibitem{Nesdev}
+	\bibitem{nromref}
 	\textit{Nesdev.}
 	NROM leírás.
 	\newline
 	\url{http://wiki.nesdev.com/w/index.php/NROM}
 	\newline Dátum: 2020.04.01.
 	
-	\bibitem{Nesdev}
+	\bibitem{unromref}
 	\textit{Nesdev.}
 	UNROM (UxROM) leírás.
 	\newline
 	\url{http://wiki.nesdev.com/w/index.php/UxROM}
 	\newline Dátum: 2020.04.01.
 	
-	\bibitem{Nesdev}
+	\bibitem{cnromref}
 	\textit{Nesdev.}
 	CNROM leírás.
 	\newline
@@ -156,22 +177,47 @@
 	\url{http://wiki.nesdev.com/w/index.php/Cycle_reference_chart}
 	\newline Dátum: 2020.04.01.
 	
-	\bibitem{Nesdev}
+	\bibitem{illegal}
 	\textit{Nesdev.}
-	NES ilelgális opkódok.
+	NES illegális opkódok.
 	\newline
 	\url{http://wiki.nesdev.com/w/index.php/CPU_unofficial_opcodes}
 	\newline Dátum: 2020.04.01.
 	
-	\bibitem{wikipedia}
-	NES wikipédia oldal.
+	\bibitem{control}
+	\textit{Nesdev.}
+	NES sztenderd kontrollerének működése.
 	\newline
-	\url{https://en.wikipedia.org/wiki/Nintendo_Entertainment_System}
+	\url{http://wiki.nesdev.com/w/index.php/Standard_controller}
+	\newline Dátum: 2020.04.01.
+	
+	\bibitem{thirdgen}
+	Harmadik játékkonzol-generáció.
+	\newline
+	\url{https://en.wikipedia.org/wiki/List_of_home_video_game_consoles#Third_generation_(1983\%E2\%80\%932003)}
+	\newline Dátum: 2020.04.01.
+	
+	\bibitem{ines}
+	iNES fájlformátum.
+	\newline
+	\url{https://formats.kaitai.io/ines/index.html}
+	\newline Dátum: 2020.04.01.
+	
+	\bibitem{scroll}
+	Háttéreltolás.
+	\newline
+	\url{http://wiki.nesdev.com/w/index.php/PPU_scrolling}
+	\newline Dátum: 2020.04.01.
+	
+	\bibitem{frametime}
+	PPU időzítési diagram.
+	\newline
+	\url{http://wiki.nesdev.com/w/index.php/File:Ntsc_timing.png}
 	\newline Dátum: 2020.04.01.
 	
 	\bibitem{crtshader}
 	\textit{Timothy Lottes.}
-	CRT effektust leíró GLSL Fragment shader.
+	CRT effektust leíró GLSL shader.
 	\newline
 	\url{https://github.com/sdlpal/sdlpal/blob/master/shaders/crt.glsl}
 	\newline Dátum: 2020.04.01.

@@ -355,12 +355,6 @@
 % ------------------------------
 % Irodalomjegyzék
 \RequirePackage[style=english]{csquotes}
-\RequirePackage[
-	backend=bibtex,
-	style=numeric, % irodalomjegyzék stílusa
-	sorting=none,   % idézések rendezettségee
-    citestyle=numeric
-]{biblatex}
 % ------------------------------
 
 % ------------------------------

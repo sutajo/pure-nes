@@ -26,7 +26,6 @@ import           SDL hiding (Error)
 import           SDL.Raw.Haptic
 import           System.FilePath
 import           System.Directory
-import           System.Console.ANSI          as ANSI
 import           Communication as Comms
 import           Emulator.JoyControls as JoyControls
 import           Emulator.AppResources
@@ -137,7 +136,7 @@ translateSDLEvent (SDL.KeyboardEvent (SDL.KeyboardEventData _ motion _ sym)) =
       KeycodeF9    -> onlyOnPress $ QuickLoad Nothing
       KeycodeSpace -> onlyOnPress (SwitchEmulationMode True)
       KeycodeF     -> onlyOnPress StepOneFrame
-      KeycodeC     -> onlyOnPress StepClockCycle
+      KeycodeE     -> onlyOnPress StepClockCycle
       KeycodeR     -> onlyOnPress SwitchWindowMode
       KeycodeT     -> onlyOnPress ToggleCrtShader
       KeycodeUp    -> playerInput Controls.Up
@@ -230,15 +229,12 @@ executeCommand updateScreen appResources@AppResources{..} command = do
       whenM (liftIO $ readIORef continousMode <&> not) $ do
         oldFrameCount <- emulatePPU $ PPU.getFrameCount
         emulateCPU $ do
-          runNextInstruction
+          syncCPUwithPPU
           pc    <- readReg pc
           bytes <- mapM CPU.read [pc..pc+20]
           liftIO $ do
-            clearScreen
-            setSGR [SetColor Foreground Vivid Black, SetColor Background Vivid White]
-            TIO.putStrLn "Next instructions:"
+            TIO.putStrLn "======| Next instructions:"
             TIO.putStrLn $ disassemble pc bytes
-            setSGR [ANSI.Reset]
         (pixels, newFrameCount)  <- emulatePPU $ do
           PPU.drawPalette 
           (,) <$> PPU.accessScreen <*> PPU.getFrameCount
@@ -254,8 +250,8 @@ executeCommand updateScreen appResources@AppResources{..} command = do
     ToggleJoyMap -> liftIO $ do
       modifyIORef' joyIsSecondCtrl not
       id <- readIORef joyIsSecondCtrl
-      putStr "Joy has been remapped as controller "
-      print (fromEnum id)
+      putStr "Joy has been remapped to player "
+      print (fromEnum id + 1)
 
     SwitchWindowMode -> do
       liftIO $ whenM (readIORef continousMode) $ do

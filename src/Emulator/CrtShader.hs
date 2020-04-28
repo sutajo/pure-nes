@@ -203,7 +203,7 @@ data ShaderException
   deriving Exception
 
 instance Show ShaderException where
-  show = let common = "\n Please make sure the video driver is up to date and OpenGL 4.3 is supported." in 
+  show = let common = "\n Please make sure the video driver is up to date and OpenGL 3.0 is supported." in 
     \case
       ShaderCompileError    -> "Failed to compile the GLSL vertex or fragment shader for the CRT effect." ++ common
       ShaderLinkingError    -> "Failed to link the OpenGL shader program." ++ common
