@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Emulator.Logic (
   advanceEmulation,
   loadNes,
@@ -233,7 +235,8 @@ executeCommand updateScreen appResources@AppResources{..} command = do
           bytes <- mapM CPU.read [pc..pc+20]
           liftIO $ do
             clearScreen
-            setSGR [SetColor Foreground Vivid Cyan]
+            setSGR [SetColor Foreground Vivid Black, SetColor Background Vivid White]
+            TIO.putStrLn "Next instructions:"
             TIO.putStrLn $ disassemble pc bytes
             setSGR [ANSI.Reset]
         (pixels, newFrameCount)  <- emulatePPU $ do

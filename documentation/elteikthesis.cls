@@ -309,16 +309,7 @@
 % ------------------------------
 
 % ------------------------------
-% Hivatkozások
-% dvipdfm-hez
-%\newcommand{\hyperrefComp}{dvipdfm}
-% pdflatex-hez
-\newcommand{\hyperrefComp}{}
 
-\RequirePackage[pdfborder={0 0 0}, unicode, \hyperrefComp]{hyperref}
-\RequirePackage[all]{hypcap}
-\RequirePackage{url}
-\RequirePackage{bookmark}
 % ------------------------------
 
 % ------------------------------
@@ -367,7 +358,8 @@
 \RequirePackage[
 	backend=bibtex,
 	style=numeric, % irodalomjegyzék stílusa
-	sorting=none   % idézések rendezettségee
+	sorting=none,   % idézések rendezettségee
+    citestyle=numeric
 ]{biblatex}
 % ------------------------------
 
@@ -445,6 +437,17 @@
 % A bal margóra kerüljenek a TODO-k
 \reversemarginpar
 \setlength{\marginparwidth}{30mm}
+
+% Hivatkozások
+% dvipdfm-hez
+%\newcommand{\hyperrefComp}{dvipdfm}
+% pdflatex-hez
+\newcommand{\hyperrefComp}{}
+
+\RequirePackage[pdfborder={0 0 0}, unicode, \hyperrefComp]{hyperref}
+\RequirePackage[all]{hypcap}
+\RequirePackage{url}
+\RequirePackage{bookmark}
 % ------------------------------
 
 % ------------------------------

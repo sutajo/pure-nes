@@ -444,14 +444,20 @@ sbc addr = do
   acc   <- readReg a
   carry <- toWord16 <$> testFlag Carry
   let 
+    val16 = fromIntegral value `xor` 0x00FF
     (result :: Word16) = val16 + acc16 + carry
     acc16 = fromIntegral acc
-    val16 = fromIntegral value `xor` 0x00FF
     res8 = fromIntegral result
+    -- A,Z,C,N := A-M-(1-C)
+    -- ==> A := A - M + 1 + C
+    -- ==> A := A + complement M + 1 + C
+    -- ==> A := A + (invert M - 1) + 1 + C
+    -- ==> A := A + invert M + C
+    -- ==> A := A + M xor 11111111 + C
   setFlag Carry (result .&. 0xFF00 /= 0)
   setZero res8
   setNegative res8
-  setFlag Overflow ((0 /= ) $ (result `xor` acc16) .&. (result `xor` val16) .&. 0x0080)
+  setFlag Overflow (((result `xor` acc16) .&. (result `xor` val16)) `testBit` 7)
   writeReg a res8
 
 sec :: Emulator CPU ()

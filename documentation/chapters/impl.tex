@@ -5,10 +5,11 @@
 
 \begin{figure}[H]
 	\centering
-	\includegraphics[scale=0.20]{mobo.jpg}
-	\caption{A NES alaplapja}
+	\includegraphics[scale=0.19]{mobo.jpg}
+	\caption{A NES alaplapja\protect\footnotemark}
 \end{figure}
 
+\footnotetext{\url{https://commons.wikimedia.org/wiki/File:Nintendo-NES-Mk1-Motherboard-Top.jpg}}
 Ennek az ismertetőnek az a célja, hogy az olvasó magas szinten átlássa a NES legfontosabb egységeinek működését. A részletek megértéséhez a forráskód tanulmányozását, valamint a \emph{Nesdev} oldalt ajánlom.
 A NES emulációjához az alábbi komponenseket kellett megismernem, amik közül a CPU és a PPU működését fogom később részletesebben áttekinteni.
 
@@ -27,7 +28,7 @@ A NES emulációjához az alábbi komponenseket kellett megismernem, amik közü
 	A konzol alapértelmezett beviteli eszköze.
 \end{compactdesc}
 
-\section{Órajel-frekvenciák}
+\section{Órajel-frekvenciák \cite{nesclocks}}
 A párhuzamosan működő komponenseket az órajelek hangolják össze. Az órajel-frekvencia határozza meg, hogy egy másodperc alatt hány atomi műveletet végez el egy komponens.
 Minden komponens rendelkezik egy saját órajelfrekvenciával, amit egy központi órajelből származtatnak.
 
@@ -556,7 +557,7 @@ A feladat a NES játékkonzol CPU-ját, PPU-ját és kazettáit valós időben e
 
 \section{Fejlesztői környezet}
 
-A programot Haskell nyelven írtam és a GHC 8.10.1-es verziójával fordítottam. Szerkesztőprogramként Visual Studio Code-ot használtam. A Haskell-ben írt függőségi könyvtárak telepítéséhez a Stack\footnote{Haskell Tool Stack: \href{https://docs.haskellstack.org/en/stable/README/}{https://docs.haskellstack.org/en/stable/README/}} eszközt használtam.
+A programot Haskell nyelven írtam és a GHC 8.10.1-es verziójával fordítottam. Szerkesztőprogramként Visual Studio Code-ot használtam. A Haskell-ben írt függőségi könyvtárak telepítéséhez a Stack\footnote{Haskell Tool Stack: \url{https://docs.haskellstack.org/en/stable/README/}} eszközt használtam.
 Az SDL2 és a GTK könyvtárakat Linux-on a disztribúció csomagkezelőjével, Windows-on az MSYS2 konzol csomagkezelőjével telepítettem. 
 \clearpage
 \subsubsection{Csomagok telepítése}
@@ -587,7 +588,7 @@ Az SDL2 és a GTK könyvtárakat Linux-on a disztribúció csomagkezelőjével, 
 	\end{lstlisting}
 	Ha az első fordításnál hibát kapunk a \emph{gi-*} függőségek telepítésénél, akkor másoljuk a 
 	\emph{C:$\textbackslash$msys64$\textbackslash$mingw64$\textbackslash$bin$\textbackslash$zlib1.dll} fájlt a Stack által telepített GHC \emph{mingw/bin} mappájába. Ha már van ilyen fájl ott, akkor készítsünk róla másolatot, majd cseréljük le.
-	\footnote{További információk: \href{https://github.com/haskell-gi/haskell-gi/wiki/Using-haskell-gi-in-Windows}{https://github.com/haskell-gi/haskell-gi/wiki/Using-haskell-gi-in-Windows}}
+	\footnote{További információk: \url{https://github.com/haskell-gi/haskell-gi/wiki/Using-haskell-gi-in-Windows}}
 
 	\item Linux:
 	\begin{lstlisting}[language=bash]
@@ -619,8 +620,8 @@ A \emph{Communication} modul definiálja azokat az eseményeket (\emph{Event}), 
 \section{A felhasználói felületnél használt technológiák}
 
 A GTK (GIMP Toolkit) egy nyílt forráskódú, kezelőfelületek tervezésére szolgáló szoftvercsomag.
-Az API-ja javarészt imperatív stílusú, például a widget-ek létrehozását követően mellékhatásos függvényekkel tudjuk beállítani az attribútumokat és az eseménykezelőket. A Haskellben elérhető \emph{gi-gtk-declarative} könyvtár ezzel szemben egy deklaratív GTK API-t ad a kezünkbe, aminek segítségével röviden és tömören tudjuk összetett vezérlőelemek megjelenését leírni. 
-A \emph{gi-gtk-declarative-app-simple} erre építve definiál felhasználói felületek vezérléséhez egy egyszerű architektúrát, ahol a felületet állapotgépnek tekintjük és az állapotátmeneteket események váltják ki. A felület létrehozásához elég a kezdőállapotot, az állapotmegjelenítő $(state \rightarrow widget)$ függvényt és az állapotátmenet-függvényt definiálni.
+Az API-ja javarészt imperatív stílusú, például a widget-ek létrehozását követően mellékhatásos függvényekkel tudjuk beállítani az attribútumokat és az eseménykezelőket. A Haskellben elérhető \emph{gi-gtk-declarative}\footnote{\url{https://hackage.haskell.org/package/gi-gtk-declarative}} könyvtár ezzel szemben egy deklaratív GTK API-t ad a kezünkbe, aminek segítségével röviden és tömören tudjuk összetett vezérlőelemek megjelenését leírni. 
+A \emph{gi-gtk-declarative-app-simple}\footnote{\url{https://hackage.haskell.org/package/gi-gtk-declarative-app-simple}} erre építve definiál felhasználói felületek vezérléséhez egy egyszerű architektúrát, ahol a felületet állapotgépnek tekintjük és az állapotátmeneteket események váltják ki. A felület létrehozásához elég a kezdőállapotot, az állapotmegjelenítő $(state \rightarrow widget)$ függvényt és az állapotátmenet-függvényt definiálni.
 
 \section{A felhasználói felülethez kapcsolódó modulok}
 
@@ -639,7 +640,7 @@ A \emph{gi-gtk-declarative-app-simple} erre építve definiál felhasználói fe
 \begin{figure}[H]
 	\centering
 	\includegraphics[width=1\linewidth]{statetrans.png}
-	\caption{}
+	\caption{A felület állapotátmenetei}
 	\label{fig:states}
 \end{figure}
 
@@ -883,6 +884,7 @@ A 6502 teljes utasításkészletét tartalmazó modul. Néhány segédfüggvény
 	Linkeli és validálja a shader-ekből készített programot, hiba esetén kivételt dob.
 	\item[$\bullet\:$ getCrtShaderProgram :: IO Program] \hfill \\
 	A modul exportált eljárása, ami létrehozza a CRT effektust megvalósító shader programot.
+	
 	\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
 	import Control.Monad ((=<<), sequence)
 	
@@ -1019,12 +1021,13 @@ A második példa azt az eshetőséget kezeli, amikor a felhasználó \emph{quic
 \begin{figure}[H]
 	\centering
 	\includegraphics[scale = 0.9]{alertmsg.png}
-	\caption{A kiváltott figyelmeztetés}
+	\caption{A kiváltott figyelmeztetés\protect\footnotemark}
 	\label{fig:warning}
 \end{figure}
 
 \subsection{Állapotmegjelenítés}
 
+\footnotetext{Link az ikonokra: \url{https://www.flaticon.com/packs/ui-interface-23}, \newline \url{https://www.flaticon.com}}
 A szemléltetés kedvéért kiragadtam egy részt az \emph{inGame} állapotmegjelenítő-függvényből, ahol azt láthatjuk, hogy a gomb feliratában a játék neve előtt a \emph{Pause} vagy \emph{Resume} szöveg lesz, az állapottól függően.
 \vspace{0.2cm}
 \begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
@@ -1059,19 +1062,21 @@ A fenti függvény emellett még a következőkről is gondoskodni tud:
 
 A fejlesztés a Test Driven Development (TDD) módszer szerint folyt. Mielőtt belekezdtem volna egy CPU utasítás vagy PPU eljárás implementálásába, a teszteket kibővítettem, hogy az új kódrészeket is lefedjék, ezáltal mindig tudtam, hogy jó irányba haladok-e.
 
-Az emulátorok tesztelésére vannak kifejezetten erre a célre készített NES ROM-ok, amik tökéletes aprólékossággal ellenőrzik, hogy minden utasítás az elvárt módon változtatja-e a hardver belső állapotát. Azért döntöttem ezek használata mellett, mert ilyen pontosságú tesztek írása 6502 Assembly-ben rengeteg időt vett volna el és a saját tesztek lefedettsége meg se közelítette volna a professzionális tesztek által nyújtott lefedettséget. 
+Az emulátorok tesztelésére vannak kifejezetten erre a célre készített NES ROM-ok\footnote{\url{http://wiki.nesdev.com/w/index.php/Emulator_tests}}, amik tökéletes aprólékossággal ellenőrzik, hogy minden utasítás az elvárt módon változtatja-e a hardver belső állapotát. Azért döntöttem ezek használata mellett, mert ilyen pontosságú tesztek írása 6502 Assembly-ben rengeteg időt vett volna el és a saját tesztek lefedettsége meg se közelítette volna a professzionális tesztek által nyújtott lefedettséget.
+
+A tesztek vizuálisan és automatizáltan is futtathatóak. Vizuális futtatásnál a teszt ugyanúgy töltődik be, mint bármilyen más játék és a képernyőre írja ki a teszt eredményét. Automatizáltan futtatni csak előre ismert ROM-okat lehet, mert a tesztek nem egységesek és változó, hogy mivel jelzik az emulátor felé a terminálást, melyik memóriacímen található az eredmény kódja, mit jelentenek a kódok stb.
 
 \subsection{CPU tesztek}
 
 \begin{description}
 \item[Nestest] \hfill \\
-Ez volt az első teszt, amin a CPU átment. Részletesen végigteszteli az összes utasítást (beleértve néhány illegálisat is). A utasítások címzési módját és sorrendjét is variálja. Összesen 8991 utasítást hajt végre.
+Részletesen végigteszteli az összes utasítást (beleértve néhány illegálisat is). A utasítások címzési módját és sorrendjét is variálja. Összesen 8991 utasítást hajt végre. A teszthez tartozó naplóval ellenőrizhetjük, hogy a regiszterek értéke és az eltelt ciklusok száma egyezik-e az elvárttal. 
 
 \item[Instr\_test\_v5] \hfill \\
 16 tesztet tartalmaz, amik a címzési módokat, stack műveleteket, elágazásokat és megszakításokat tesztelik. Remek hibaüzenetek ír a \$6004 címtől kezdve egy nullával terminált sztring segítségével.
 
 \item[Instr\_Misc] \hfill \\
-2 teszteset ellenőrzi az abszolút indexelt címzés és az elágazások szélsőséges eseteit.
+Az abszolút indexelt címzés és az elágazások szélsőséges eseteinek ellenőrzése.
 
 \end{description}
 
@@ -1079,7 +1084,7 @@ Ez volt az első teszt, amin a CPU átment. Részletesen végigteszteli az össz
 
 \begin{description}
 \item[PPU\_vbl\_nmi] \hfill \\
-Az itt található 5 tesztcsomag a vertical blanking period státusz-flaget (be/kikapcsolása megfelelő időben történik), az NMI megszakítást (bekövetkezik-e, a PPU regiszterek befolyásolják-e) és a páros-páratlan képkockák 1 PPU órajelciklusnyi hosszkülönbségét ellenőrzik.
+Ez a tesztcsomag a vertical blanking period státusz-flaget (be/kikapcsolása megfelelő időben történik), az NMI megszakítást (bekövetkezik-e, a PPU regiszterek befolyásolják-e) és a páros-páratlan képkockák 1 PPU órajelciklusnyi hosszkülönbségét ellenőrzi.
 
 \item[PPU\_sprite\_hit és PPU\_sprite\_overflow] \hfill \\
 12 tesztcsomag, amik a sprite réteggel kapcsolatos státusz flag-eket ellenőrzik (Sprite 0 Hit, Sprite Overflow).
@@ -1088,10 +1093,53 @@ Az itt található 5 tesztcsomag a vertical blanking period státusz-flaget (be/
 
 \subsection{Eredmények}
 
+Emulátoroknál a 100\%-os pontosság elérése nehéz feladat, mert az áramkörök felépítéséből természetes következményként adódó speciális viselkedéseket mesterségesen, összetett feltételek ellenőrzésével kell implementálni (például memóriabusz-konfliktus, NMI elnyomás, stb.).  Az emulátorom időzítésekben és az előbb említett két esetben tér el minimálisan az eredeti hardvertől. Összességében a pontosság kielégítő, és a legtöbb játéknál nem okoz gondot az eltérés.
+
+\vspace{0.2cm}
 \begin{figure}[H]
 	\centering
-	\includegraphics[scale=0.6]{tests2.png}
-	\includegraphics[scale=0.6]{tests.png}
+	\includegraphics[scale=0.5]{nestest.png}
+	\caption{CPU ellenőrzése a Nestest ROM-mal}
 \end{figure}
+
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[scale=0.6]{tests.png}
+	\caption{Automatizáltan végrehajtott sprite-réteg tesztek}
+\end{figure}
+
+\subsection{Tesztelt, megbízhatóan működő programok}
+
+\subsubsection{Játékok}
+\begin{compactitem}
+	\item Game of Life: \url{https://www.romhacking.net/homebrew/48/}
+	\item 2048: \url{https://www.romhacking.net/homebrew/65/}
+	\item Chase: \url{https://www.romhacking.net/homebrew/73/}
+	\item Chicken Of The Farm: \url{https://www.romhacking.net/homebrew/109/}
+	\item Falldown: \url{https://www.romhacking.net/homebrew/57/}
+	\item Fighter F8000: \url{http://nesdev.com/fighter\_f8000.zip}
+	\item Magic Floor: \url{https://www.romhacking.net/homebrew/40/}
+	\item Lawn Mover: \url{http://www.romhacking.net/homebrew/42/} \label{lawn}
+	\item Lan Master: \url{https://www.romhacking.net/homebrew/2/}
+	\item Alter Ego: \url{https://www.romhacking.net/homebrew/1/} \label{alter}
+	\item Pegs: \url{https://www.romhacking.net/homebrew/22/}
+	\item Pong 198x: \url{https://www.romhacking.net/homebrew/26/}
+	\item NeSnake: \url{https://www.romhacking.net/homebrew/31/}
+	\item NeSnake 2: \url{https://www.romhacking.net/homebrew/30/}
+	\item MilionNESy: \url{https://www.romhacking.net/homebrew/36/}
+	\item Sokoban: \url{http://nesdev.com/sokoban.zip}
+	\item Sudoku: \url{https://www.romhacking.net/homebrew/17/}
+	\item Eskimo Bob Demo: \url{https://spoony-bard-productions.itch.io/eskimo-bob}
+\end{compactitem}
+
+\subsubsection{Techdemók}
+\begin{compactitem}
+	\item Raster Demo: \url{http://nesdev.com/rstrdemo.zip}
+	\item Motion \url{http://nesdev.com/anims.zip}
+	\item Fullscreen Demo \url{http://nesdev.com/FullScreen.zip}
+	\item Interlacing Demo \url{http://nesdev.com/interlac.zip}
+\end{compactitem}
+
 
 

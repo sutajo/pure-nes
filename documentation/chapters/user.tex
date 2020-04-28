@@ -5,11 +5,12 @@
 
 \begin{figure}[H]
 	\centering
-	\includegraphics[scale=0.13]{nes.jpg}
-	\caption{Nintendo Entertainment System (1985)}
+	\includegraphics[scale=0.16]{nes.jpg}
+	\caption{Nintendo Entertainment System (1985)\protect\footnotemark}
 	\label{fig:nes}
 \end{figure}
 
+\footnotetext{\url{https://upload.wikimedia.org/wikipedia/commons/8/82/Nintendo-Entertainment-System-NES-Console-FL.jpg}}
 A program feladata a NES kazetták futtatása. A felhasználó grafikus felület segítségével kiválaszthatja a futtatni kívánt, iNES formátumú kazetta fájlt, majd annak betöltése után az emulátor belekezd a videókimenet előállításába.\footnote{A hangfeldolgozást nem emulálja a program} Bemeneti eszközként billentyűzet vagy kontroller használható. A futtatás során lehetőség van az emulátor állapotának fájlként való mentésére és betöltésére. Az emulációt többféle módon is befolyásolhatja a felhasználó, amikbe beletartozik a játék szüneteltetése, adott mennyiségű CPU utasítás végrehajtása, valamint a teljes képkockánként történő léptetés.
 
 A programot azoknak ajánlom, akik egy letisztult kezelőfelülettel rendelkező, több platformon is elérhető NES emulátorral szeretnék játszani kedvenc játékaikat.
@@ -51,7 +52,7 @@ A program a fenti konfiguráción történő tesztelés során problémamentesen
 
 \section{Kompatibilis kazetták}
 
-A NES megtervezésekor fontos cél volt, hogy a konzol életciklusa hosszú legyen, de ezt nem volt könnyű gazdaságos módon elérni. Azt a megoldás találták ki, hogy a kazetta a játék mellett tartalmazzon speciális integrált áramköröket, amik igény szerint bővíthették a hardveres erőforrásokat. A kiegészítőegységek egy konkrét összeállítását \emph{mapper}-nek nevezzük. A későbbi játékok előszeretettel használták ki ezt a lehetőséget. A legtöbb speciális áramkör a megnövelt háttértár kezeléséhez volt szükséges, de akadt olyan is, amelyik további hangcsatornákat adott hozzá a hangfeldolgozó egységhez. Az emulátorom jelenleg a 0, 2 és 3 azonosítójú mapper-eket használó kazettákat támogatja, ezáltal 471 játékot képes elindítani \cite{ROM lista}.      
+A NES megtervezésekor fontos cél volt, hogy a konzol életciklusa hosszú legyen, de ezt nem volt könnyű gazdaságos módon elérni. Azt a megoldás találták ki, hogy a kazetta a játék mellett tartalmazzon speciális integrált áramköröket, amik igény szerint bővíthették a hardveres erőforrásokat. A kiegészítőegységek egy konkrét összeállítását \emph{mapper}-nek nevezzük. A későbbi játékok előszeretettel használták ki ezt a lehetőséget. A legtöbb speciális áramkör a megnövelt háttértár kezeléséhez volt szükséges, de akadt olyan is, amelyik további hangcsatornákat adott hozzá a hangfeldolgozó egységhez. Az emulátorom jelenleg a 0, 2 és 3 azonosítójú mapper-eket használó kazettákat támogatja, ezáltal 471 játékot képes elindítani. 
 
 \section{Főmenü}
 
@@ -77,7 +78,7 @@ A főmenü \emph{Show controls} gombjára kattintva megtekinthetjük a gombhozz�
 \begin{figure}[H]
 	\centering
 	\includegraphics[scale=0.4]{tetris.png}
-	\caption{A felhasználói felület játék közben}
+	\caption{A felhasználói felület játék közben\protect\footnotemark}
 \end{figure}
 
 \subsection {Irányítás}
@@ -101,7 +102,7 @@ A főmenü \emph{Show controls} gombjára kattintva megtekinthetjük a gombhozz�
 	\caption{Játékok irányításához használt gombok}
 	\label{fig:btns}
 \end{table}
-
+\footnotetext{Link a képen szereplő LJ65 játékhoz: \url{https://github.com/Glavin001/node-nes/tree/master/roms/lj65}}
 A \ref{fig:btns} táblázatban látható módon vannak a fizikai gombok (a billentyűzeten vagy a kontrolleren) az emulált NES virtuális gombjainak megfeleltetve. Például, ha a játékon belül a \emph{Select} gombot szeretnénk lenyomni, akkor a billentyűzeten a 3-as, vagy a kontrolleren a 0. gombot kell lenyomnunk.
 A Joystick vezérlők gombkiosztása el szokott térni, ami azt jelenti, hogy a fizikailag ugyanott található gomboknak más az azonosítója. A felhasználó feladata, hogy szükség esetén egy másik programmal módosítsa eszközének kiosztását úgy, hogy az megegyezzen az emulátor szerint elvárttal.
 
@@ -187,8 +188,8 @@ A \emph{Return To ROM selection} gomb bezárja a játékot és a felhasználói 
 \begin{figure}[H]
 	\centering
 	\includegraphics[scale=0.38]{shiru.png}
-	\caption{Alter Ego}
+	\caption{Alter Ego. Linkért lásd: \ref{alter}}
 	\vspace{1cm}
 	\includegraphics[scale=0.38]{lawn.png}
-	\caption{Lawn Mover}
+	\caption{Lawn Mover. Linkért lásd: \ref{lawn}}
 \end{figure}
