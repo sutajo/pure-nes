@@ -28,6 +28,27 @@ void main()
 
 crtFragmentShader = [r|
 
+#if __VERSION__ >= 130
+#define COMPAT_VARYING in
+#define COMPAT_TEXTURE texture
+out vec4 FragColor;
+#else
+#define COMPAT_VARYING varying
+#define FragColor gl_FragColor
+#define COMPAT_TEXTURE texture2D
+#endif
+
+#ifdef GL_ES
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+#define COMPAT_PRECISION mediump
+#else
+#define COMPAT_PRECISION
+#endif
+
 //
 // PUBLIC DOMAIN CRT STYLED SCAN-LINE SHADER
 //
@@ -169,7 +190,7 @@ void main(){
   fragColor.rgb=Tri(pos)*Mask(gl_FragCoord.xy);
   fragColor.rgb=ToSrgb(fragColor.rgb);
 
-  fragColor.rgb = ((fragColor.rgb - 0.5f) * max(contrast, 0)) + 0.5f;
+  fragColor.rgb = ((fragColor.rgb - 0.5f) * max(contrast, 0.0f)) + 0.5f;
   gl_FragColor= vec4(fragColor.rgb, 1.0);
 }
 

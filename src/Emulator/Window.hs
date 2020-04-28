@@ -5,9 +5,11 @@ module Emulator.Window (
 ) where
 
 import           Control.Monad
+import           Control.Monad.Extra
 import           Control.Monad.IO.Class
 import           Control.Concurrent
 import           Control.Exception
+import           Data.Maybe
 import qualified Data.Map                     as M
 import qualified Data.Vector.Storable.Mutable as VSM
 import           Data.Word
@@ -62,7 +64,7 @@ acquireResources romPath comms = do
       windowPosition = Absolute $ P $ V2 0 20,
       windowGraphicsContext = OpenGLContext defaultOpenGL { 
         glColorPrecision = V4 8 8 8 8,
-        glProfile = Core Normal 4 3
+        glProfile = Core Normal 3 0
       }
   }
 
@@ -86,17 +88,23 @@ acquireResources romPath comms = do
   joyIsSecondCtrl <- newIORef False
   fullscreen      <- newIORef False
   useCrtShader    <- newIORef True
-  crtProgram      <- getCrtShaderProgram
-  textureUniform  <- uniformLocation crtProgram "texImg"
-  let openGLResources = OpenGLResources{..}
+  openGLResources <- do
+      tryResult <- try getCrtShaderProgram
+      case tryResult of
+        Left (ex :: SomeException) -> return Nothing
+        Right crtProgram  -> do
+          textureUniform  <- uniformLocation crtProgram "texImg"
+          return $ Just OpenGLResources{..}
+
   return AppResources{..}
 
 
 releaseResources :: AppResources -> IO ()
 releaseResources AppResources{..} = do
-  let OpenGLResources{..} = openGLResources
+  whenJust openGLResources $ \OpenGLResources{glContext} -> do
+    glDeleteContext glContext
+
   readIORef joys >>= disconnectAllJoys
-  glDeleteContext glContext
   destroyTexture screen
   destroyRenderer renderer
   destroyWindow window
@@ -132,9 +140,9 @@ updateScreen AppResources{..} pixels = liftIO $ do
 
   -- Render the texture to the screen
   useShader <- readIORef useCrtShader
-  if useShader
+  if useShader && isJust openGLResources
   then do
-    let OpenGLResources{..} = openGLResources
+    let OpenGLResources{..} = fromJust openGLResources
     OpenGL.clear [ColorBuffer, DepthBuffer]
     oldProgram <- SDL.get currentProgram
     currentProgram $= Just crtProgram

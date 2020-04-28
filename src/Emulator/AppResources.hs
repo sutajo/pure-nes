@@ -20,7 +20,7 @@ data AppResources = AppResources {
   window          :: Window,
   renderer        :: Renderer,
   screen          :: Texture,
-  openGLResources :: OpenGLResources,
+  openGLResources :: Maybe OpenGLResources,
   commRes         :: CommResources,
   nes             :: IORef Nes,
   reset           :: IORef Bool,
