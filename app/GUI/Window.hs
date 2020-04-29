@@ -217,6 +217,7 @@ visualize threadCount s = do
       , #windowPosition := WindowPositionCenter
       , #heightRequest := height
       , #widthRequest := 400
+      , #resizable := False
       ]
     $ addRevealer s $ windowContent s
   where
