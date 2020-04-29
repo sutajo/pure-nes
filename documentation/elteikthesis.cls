@@ -392,9 +392,9 @@
 \RequirePackage{listingsutf8}
 \lstset{
 	basicstyle=\footnotesize\ttfamily,
-	numbers=left,
+	numbers=none,
     numberstyle=\tiny,
-    backgroundcolor=\color{codebackg},
+    backgroundcolor=\color{white},
 	keywordstyle=\color{blue},
 	commentstyle=\color{codecomment},
 	stringstyle=\color{codestring},
@@ -408,11 +408,13 @@
 	breaklines=true,
 	breakatwhitespace=false,
 	float,
-	frame=linesc,
+    keywords={for,return},
+	%frame=linesc,
 	captionpos=b,
     extendedchars=true,
     literate={á}{{\'a}}1 {ã}{{\~a}}1 {é}{{\'e}}1 {ó}{{\'o}}1 {ö}{{\"o}}1 {ú}{{\'u}}1 {ü}{{\"u}}1 {ő}{{\H{o}}}1 {í}{{\'{i}}}1 {Á}{{\uppercase{\'a}}}1
 }
+
 % Forráskód elnevezése
 \renewcommand{\lstlistingname}{\codelabel}
 % Forráskódjegyzék elnevezése

@@ -55,9 +55,20 @@ sendMsg CommResources{toEmulatorWindow} = only . atomically . writeTChan toEmula
 -- | If a field should change while displaying a message
 --   then update the nested emulation state
 updateNestedEmulationState :: (State -> State) -> State -> State
-updateNestedEmulationState f e@Message{stateBefore = s} = e{stateBefore = updateNestedEmulationState f s }
+updateNestedEmulationState f e@Message{stateBefore = s} = e{stateBefore = updateNestedEmulationState f s}
 updateNestedEmulationState f e@Emulating{} = f e
 updateNestedEmulationState f x = x
+
+
+endAnimationWithDelay CommResources{fromEmulatorWindow} = forkIO $ do
+  threadDelay (10^2 * 2)
+  writeChan fromEmulatorWindow $ EndAnimation
+
+animateAction :: CommResources -> State -> IO a -> Transition State Event
+animateAction comms s action = Transition (Animation s) (action >> only (endAnimationWithDelay comms)) 
+
+animate :: CommResources -> State -> Transition State Event
+animate comms s = animateAction comms s (pure ())
 
 -- | GUI state transition function
 update :: CommResources -> State -> Event -> Transition State Event
@@ -70,38 +81,38 @@ update _ s@MainMenu{} (FileSelectionChanged p)
 
 -- Show controls and then return if Ok was pressed
 
-update _ s@MainMenu{} ShowControlsPressed = Transition (ShowControls s) noop
+update comms s@MainMenu{} ShowControlsPressed = animate comms (ShowControls s)
 
-update _ (ShowControls s) MessageAck = Transition s noop
+update comms (ShowControls s) MessageAck = animate comms s
 
 
 -- Start the emulator thread
 
 update comms (MainMenu (Just path) savePath) StartEmulator 
-  = Transition 
+  = animateAction comms
     (Emulating (Text.pack . takeBaseName $ path) True savePath "" "" Nothing Nothing) 
-    (only $ launchEmulator path comms >> (sendMsg comms . NewSaveFolder) savePath)
+    (launchEmulator path comms >> (sendMsg comms . NewSaveFolder) savePath)
 
 
 -- Warnings related to saving and loading
 
-update _ s@(MainMenu Nothing _) StartEmulator
-  = Transition s (return . Just $ MessageText "No ROM selected." Alert)
+update comms s@(MainMenu Nothing _) StartEmulator
+  = animate comms (Message "No ROM selected." Alert s)
 
-update _ e@Emulating{savePath = Nothing} SaveButtonPressed
-  = Transition (chooseSaveFolderFirst e) noop
+update comms e@Emulating{savePath = Nothing} SaveButtonPressed
+  = animate comms (chooseSaveFolderFirst e)
 
-update _ e@Emulating{saveRomName = ""} SaveButtonPressed 
-  = Transition e (emit $ MessageText "You need to give a name to your save file." Alert)
+update comms e@Emulating{saveRomName = ""} SaveButtonPressed 
+  = animate comms (Message "You need to give a name to your save file." Alert e)
 
-update _ e@Emulating{savePath = Nothing} QuickSavePressed
-  = Transition (chooseSaveFolderFirst e) noop
+update comms e@Emulating{savePath = Nothing} QuickSavePressed
+  = animate comms (chooseSaveFolderFirst e)
 
-update _ e@Emulating{saveRomName = "quick"} SaveButtonPressed 
-  = Transition (Message saveAsQuick Alert e) noop
+update comms e@Emulating{saveRomName = "quick"} SaveButtonPressed 
+  = animate comms (Message saveAsQuick Alert e)
 
-update _ e@Emulating{ savePath = Nothing } QuickReloadPressed
-  = Transition (chooseSaveFolderFirst e) noop
+update comms e@Emulating{ savePath = Nothing } QuickReloadPressed
+  = animate comms (chooseSaveFolderFirst e)
 
 
 -- Send commands to the SDL event loop
@@ -122,7 +133,7 @@ update comms e@Emulating{} (SavePathChanged s)
   = Transition (e {savePath = s}) (sendMsg comms (NewSaveFolder s) >> savePathToDisk s)
 
 update comms Emulating{savePath} ReturnToSelection 
-  = Transition (MainMenu Nothing savePath) (sendMsg comms Quit)
+  = Transition (MainMenu Nothing savePath) (sendMsg comms (Quit False))
 
 update _ _ ReturnToSelection 
   = Transition (MainMenu Nothing Nothing) noop
@@ -152,41 +163,47 @@ update comms s (TogglePause shouldForward)
 
 -- Return to main menu if the SDL window was closed
 
-update _ Emulating{savePath} SDLWindowClosed 
-  = Transition (MainMenu Nothing savePath) noop
+update comms Emulating{savePath} SDLWindowClosed 
+  = animate comms (MainMenu Nothing savePath)
 
-update _ (Message _ _ Emulating{savePath}) SDLWindowClosed 
-  = Transition (MainMenu Nothing savePath) noop
+update comms (Message _ _ Emulating{savePath}) SDLWindowClosed 
+  = animate comms (MainMenu Nothing savePath)
 
-update _ _ SDLWindowClosed 
-  = Transition (MainMenu Nothing Nothing) noop
+update _ m@MainMenu{} SDLWindowClosed 
+  = Transition m noop
+
+update comms _ SDLWindowClosed 
+  = animate comms (MainMenu Nothing Nothing)
 
 -- Displaying messages
 
-update _ s (MessageText msg icon) 
-  = Transition (Message (Text.pack msg) icon s) noop
+update comms s (MessageText msg icon) 
+  = animate comms (Message (Text.pack msg) icon s)
 
-update comms (Message _ _ stateBefore) MessageAck 
-  = Transition stateBefore noop
+update comms (Message _ _ stateBefore) MessageAck
+  = animate comms stateBefore
 
 
 -- Display error messages with a cross
 -- and then return to the main menu
 
-update _ Emulating{savePath} (Error msg) 
-  = Transition (Message (Text.pack msg) Cross (MainMenu Nothing savePath)) noop
+update comms Emulating{savePath} (Error msg) 
+  = animate comms (Message (Text.pack msg) Cross (MainMenu Nothing savePath))
 
-update _ (Message _ _ Emulating{savePath}) (Error msg) 
-  = Transition (Message (Text.pack msg) Cross (MainMenu Nothing savePath)) noop
+update comms (Message _ _ Emulating{savePath}) (Error msg) 
+  = animate comms (Message (Text.pack msg) Cross (MainMenu Nothing savePath))
 
-update _ _ (Error msg) 
-  = Transition (Message (Text.pack msg) Cross (MainMenu Nothing Nothing)) noop
+update comms _ (Error msg) 
+  = animate comms (Message (Text.pack msg) Cross (MainMenu Nothing Nothing))
 
 -- Exit the application
 
 update _  _ Closed 
   = Exit
 
+-- End animation
+
+update _ (Animation a) EndAnimation = Transition a noop
 
 -- Ignore event if it was not handled above
 
@@ -216,10 +233,11 @@ main = do
       exists <- doesFileExist saveFolderPersistencePath
       if exists
       then Just <$> readFile saveFolderPersistencePath
-      else return Nothing 
+      else return Nothing
 
+    endAnimationWithDelay comms
     void $ run App {    view         = visualize threadCount
                       , DAS.update   = Main.update comms
                       , inputs       = [sdlWindowEventProxy]
-                      , initialState = MainMenu Nothing previousSaveFolder
+                      , initialState = Animation (MainMenu Nothing previousSaveFolder)
                     }

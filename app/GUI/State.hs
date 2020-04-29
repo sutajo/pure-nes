@@ -23,3 +23,6 @@ data State
       saveResultSuccess :: Maybe IOResult,
       loadResultSuccess :: Maybe IOResult
     }
+  | Animation {
+      targetState :: State
+    }

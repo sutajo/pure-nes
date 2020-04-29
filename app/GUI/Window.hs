@@ -17,6 +17,7 @@ import           GI.Gtk                         ( Box(..)
                                                 , Label(..)
                                                 , Window(..)
                                                 , Grid(..)
+                                                , Revealer(..)
                                                 , fileChooserGetFilename
                                                 )
 import           GI.Gtk.Enums
@@ -199,7 +200,9 @@ controlsWidget =
 
 visualize :: Int -> State -> AppView Window Event
 visualize threadCount s = do
-  let 
+  let
+    addRevealer (Animation _) = bin Revealer [#transitionDuration := 0, #transitionType := RevealerTransitionTypeCrossfade, #revealChild := False]
+    addRevealer _ =  bin Revealer [#transitionDuration := 400, #transitionType := RevealerTransitionTypeCrossfade, #revealChild := True]
     height = case s of
       ShowControls _ -> 400
       _              -> 700
@@ -215,7 +218,7 @@ visualize threadCount s = do
       , #heightRequest := height
       , #widthRequest := 400
       ]
-    $ windowContent s
+    $ addRevealer s $ windowContent s
   where
     windowContent = \case
         Message {text, icon} ->
@@ -229,4 +232,6 @@ visualize threadCount s = do
 
         ShowControls _ ->
             controlsWidget
+
+        Animation s -> windowContent s
                       

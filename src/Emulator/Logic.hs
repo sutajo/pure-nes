@@ -117,7 +117,7 @@ rumble Nothing = pure ()
 
 -- | Convert the SDL event to the internal command type
 translateSDLEvent :: SDL.EventPayload -> Maybe Command
-translateSDLEvent SDL.QuitEvent = Just Quit
+translateSDLEvent SDL.QuitEvent = Just (Quit True)
 translateSDLEvent (WindowResizedEvent (WindowResizedEventData _ (V2 w h))) = Just $ AdjustViewport w h
 translateSDLEvent (JoyHatEvent eventData)    = Just $ JoyHatCommand eventData
 translateSDLEvent (JoyButtonEvent eventData) = Just $ JoyButtonCommand eventData
@@ -274,8 +274,10 @@ executeCommand updateScreen appResources@AppResources{..} command = do
 
     ToggleCrtShader -> liftIO $ do
       modifyIORef' useCrtShader not
-      
-    _ -> pure ()
+
+    Quit notifyGUI -> liftIO $ do
+      when notifyGUI $ writeChan (fromEmulatorWindow commRes) SDLWindowClosed
+      writeIORef stop True
 
 
 -- | Poll events from both the SDL Window and the GUI
@@ -290,10 +292,13 @@ advanceEmulation ::
     ViewFunction ->
     AppResources ->
     Emulator Nes Bool
-advanceEmulation updateScreen appResources@AppResources{continousMode, reboot} = do
+advanceEmulation updateScreen appResources@AppResources{continousMode, reboot, stop} = do
   commands <- liftIO $ pollCommands appResources
   mapM_ (executeCommand updateScreen appResources) commands
   whenM (liftIO $ readIORef continousMode) $ do
     emulateFrame >>= updateScreen appResources
-  reboot <- liftIO $ readIORef reboot
-  return (Quit `elem` commands || reboot)
+
+  liftIO $ do
+    reboot <- readIORef reboot
+    quit   <- readIORef stop
+    return (quit || reboot)

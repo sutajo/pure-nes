@@ -567,37 +567,37 @@ Az SDL2 és a GTK könyvtárakat Linux-on a disztribúció csomagkezelőjével, 
 \subsubsection{Csomagok telepítése}
 \begin{itemize}
 	\item Windows (MSYS2 konzollal):
-	\begin{lstlisting}[language=bash]
-	pacman -S mingw-w64-x86_64-SDL2
-	pacman -S mingw-w64-x86_64-gtk3
-	\end{lstlisting}
+\begin{lstlisting}[language=bash]
+pacman -S mingw-w64-x86_64-SDL2
+pacman -S mingw-w64-x86_64-gtk3
+\end{lstlisting}
 	\item Linux:
-	\begin{lstlisting}[language=bash]
-	$ sudo apt-get install libgirepository1.0-dev
-	$ sudo apt-get install libwebkit2gtk-4.0-dev
-	$ sudo apt-get install libgtksourceview-3.0-dev
-	$ sudo apt-get install libsdl2-dev
-	\end{lstlisting}
+\begin{lstlisting}[language=bash]
+sudo apt-get install libgirepository1.0-dev
+sudo apt-get install libwebkit2gtk-4.0-dev
+sudo apt-get install libgtksourceview-3.0-dev
+sudo apt-get install libsdl2-dev
+\end{lstlisting}
 \end{itemize}
 
 \subsubsection{Fordítás}
 \begin{itemize}
 	\item Windows: A fordításnál be kell állítani az alábbi környezeti változókat, hogy 
 	az MSYS2-vel telepített könyvtárakról tudjon a Stack. A lenti példában az alapértelmezett MSYS2 útvonalakat állítom be.
-	\begin{lstlisting}[language=bash]
-	SET PATH=C:\msys64\mingw64\bin;C:\msys64\usr\bin;%PATH%
-	SET PKG_CONFIG_PATH=C:\msys64\mingw64\lib\pkgconfig
-	SET XDG_DATA_DIRS=C:\msys64\mingw64\share
-	stack build
-	\end{lstlisting}
+\begin{lstlisting}[language=bash]
+SET PATH=C:\msys64\mingw64\bin;C:\msys64\usr\bin;%PATH%
+SET PKG_CONFIG_PATH=C:\msys64\mingw64\lib\pkgconfig
+SET XDG_DATA_DIRS=C:\msys64\mingw64\share
+stack build
+\end{lstlisting}
 	Ha az első fordításnál hibát kapunk a \emph{gi-*} függőségek telepítésénél, akkor másoljuk a 
 	\emph{C:$\textbackslash$msys64$\textbackslash$mingw64$\textbackslash$bin$\textbackslash$zlib1.dll} fájlt a Stack által telepített GHC \emph{mingw/bin} mappájába. Ha már van ilyen fájl ott, akkor készítsünk róla másolatot, majd cseréljük le.
 	\footnote{További információk: \url{https://github.com/haskell-gi/haskell-gi/wiki/Using-haskell-gi-in-Windows}}
 
 	\item Linux:
-	\begin{lstlisting}[language=bash]
-	$ stack build
-	\end{lstlisting}
+\begin{lstlisting}[language=bash]
+stack build
+\end{lstlisting}
 \end{itemize}
 
 \subsubsection{Futtatás}
@@ -890,7 +890,7 @@ A 6502 teljes utasításkészletét tartalmazó modul. Néhány segédfüggvény
 	\item[$\bullet\:$ getCrtShaderProgram :: IO Program] \hfill \\
 	A modul exportált eljárása, ami létrehozza a CRT effektust megvalósító shader programot.
 	
-	\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
+	\begin{lstlisting}[language=Haskell]
 	import Control.Monad ((=<<), sequence)
 	
 	getCrtShaderProgram = 

@@ -87,6 +87,7 @@ acquireResources romPath comms = do
   reset         <- newIORef (not $ isSave romPath)
   joyIsSecondCtrl <- newIORef False
   fullscreen      <- newIORef False
+  stop            <- newIORef False
   useCrtShader    <- newIORef True
   openGLResources <- do
       tryResult <- try getCrtShaderProgram
@@ -109,7 +110,6 @@ releaseResources AppResources{..} = do
   destroyRenderer renderer
   destroyWindow window
   SDL.quit
-  writeChan (fromEmulatorWindow commRes) SDLWindowClosed
 
 
 -- | Main loop

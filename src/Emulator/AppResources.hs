@@ -23,8 +23,9 @@ data AppResources = AppResources {
   openGLResources :: Maybe OpenGLResources,
   commRes         :: CommResources,
   nes             :: IORef Nes,
-  reset           :: IORef Bool,
-  reboot          :: IORef Bool,
+  reset           :: IORef Bool, -- should we reset the CPU and PPU? (not needed for save files)
+  reboot          :: IORef Bool, -- should we reload the cartridge?
+  stop            :: IORef Bool,
   continousMode   :: IORef Bool,
   joyIsSecondCtrl :: IORef Bool,
   joys            :: IORef JoyControlState,

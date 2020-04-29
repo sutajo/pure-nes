@@ -36,11 +36,12 @@ data Event
   | SaveButtonPressed
   | QuickReloadPressed
   | ShowControlsPressed
+  | EndAnimation
   | Noop
 
 -- The SDL window loop executes the following commands
 data Command 
-  = Quit
+  = Quit { notifyGUI :: Bool }
   | Save FilePath
   | Load FilePath
   | QuickSave (Maybe Haptic)
