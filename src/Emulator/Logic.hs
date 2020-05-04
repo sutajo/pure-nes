@@ -188,7 +188,7 @@ executeCommand updateScreen appResources@AppResources{..} command = do
         if saveExists
         then load haptic appResources path 
         else do
-          sendEvent =<< (LoadResult . IOResult (Just . show $ QuickSaveNotFound) <$> formatResultTime)
+          sendEvent (MessageText (show QuickSaveNotFound) Alert)
 
     Save path -> do
       nes <- serialize

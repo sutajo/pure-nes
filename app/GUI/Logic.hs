@@ -64,11 +64,11 @@ endAnimationWithDelay CommResources{fromEmulatorWindow} = forkIO $ do
   threadDelay (10^2 * 2)
   writeChan fromEmulatorWindow $ EndAnimation
 
-animateAction :: CommResources -> State -> IO a -> Transition State Event
-animateAction comms s action = Transition (Animation s) (action >> only (endAnimationWithDelay comms)) 
+smoothTransitionAction :: CommResources -> State -> IO a -> Transition State Event
+smoothTransitionAction comms s action = Transition (SmoothTransition s) (action >> only (endAnimationWithDelay comms)) 
 
-animate :: CommResources -> State -> Transition State Event
-animate comms s = animateAction comms s (pure ())
+smoothTransition :: CommResources -> State -> Transition State Event
+smoothTransition comms s = smoothTransitionAction comms s (pure ())
 
 -- | GUI state transition function
 update :: CommResources -> State -> Event -> Transition State Event
@@ -81,15 +81,15 @@ update _ s@MainMenu{} (FileSelectionChanged p)
 
 -- Show controls and then return if Ok was pressed
 
-update comms s@MainMenu{} ShowControlsPressed = animate comms (ShowControls s)
+update comms s@MainMenu{} ShowControlsPressed = smoothTransition comms (ShowControls s)
 
-update comms (ShowControls s) MessageAck = animate comms s
+update comms (ShowControls s) MessageAck = smoothTransition comms s
 
 
 -- Start the emulator thread
 
 update comms (MainMenu (Just path) savePath) StartEmulator 
-  = animateAction comms
+  = smoothTransitionAction comms
     (Emulating (Text.pack . takeBaseName $ path) True savePath "" "" Nothing Nothing) 
     (launchEmulator path comms >> (sendMsg comms . NewSaveFolder) savePath)
 
@@ -97,22 +97,22 @@ update comms (MainMenu (Just path) savePath) StartEmulator
 -- Warnings related to saving and loading
 
 update comms s@(MainMenu Nothing _) StartEmulator
-  = animate comms (Message "No ROM selected." Alert s)
+  = smoothTransition comms (Message "No ROM selected." Alert s)
 
 update comms e@Emulating{savePath = Nothing} SaveButtonPressed
-  = animate comms (chooseSaveFolderFirst e)
+  = smoothTransition comms (chooseSaveFolderFirst e)
 
 update comms e@Emulating{saveRomName = ""} SaveButtonPressed 
-  = animate comms (Message "You need to give a name to your save file." Alert e)
+  = smoothTransition comms (Message "You need to give a name to your save file." Alert e)
 
 update comms e@Emulating{savePath = Nothing} QuickSavePressed
-  = animate comms (chooseSaveFolderFirst e)
+  = smoothTransition comms (chooseSaveFolderFirst e)
 
 update comms e@Emulating{saveRomName = "quick"} SaveButtonPressed 
-  = animate comms (Message saveAsQuick Alert e)
+  = smoothTransition comms (Message saveAsQuick Alert e)
 
 update comms e@Emulating{ savePath = Nothing } QuickReloadPressed
-  = animate comms (chooseSaveFolderFirst e)
+  = smoothTransition comms (chooseSaveFolderFirst e)
 
 
 -- Send commands to the SDL event loop
@@ -133,7 +133,7 @@ update comms e@Emulating{} (SavePathChanged s)
   = Transition (e {savePath = s}) (sendMsg comms (NewSaveFolder s) >> savePathToDisk s)
 
 update comms Emulating{savePath} ReturnToSelection 
-  = Transition (MainMenu Nothing savePath) (sendMsg comms (Quit False))
+  = smoothTransitionAction comms (MainMenu Nothing savePath) (sendMsg comms (Quit False))
 
 update _ _ ReturnToSelection 
   = Transition (MainMenu Nothing Nothing) noop
@@ -164,37 +164,37 @@ update comms s (TogglePause shouldForward)
 -- Return to main menu if the SDL window was closed
 
 update comms Emulating{savePath} SDLWindowClosed 
-  = animate comms (MainMenu Nothing savePath)
+  = smoothTransition comms (MainMenu Nothing savePath)
 
 update comms (Message _ _ Emulating{savePath}) SDLWindowClosed 
-  = animate comms (MainMenu Nothing savePath)
+  = smoothTransition comms (MainMenu Nothing savePath)
 
 update _ m@MainMenu{} SDLWindowClosed 
   = Transition m noop
 
 update comms _ SDLWindowClosed 
-  = animate comms (MainMenu Nothing Nothing)
+  = smoothTransition comms (MainMenu Nothing Nothing)
 
 -- Displaying messages
 
 update comms s (MessageText msg icon) 
-  = animate comms (Message (Text.pack msg) icon s)
+  = smoothTransition comms (Message (Text.pack msg) icon s)
 
 update comms (Message _ _ stateBefore) MessageAck
-  = animate comms stateBefore
+  = smoothTransition comms stateBefore
 
 
 -- Display error messages with a cross
 -- and then return to the main menu
 
 update comms Emulating{savePath} (Error msg) 
-  = animate comms (Message (Text.pack msg) Cross (MainMenu Nothing savePath))
+  = smoothTransition comms (Message (Text.pack msg) Cross (MainMenu Nothing savePath))
 
 update comms (Message _ _ Emulating{savePath}) (Error msg) 
-  = animate comms (Message (Text.pack msg) Cross (MainMenu Nothing savePath))
+  = smoothTransition comms (Message (Text.pack msg) Cross (MainMenu Nothing savePath))
 
 update comms _ (Error msg) 
-  = animate comms (Message (Text.pack msg) Cross (MainMenu Nothing Nothing))
+  = smoothTransition comms (Message (Text.pack msg) Cross (MainMenu Nothing Nothing))
 
 -- Exit the application
 
@@ -203,7 +203,7 @@ update _  _ Closed
 
 -- End animation
 
-update _ (Animation a) EndAnimation = Transition a noop
+update _ (SmoothTransition a) EndAnimation = Transition a noop
 
 -- Ignore event if it was not handled above
 
@@ -239,5 +239,5 @@ main = do
     void $ run App {    view         = visualize threadCount
                       , DAS.update   = Main.update comms
                       , inputs       = [sdlWindowEventProxy]
-                      , initialState = Animation (MainMenu Nothing previousSaveFolder)
+                      , initialState = SmoothTransition (MainMenu Nothing previousSaveFolder)
                     }

@@ -202,7 +202,7 @@ inGame Emulating{..} =
                         #marginLeft  := 5,
                         #marginRight := 10,
                         on #clicked SaveButtonPressed,
-                        #sensitive := isJust savePath
+                        #sensitive := (isJust savePath && saveRomName /= "")
                     ]
 
     ,   BoxChild defaultBoxChildProperties { fill = True } $ 
@@ -210,7 +210,8 @@ inGame Emulating{..} =
                 [ #expand := True, 
                   #placeholderText := "How should I call this save?",
                   onM #changed (\e -> SaveNameChanged . Text.unpack <$> editableGetChars e 0 (-1)),
-                  #sensitive := isJust savePath
+                  #sensitive := isJust savePath,
+                  #text := Text.pack saveRomName
                 ]
             ]
 

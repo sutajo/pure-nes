@@ -28,9 +28,9 @@ A NES emulációjához az alábbi komponenseket kellett megismernem, amik közü
 	A konzol alapértelmezett beviteli eszköze.
 \end{compactdesc}
 
-\section{Órajel-frekvenciák \cite{nesclocks}}
+\section{Órajel-frekvenciák}
 A párhuzamosan működő komponenseket az órajelek hangolják össze. Az órajel-frekvencia határozza meg, hogy egy másodperc alatt hány atomi műveletet végez el egy komponens.
-A CPU és a PPU is rendelkezik saját órajelfrekvenciával, amit egy központi órajelből származtatnak.
+A CPU és a PPU is rendelkezik saját órajelfrekvenciával, amit egy központi órajelből származtatnak~\cite{nesclocks}.
 
 \begin{itemize}
 	\item Központi órajel-frekvencia: $ f = \frac{236.25\;MHz}{11} \sim 21.477272\; MHz $
@@ -44,8 +44,8 @@ A CPU és a PPU is rendelkezik saját órajelfrekvenciával, amit egy központi 
 	A hexadecimális értékeket \textbf{\$} prefix-el jelölöm.
 \end{note}
 
-\subsection{Opkód \cite{6502desc} \cite{6502opc}}
-Egy opkód a 6502 esetében csupán egyetlen bájt, amiből az utasításdekódoló egyértelműen meg tudja határozni a végrehajtandó utasítást és annak címzési módját.
+\subsection{Opkód}
+Egy opkód \cite{6502desc, 6502opc} a 6502 esetében csupán egyetlen bájt, amiből az utasításdekódoló egyértelműen meg tudja határozni a végrehajtandó utasítást és annak címzési módját.
 Ezt a hozzárendelést az opkódmátrix írja le. Az emulációhoz emellett azt is tárolni kell az opkódmátrixban, hogy a végrehajtandó művelet hány CPU-órajel alatt fejeződik be, ugyanis csak ennek ismeretében tudjuk a CPU-t és a PPU-t precízen egymáshoz szinkronizálni.
 
 \begin{figure}[H]
@@ -58,15 +58,15 @@ Ezt a hozzárendelést az opkódmátrix írja le. Az emulációhoz emellett azt 
 Ha meg szeretnénk találni egy adott opkódhoz a hozzá tartozó információt, akkor szükségünk lesz az opkód hexadecimális alakjára, ami legfeljebb kétszámjegyű lehet. A nagyobb helyiértékű számjegy a keresett cella sorát, a kisebbik pedig az oszlopát írja le. Példaként a \ref{fig:opcodes} ábrán láthatjuk, hogy a \$30 opkódhoz a BMI utasítás tartozik relatív címzéssel.
 Azok az opkódok csillaggal vannak jelölve, amiknek a futási ideje megnőhet az aktuális argumentumoktól függően.
 A szürkével jelölt opkódokhoz hivatalosan nincs utasítás rendelve. 
-Ezeket a nem dokumentált, ``illegális'' opkódokat a processzor későbbi 
-verzióinak hagyták fent. \cite{illegal} A tervezők nem tiltották meg azonban ezeknek a használatát, 
+Ezeket a nem dokumentált, ``illegális'' \cite{illegal} opkódokat a processzor későbbi 
+verzióinak hagyták fent. A tervezők nem tiltották meg azonban ezeknek a használatát, 
 egyszerűen csak nem definiálták a viselkedésüket. Ennek ellenére több olyan illegális opkód is belekerült a dizájnba, ami később hasznosnak bizonyult. A játékfejlesztők próbálkozások útján
 felfedezték, hogy melyek azok az opkódok, amiknek a viselkedése determinisztikus és néhány speciális feladat esetén érdemes őket használni.
 Ritka ugyan, de van olyan játék, ami ezeket az opkódokat is használja, ezért ezeknek az opkódoknak az emulációját is megvalósítottam.
 
-\subsection{Regiszterek \cite{6502desc}}
+\subsection{Regiszterek}
 A regiszter a processzor leggyorsabban elérhető memóriája.
-A gyártási költségek alacsonyan tartása végett csak 6 regiszter került a processzorba.
+A gyártási költségek alacsonyan tartása végett csak 6 regiszter került a processzorba \cite{6502desc}.
 Minden regiszter mellett zárójelben fel van tüntetve annak mérete bitekben megadva.
 
 \begin{compactdesc}
@@ -88,18 +88,17 @@ Minden regiszter mellett zárójelben fel van tüntetve annak mérete bitekben m
 \subsection{Memórialap}
 Az $i$. lap egy 256 bájtos egybefüggő memóriarész, ami a $ [i \cdot \$100, \: (i+1) \cdot \$100) $ címtartományon helyezkedik el.
 
-\subsection{Hívási verem \cite{6502desc} \cite{6502instr}}
-Az egymásba ágyazott eljárásokat a processzor hardveresen támogatja, amihez a vermet használja.
+\subsection{Hívási verem}
+Az egymásba ágyazott eljárásokat a processzor hardveresen támogatja, amihez a vermet használja \cite{6502desc}.
 A verem az 1. lapon található, és a kisebb címek felé nő.
 Eljárás hívásakor a verem tetejére kerül az aktuális programszámláló értéke, 
-visszatéréskor pedig a veremről levett címre állítjuk be a programszámláló értékét.
+visszatéréskor pedig a veremről levett címre állítjuk be a programszámláló értékét \cite{6502instr}.
 
-\subsection{Megszakítás \cite{6502desc} \cite{cpumem}}
+\subsection{Megszakítás}
 A komponensek kommunikációjának egyik módja a hardveres megszakítás.
-A 6502 chip egy darab maszkolható \emph{(IRQ)} és egy nem maszkolható \emph{(NMI)} megszakítási lábbal rendelkezik.
-A megszakítási vektorokkal a program beállíthatja, hogy egy bizonyos megszakításra milyen szubrutinnal kíván reagálni. A vektorok 2 bájtos tárolók, amik a kezelő szubrutin címét tartalmazzák. Az NMI-hez tartozó vektor a \$FFFA és a \$FFFB címeken, míg az IRQ-hoz tarozó vektor az \$FFFE és a \$FFFF címeken található. A 6502 ``kicsi az elején'' bájtsorrendű (little-endian) processzor, ezért a címeknek mindig az alsó 8 bitjét tárolja az alacsonyabb címen, a felső 8 bitjét pedig a magasabb címen.
+A 6502 chip egy darab maszkolható \emph{(IRQ)} és egy nem maszkolható \emph{(NMI)} megszakítással rendelkezik \cite{6502desc}.
+A megszakítási vektorokkal a program beállíthatja, hogy egy bizonyos megszakításra milyen szubrutinnal kíván reagálni. A vektorok 2 bájtos tárolók, amik a kezelő szubrutin címét tartalmazzák. Az NMI-hez tartozó vektor a \$FFFA és a \$FFFB címeken, míg az IRQ-hoz tarozó vektor az \$FFFE és a \$FFFF címeken található \cite{cpumem}. A 6502 ``kicsi az elején'' bájtsorrendű (little-endian) processzor, ezért a címeknek mindig az alsó 8 bitjét tárolja az alacsonyabb címen, a felső 8 bitjét pedig a magasabb címen.
 A program dönthet úgy, hogy a maszkolható megszakítást figyelmen kívül hagyja (a kezelő szubrutin nem hívódik meg), ehhez az \emph{IRQ Disable} flag-et be kell állítania a státusz regiszterben. A nem maszkolható megszakítás esetén erre nincsen lehetőség, a végrehajtás mindenképpen a kezelő szubrutinhoz ugrik.
-A nem maszkolható lábhoz a képfeldolgozó, a maszkolhatóhoz a hangchip van kötve.
 
 \subsection{Opkód argumentum helye, fajtája}
 
@@ -110,7 +109,7 @@ A nem maszkolható lábhoz a képfeldolgozó, a maszkolhatóhoz a hangchip van k
 	\label{fig:argplacement}
 \end{figure}
 
-A \ref{fig:argplacement} ábra szemlélteti, hogy az opkód argumentumok közvetlenül az opkód mögött, a \emph{PC+1} és \emph{PC+2} címeken helyezkedhetnek el a memóriában. Címzési módtól függően változhat az argumentumok száma 0, 1 és 2 bájt között.
+A \ref{fig:argplacement} ábra szemlélteti, hogy az opkód argumentumok közvetlenül az opkód mögött, a \emph{PC+1} és \emph{PC+2} címeken helyezkedhetnek el a memóriában. Címzési módtól függően változhat az argumentumbájtok száma 0, 1 és 2 darab között.
 Ha az opkód rendelkezik argumentummal vagy argumentumokkal, akkor azok a következő fajtájúak lehetnek:
 
 \begin{compactitem}
@@ -119,10 +118,10 @@ Ha az opkód rendelkezik argumentummal vagy argumentumokkal, akkor azok a követ
 	\item 1 bájt, ami a művelet közvetlen operandusa
 \end{compactitem}
 
-\subsection{Címzési módok \cite{6502desc} \cite{cpuref}}
+\subsection{Címzési módok}
 
 Egy opkód után azoknál a címzési módoknál áll argumentum, amiknél a művelet elvégzéséhez 
-szükséges operandus nem regiszterben, hanem a memóriában van. A címzési módok azt határozzák meg, hogy az argumentumból hogyan kell kiszámolni az operandus effektív 16 bites memóriacímét. Az alábbiakban felsorolt  címzési módoknál a zárójelben az opkódmátrixbeli név (amennyiben van) és az argumentum bájtok száma található.  
+szükséges operandus nem regiszterben, hanem a memóriában van. A címzési módok \cite{6502desc, cpuref} azt határozzák meg, hogy az argumentumból hogyan kell kiszámolni az operandus effektív 16 bites memóriacímét. Az alábbiakban felsorolt  címzési módoknál a zárójelben az opkódmátrixbeli név (amennyiben van) és az argumentumbájtok száma található.  
 
 
 \begin{description}
@@ -163,9 +162,9 @@ szükséges operandus nem regiszterben, hanem a memóriában van. A címzési m�
 Az \textbf{abx}, \textbf{aby} és \textbf{izy} indexelt címzési módok és bizonyos utasítások kombinációjánál előfordulhat, hogy a végleges operandus cím és az indexelés előtt álló cím különböző memórialapra esik. Ebben az esetben 1 órajelciklussal tovább tart az utasítás végrehajtása.
 Emellett az elágazási utasítások (relatív címzés) több ciklus alatt fejeződnek be, ha az ugrási feltétel teljesül. Ha az ugrás előtti PC értéke és az ugrási cél más lapra esik, akkor +2, ellenkező esetben csak +1 órajelciklussal kell számolni.
 
-\subsection{Memóriatérkép \cite{cpumem}}
+\subsection{Memóriatérkép}
 
-A memóriatérkép leírja a címtér felosztását a komponensek között.
+A memóriatérkép \cite{cpumem} leírja a címtér felosztását a komponensek között.
 A memóriatérképből meg tudjuk állapítani, hogy egy adott címen található bájt kiolvasásához vagy írásához melyik komponens hardveres logikáját kell alkalmazni.
 
 \begin{table}[H]
@@ -185,8 +184,8 @@ A memóriatérképből meg tudjuk állapítani, hogy egy adott címen találhat�
 	\end{tabular}
 \end{table}
 
-\subsection{Memóriatükrözés \cite{memmirror}}
-Memóriatükrözésről beszélünk, amikor fizikailag ugyanazt a memóriaterületet több memóriacímről is el tudjuk érni. Ha egy címtartomány $x$ bájtonként tükrözve van, akkor minden olyan $a$ és $b$ memóriacím ugyanarra a bájtra mutat, ami a tartományba vagy a tükrözésébe esik és $a \equiv b\ (\textrm{mod}\ x)$.  A CPU RAM 2 KiB-onként tükrözve van, amiből következik, hogy a \$0001, \$0801 \$1001, \$1801 címek ugyanarra a bájtra mutatnak. Egy címtartomány tükrözése lehet nagyobb mint az eredeti tartomány (például a CPU RAM esetében a tükrözési tartomány háromszor nagyobb).
+\subsection{Memóriatükrözés}
+Memóriatükrözésről beszélünk, amikor fizikailag ugyanazt a memóriaterületet több memóriacímről is el tudjuk érni \cite{memmirror}. Ha egy címtartomány $x$ bájtonként tükrözve van, akkor minden olyan $a$ és $b$ memóriacím ugyanarra a bájtra mutat, ami a tartományba vagy a tükrözésébe esik és $a \equiv b\ (\textrm{mod}\ x)$.  A CPU RAM 2 KiB-onként tükrözve van, amiből következik, hogy a \$0001, \$0801 \$1001, \$1801 címek ugyanarra a bájtra mutatnak. Egy címtartomány tükrözése lehet nagyobb mint az eredeti tartomány (például a CPU RAM esetében a tükrözési tartomány háromszor nagyobb).
 
 \subsection{Státusz flagek}
 
@@ -210,9 +209,9 @@ Memóriatükrözésről beszélünk, amikor fizikailag ugyanazt a memóriaterül
 	\newline A manipulált bájt negatív, vagyis a legnagyobb helyiértékű bitje 1.
 \end{compactenum}
 
-\subsection{Utasításkészlet \cite{6502desc} \cite{6502opc} \cite{6502instr}}
+\subsection{Utasításkészlet}
 \label{instructionset}
-
+A processzor hivatalos utasításkészlete \cite{6502desc, 6502opc, 6502instr}:
 \begin{compactdesc}
 	\item Aritmetikai és logikai egység (ALU) \hfill \\
 	\textbf{ADC:} Összeadás;
@@ -265,33 +264,31 @@ Memóriatükrözésről beszélünk, amikor fizikailag ugyanazt a memóriaterül
 	A név második betűje a forrásregisztert, a harmadik a célregisztert jelöli.
 \end{compactdesc}
 
-\section{Kazetták \cite{ref}}
+\section{Kazetták}
 
-A kazettákon logikai szempontból kétfajta memória található: PRG és CHR.
+A kazettákon logikai szempontból kétfajta memória található \cite{ref}: PRG és CHR.
 PRG-ből lehet ROM és RAM is a kazettán. Ezekben a processzor által végrehajtandó utasítások, avagy a játéklogika kapott helyet. A CHR fajtáját tekintve ROM vagy RAM memória, amely a játék sprite-jait tárolja, amik 8*8 pixeles kis képekből állnak. Ezeket a kis képeket ezentúl alakzatoknak fogom hívni. 
 
-\subsection{Az iNES fájlformátum \cite{ref} \cite{ines}}
+\subsection{Az iNES fájlformátum}
 
-Az iNES fájlformátumot egy korai NES emulátor vezette be a NES játékok bináris formában történő terjesztésére. A fájl elején található 16 bájtos fejléc többek között a mapper konfiguráció azonosítóját, a képfeldolgozó névtábláinak tükrözési módját, valamint a PRG ROM, PRG RAM és a CHR méretét határozza meg. A fejléc után ezek tartalma található.
+Az iNES fájlformátumot egy korai NES emulátor vezette be a NES játékok bináris formában történő terjesztésére \cite{ref}. A fájl elején található 16 bájtos fejléc többek között a mapper konfiguráció azonosítóját, a képfeldolgozó névtábláinak tükrözési módját, valamint a PRG ROM, PRG RAM és a CHR méretét határozza meg \cite{ines}. A fejléc után ezek tartalma található.
 
 \section{A képfeldolgozó egység}
 
-\subsection{Színpaletta \cite{ppuref}}
+\subsection{Színpaletta}
 
-A színpaletta hozzárendel egy $\$0$ és $\$3F$ közötti azonosítóhoz egy színkódot. A NES csak a színpaletta színeit tudja megjeleníteni (tehát 55 szín áll rendelkezésre). Egy pixel színét az fogja eldönteni, hogy milyen azonosító tartozik hozzá. A színpaletta fix, futás közben nem változtathatjuk meg a hozzárendelést.
-\iffalse
+A színpaletta \cite{ppuref} hozzárendel egy $\$0$ és $\$3F$ közötti azonosítóhoz egy színkódot. A NES csak a színpaletta színeit tudja megjeleníteni, így összesen 55 szín áll rendelkezésre (vegyük észre, hogy a fekete szín több azonosítóhoz is hozzá van rendelve). Egy pixel színét az fogja eldönteni, hogy milyen azonosító tartozik hozzá. A színpaletta hozzárendeléseit futás közben nem változtathatjuk meg, mert azok a hardverbe vannak ``égetve''.
+
 \vspace{0.3cm}
 \begin{figure}[H]
 	\centering
-	\includegraphics{palette.png}
+	\includegraphics[scale=0.8]{palette.png}
 	\caption{A 2C02 színpalettája}
 \end{figure}
-\clearpage
-\fi
 
-\subsection{Paletta indexek \cite{ppuref}}
+\subsection{Paletta indexek}
 
-A $\$3F00 - \$3F1F$ címtartományon található paletta index egy memóriacím $\rightarrow$ azonosító hozzárendelést ír le, azonban ezt a program már változtathatja futás során, mert RAM típusú memóriáról van szó. A paletta index 4 bájtos csoportokra, úgynevezett palettákra van felosztva. A paletták bájtjai színpalettabeli azonosítókként szolgálnak. Emiatt közvetett módon ugyan, de ki tudjuk számolni egy pixel színét, ha tudjuk, hogy melyik palettát és azon belül hanyadik azonosítót kell használnunk. Jelentős limitáció, hogy a paletták 4. színe nem változtatható, mert ezek mindig a \$3F00 címet (a háttérszínt) tükrözik.
+A $\$3F00 - \$3F1F$ címtartományon található paletta index egy memóriacím $\rightarrow$ azonosító hozzárendelést ír le \cite{ppuref}, azonban ezt a program már változtathatja futás során, mert RAM típusú memóriáról van szó. A paletta index 4 bájtos csoportokra, úgynevezett palettákra van felosztva. A paletták bájtjai színpalettabeli azonosítókként szolgálnak. Emiatt közvetett módon ugyan, de ki tudjuk számolni egy pixel színét, ha tudjuk, hogy melyik palettát és azon belül hanyadik azonosítót kell használnunk. Jelentős limitáció, hogy a paletták 4. színe nem változtatható, mert ezek mindig a \$3F00 címet (a háttérszínt) tükrözik.
 
 \begin{table}[H]
 	\centering
@@ -314,10 +311,10 @@ A $\$3F00 - \$3F1F$ címtartományon található paletta index egy memóriacím 
 	\label{fig:paletteram}
 \end{table}
 
-\subsection{Alakzattáblázat \cite{ppuref}}
+\subsection{Alakzattáblázat}
 
-A CHR memóriában található két alakzattáblázat tárolja  az alakzatokat egy speciális formátumban. Ha az alakzatokat úgy reprezentálnánk, hogy az alakzat minden pixeléhez eltárolnánk egy színkódot, akkor pixelenként 6 bitre lenne szükségünk (mivel 55 színkódból választhatunk). Ehelyett pixelenként csak 2 bitet (egy szignifikáns és egy kevésbé szignifikáns bitet) tárolnunk, amik együtt egy 0 és 3 közé eső sorszámot reprezentálnak. Ez a sorszám azt mondja meg nekünk, hogy valamelyik palettán belül hanyadik színpaletta-azonosítót használjuk a színkereséshez. A paletta nincs előre meghatározva a CHR-ben, a dinamikusan módosítható attribútumtábla segítségével fogjuk később meghatározni, hogy a vizsgált pixelhez melyik paletta tartozik. Mivel a paletta index írható és olvasható memória is, így a program futási időben, dinamikusan változtathatja, hogy egy paletta milyen azonosítókat tartalmaz, ezáltal pár lépésben átszínezheti az összes alakzatot, ami az adott palettát használja.
-Egy alakzat 8x8 pixeles, pixeljeinek bitjeit $(8\cdot8\cdot2)\div8 = 16$ egymást követő bájt tárolja a \ref{fig:patt} ábrán szemléltetett módon.
+A CHR memóriában található két alakzattáblázat tárolja  az alakzatokat egy speciális formátumban \cite{ppuref}. Ha az alakzatokat úgy reprezentálnánk, hogy az alakzat minden pixeléhez eltárolnánk egy színkódot, akkor pixelenként 6 bitre lenne szükségünk (mivel 55 színkódból választhatunk). Ehelyett pixelenként csak 2 bitet (egy szignifikáns és egy kevésbé szignifikáns bitet) tárolnunk, amik együtt egy 0 és 3 közé eső sorszámot reprezentálnak. Ez a sorszám azt mondja meg nekünk, hogy valamelyik palettán belül hanyadik színpaletta-azonosítót használjuk a színkereséshez. A paletta nincs előre meghatározva a CHR-ben, a dinamikusan módosítható attribútumtábla segítségével fogjuk később meghatározni, hogy a vizsgált pixelhez melyik paletta tartozik. Mivel a paletta index írható és olvasható memória is, így a program futási időben, dinamikusan változtathatja, hogy egy paletta milyen azonosítókat tartalmaz, ezáltal pár lépésben átszínezheti az összes alakzatot, ami az adott palettát használja.
+Egy alakzat 8$\times$8 pixeles, pixeljeinek bitjeit $(8\cdot8\cdot2)\div8 = 16$ egymást követő bájt tárolja a \ref{fig:patt} ábrán szemléltetett módon.
 Először 8 bájton keresztül az alakzat sorainak kevésbé szignifikáns bitjei, majd ezután újabb 8 bájton át a szignifikánsabb bitek sorakoznak. Az oszlopok és bitek sorszámozása fel van cserélve, tehát az $i.$ oszlophoz egy bájton belül a $7-i.$ bit tartozik.  
 Egy alakzattáblázat 16x16 darab alakzatot tartalmaz, ebből adódóan a táblázat teljes mérete $16\cdot16\cdot16 = 4096$ bájt.
 
@@ -337,18 +334,18 @@ Egy alakzattáblázat 16x16 darab alakzatot tartalmaz, ebből adódóan a tábl�
 	\caption{Az Alter Ego játék 0. alakzattáblázata különböző palettákkal kirajzolva}
 \end{figure}
 
-\subsection{Rétegek \cite{ppuref}}
-A képfeldolgozó két réteget képes kezelni hardveresen, ezek a háttér és a sprite rétegek.
+\subsection{Rétegek}
+A képfeldolgozó két réteget képes kezelni hardveresen, ezek a háttér és a sprite rétegek \cite{ppuref}.
 Általában a képkocka azon részei tartoznak a háttérhez, amik ritkán változnak (például feliratok, számlálók, mozdulatlan képek) és a kirajzolásukhoz nem szükséges további transzformáció (eltolás, tükrözés). A háttérben az alakzatok 30 sorból és 32 oszlopból álló négyzetrácsot alkotnak (ebből és az alakzatok méretéből ered a NES 256*240 pixeles felbontása).
-A háttér rétegben egyesével nem lehet alakzatokat eltolni, csak az egész háttér eltolása lehetséges. A sprite rétegben nagyobb flexibilitás áll rendelkezésre, ugyanis itt egyenként, pixel pontosságú eltolással, valamint horizontális és/vagy vertikális tükrözéssel rajzolhatjuk ki az alakzatokat. A sprite rétegnél legfeljebb 64 alakzat szerepelhet egy képkockán (ez a megkötés a később ismertetett OAM méretéből adódik).  
+A háttér rétegben egyesével nem lehet alakzatokat eltolni, csak az egész háttér eltolása lehetséges. A sprite rétegben több lehetőség áll rendelkezésre, ugyanis itt egyenként, pixelpontosságú eltolással, valamint horizontális és/vagy vertikális tükrözéssel rajzolhatjuk ki az alakzatokat. A sprite rétegnél legfeljebb 64 alakzat szerepelhet egy képkockán (ez a megkötés a később ismertetett OAM méretéből adódik).  
 
-\subsection{Névtáblázatok \cite{ppuref}}
+\subsection{Névtáblázatok}
 
-A háttérréteg négyzetrácsának elrendezését a névtáblázatok tárolják. Egy névtáblázat a háttér 960 darab alakzatcellájának mindegyikéhez eltárolja a cellába rajzolandó alakzat sorszámát. Ez a sorszám relatív, ugyanis mindig azon az alakzattáblázaton belül értendő, amit a CONTROLLER regiszterrel a program kiválaszt.
+A háttérréteg négyzetrácsának elrendezését a névtáblázatok tárolják \cite{ppuref}. Egy névtáblázat a háttér 960 darab alakzatcellájának mindegyikéhez eltárolja a cellába rajzolandó alakzat sorszámát. Ez a sorszám relatív, ugyanis mindig azon az alakzattáblázaton belül értendő, amit a CONTROLLER regiszterrel a program kiválaszt.
 
-\subsection{Attribútumtáblázatok \cite{ppuref}}
+\subsection{Attribútumtáblázatok}
 
-Minden névtáblázathoz tartozik egy 64 bájtos attribútumtáblázat, ami a 960 bájt után következik. Az attribútumtáblázatban minden bájt egy 4*4 alakzatcellából álló terület palettáit határozza meg. A bájtok 4 darab 2 bites részre vannak felosztva, ahol mindegyik rész egy 2*2 cellából álló terület palettájának sorszámát kódolja el (ugyan 8 paletta van, de ebből csak 4 háttérpaletta, így elég 2 bit). Ennek a reprezentációnak a következménye, hogy a háttér 4 cellából álló csoportjai mindig egy palettán osztoznak. A 16 cellát lefedő bájt felosztása a 4 cellás területek között a \ref{fig:attr} ábrán van szemléltetve.
+Minden névtáblázathoz tartozik egy 64 bájtos attribútumtáblázat \cite{ppuref}, ami a névtáblázat 960 darab bájtja után következik. Az attribútumtáblázatban minden bájt egy 4$\times$4 alakzatcellából álló terület palettáit határozza meg. A bájtok 4 darab 2 bites részre vannak felosztva, ahol mindegyik rész egy 2$\times$2 cellából álló terület palettájának sorszámát kódolja el (ugyan 8 paletta van, de ebből csak 4 háttérpaletta, így elég 2 bit). Ennek a reprezentációnak a következménye, hogy a háttér 4 cellából álló csoportjai mindig egy palettán osztoznak. A 16 cellát lefedő bájt felosztása a 4 cellás területek között a \ref{fig:attr} ábrán van szemléltetve.
 
 \begin{figure}[H]
 	\centering
@@ -357,14 +354,9 @@ Minden névtáblázathoz tartozik egy 64 bájtos attribútumtáblázat, ami a 96
 	\label{fig:attr}
 \end{figure}
 
-\subsection{Háttéreltolás}
+\subsection{OAM (Object Attribute Memory)}
 
-A háttéreltolás segítségével pixelpontossággal megszabhatjuk, hogy a háttér mely része legyen látható a játékos számára.
-Az eltolás miatt van szükség több névtáblára, ugyanis a lecsúszó háttérrész nem az aktív, hanem háttértükrözéstől függően valamelyik másik névtáblázatból lesz kiolvasva. \cite{memmirror} \cite{scroll}
-
-\subsection{OAM (Object Attribute Memory) \cite{ppuref}}
-
-A sprite réteg elrendezését leíró 256 bájtos memória. 64 darab alakzatról tárol információt, amik a következők:
+Az OAM~\cite{ppuref} a sprite réteg elrendezését leíró 256 bájtos memória. 64 darab alakzatról tárol információt, amik a következők:
 
 \begin{compactitem}
 	\item X és Y koordináta
@@ -374,9 +366,9 @@ A sprite réteg elrendezését leíró 256 bájtos memória. 64 darab alakzatró
 	\item Prioritás a háttérrel szemben
 \end{compactitem}
 
-\subsection{Regiszterek \cite{ppuref}}
+\subsection{Regiszterek}
 
-A CPU és a PPU az alább látható 9 darab egy bájtos regiszter segítségével tud egymással kommunikálni. A regisztereket a CPU a zárójelekben található címeken tudja elérni.
+A CPU és a PPU az alább látható 9 darab egy bájtos regiszter segítségével tud egymással kommunikálni. \cite{ppuref} A regisztereket a CPU a zárójelekben található címeken tudja elérni.
 Az olvasató regiszterek \textbf{R}, az írhatók \textbf{W} betűvel vannak megjelölve.
 
 \vspace{0.25cm}
@@ -395,11 +387,11 @@ Az olvasató regiszterek \textbf{R}, az írhatók \textbf{W} betűvel vannak meg
 		\item[7. bit:] NMI generálása a PPU tétlen periódusának kezdetén
 	\end{compactdesc}
 	\item[MASK(\$2001, W):] \hfill \\
-	A rétegek egyenkénti ki/bekapcsolása és speciális effektusok 
+	A rétegek egyenkénti ki- és bekapcsolása és speciális effektusok 
 	(például szürkeárnyalat) vezérelhetők vele.
 	\item[STATUS(\$2002, R):] \hfill \\
-	A kirajzolás alatt bekövetkező eseményeket jelzi a PPU a CPU-nak ezzel a regiszeterrel.
-	Ilyen esemény például a sprite túlcsordulás, ami akkor áll fent, ha több mint a 8 alakzat kerülne egy sorra a sprite rétegben. 
+	A kirajzolás alatt bekövetkező eseményeket jelzi a PPU a CPU-nak ezzel a regiszterrel.
+	Ilyen esemény például a sprite-túlcsordulás, ami akkor áll fent, ha több, mint a 8 alakzat kerülne egy sorra a sprite rétegben. 
 	\item[OAMADDR(\$2003, W) és OAMDATA(\$2004, R/W):] \hfill \\
 	A processzor ezen két regiszter segítségével képes új adatokkal feltölteni az OAM memóriát.
 	Az alábbi kódrészlet azt szemlélteti, hogy az \emph{adatok} tömb tartalmát hogyan kell a CPU memóriájából
@@ -410,14 +402,17 @@ Az olvasató regiszterek \textbf{R}, az írhatók \textbf{W} betűvel vannak meg
 		OAMDATA := adatok[i]
 	\end{lstlisting}
 	\item[PPUSCROLL(\$2005, W):] \hfill \\
-	Beállíthatjuk vele, hogy a hátteret hány pixellel szeretnénk arrébbcsúsztatni (Horizontális tükrözésnél vízszintesen, vertikális tükrözésnél függőlegesen).
+	Beállíthatjuk vele, hogy a hátteret hány pixellel szeretnénk arrébb csúsztatni (horizontális tükrözésnél vízszintesen, vertikális tükrözésnél függőlegesen).
 	\item[PPUADDR(\$2006, W) és PPUDATA(\$2007, R/W):] \hfill \\
 	A névtáblák frissítésére szolgálnak. Hasonlóan kell őket használni, mint az OAMADDR és OAMDATA regisztereket.
 	\item[OAMDMA(\$4014, W):] \hfill \\
 	Az OAM memória frissítésének egy alternatív, gyorsabb módja a Direct Memory Access (DMA). Ekkor a processzorban található dedikált hardver másolja át az adatokat egyenesen a CPU RAM-ból az OAM memóriába. A másolás megkezdéséhez annak a memórialapnak a sorszámát kell beírni a regiszterbe, ahol az átmásolandó adatok találhatók.
 \end{description}
 
-\subsection{Memóriatérkép \cite{ppuref}}
+\clearpage
+\subsection{Memóriatérkép}
+
+A PPU memóriatérképe \cite{ppuref}:
 
 \begin{table}[H]
 	\centering
@@ -681,7 +676,7 @@ A teljesítmény fontos szempont volt, ezért a regisztereket változtatható é
 	\caption{Az emulációnál használt rekordok}
 \end{figure}
 
-A CPU és a PPU osztozik a megszakítási "regisztereken", ezért a PPU megszakításokat tud küldeni a CPU-nak.
+Az emulátoromnál a megszakítások kezeléséhez segédregisztereket vezettem be, amik a valódi hardverben nincsenek jelen. A CPU és a PPU osztozik a megszakítási ``regisztereken'', ezért a PPU megszakításokat tud küldeni a CPU-nak.
 
 A kazetta memóriáját a \emph{Cartridge} rekord tárolja. Ehhez közvetlenül nem tudunk hozzáférni, mert a mapper típusa szabja meg, hogy milyen logikájú a címfordítás. A CPU és a PPU a \emph{CartridgeAccess} rekord függvényeit használva tudja olvasni és írni a kazettát, ami a háttérben a megfelelő típusú mapper olvasó és író eljárásait fogja meghívni. A hozzáférést mindkét komponens személyre szabva kapja meg, így tehát a CPU esetében a \emph{readCartridge} függvény a mapper \emph{cpuRead} függvényének felel meg.
 
@@ -761,7 +756,7 @@ A konstruktorok azért nem tiszta függvények, hogy tetszőleges belső állapo
 Az emuláció során használt primitív műveletek.
 \begin{description}
 	\item[$\bullet\:$ powerUpNes :: Cartridge $\rightarrow$ IO Nes] \hfill \\
-	"Behelyezzük" a kazettát és inicializáljuk a komponenseket. 
+	``Behelyezzük'' a kazettát és inicializáljuk a komponenseket. 
 	\item[$\bullet\:$ useMemory :: (comp $\rightarrow$ ref) $\rightarrow$ (ref $\rightarrow$ IO val) $\rightarrow$ Emulator comp val]
 	Kényelmi függvény arra, hogy a komponens rekordjának egy adott mezőjével műveletet végezzünk.
 	\begin{lstlisting}[language=Haskell]
@@ -865,7 +860,7 @@ A 6502 teljes utasításkészletét tartalmazó modul. Néhány segédfüggvény
 	\item[$\bullet\:$ manageButtonEvent] \hfill \\
 	Visszaadja, hogy a gombnyomáshoz milyen parancsok tartoznak (gyorsmentés, gyorsbetöltés vagy játékirányítás). 
 	\item[$\bullet\:$ manageHatEvent] \hfill \\
-	A DPAD Fel/Le/Balra/Jobbra/Középen eseményeit figyeli és kiadja a megfelelő parancsokat a virtuális kontroller módosítására. Mivel a virtuális kontrollernél nincs Középen állapota a DPAD-nak, ezért arra is figyelni kell, hogy ezt az állapotot \emph{"engedd fel az előző DPAD gombot"} parancsként kell továbbküldeni.
+	A DPAD Fel/Le/Balra/Jobbra/Középen eseményeit figyeli és kiadja a megfelelő parancsokat a virtuális kontroller módosítására. Mivel a virtuális kontrollernél nincs Középen állapota a DPAD-nak, ezért arra is figyelni kell, hogy ezt az állapotot \emph{``engedd fel az előző DPAD gombot''} parancsként kell továbbküldeni.
 	\item[$\bullet\:$ manageDeviceEvent] \hfill \\
 	Figyeli a kontrollercsatlakoztatásokat és az eltávolításokat.
 	Az új kontrollereket inicializálja és eltárolja a rekordban, a kihúzottakat eltávolítja.
@@ -952,7 +947,7 @@ decodeOpcode opcode = case opcode of
 	...
 \end{lstlisting}
 \vspace{0.3cm}
-Az implementációmnál a dekódolt opkód nem külön, hanem az utasítással "egybeégetve" tartalmazza a címzési módot (így könnyebb volt kezelni azt, hogy nem mindegyik címzési mód ad vissza eredményül címet). A címzési módokat megvalósító függvények arra számítanak, hogy a PC már az opkódot követő bájtra mutat, ezért a végrehajtás előtt meg kell növelni a PC értékét eggyel.
+Az implementációmnál a dekódolt opkód nem külön, hanem az utasítással ``egybeégetve'' tartalmazza a címzési módot (így könnyebb volt kezelni azt, hogy nem mindegyik címzési mód ad vissza eredményül címet). A címzési módokat megvalósító függvények arra számítanak, hogy a PC már az opkódot követő bájtra mutat, ezért a végrehajtás előtt meg kell növelni a PC értékét eggyel.
 A \emph{cycle} eljárással megnöveljük az eltelt ciklusok számát a statikusan ismert értékkel, az \emph{elapsedCycles} függvénnyel pedig megnézzük, hogy a végrehajtás után ténylegesen hány ciklus telt el.
 Így tehát a végső \emph{runNextInstruction} eljárás:
 \vspace{0.3cm}
@@ -996,9 +991,11 @@ A felhasználói felület állapotait egy rekurzív algebrai adattípussal model
 \begin{figure}[H]
 	\centering
 	\includegraphics[scale = 0.25]{states.png}
-	\caption{A felhasználói felület négy állapota}
+	\caption{A felhasználói felület négy logikai állapota}
 	\label{fig:guistate}
 \end{figure}
+
+A logikai állapotokon felül technikai okokból szükséges volt egy ötödik állapot bevezetése is annak a megvalósításához, hogy elhalványulásos átmenetekkel tudjunk váltani az állapotok között.
 
 \subsection{Állapotátmenetek}
 
@@ -1006,19 +1003,19 @@ A mintaillesztési szintaxissal nagyon tömören megfogalmazhatjuk azokat a felt
 \vspace{0.2cm}
 \begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
 update :: CommResources -> State -> Event -> Transition State Event
-update comms Emulating{savePath} ReturnToSelection 
-  = Transition (MainMenu Nothing savePath) (sendMsg comms Quit)
+update comms Emulating{savePath} SDLWindowClosed 
+  = smoothTransition comms (MainMenu Nothing savePath)
 \end{lstlisting}
 \vspace{0.2cm}
-Amikor emuláció közben rányom a felhasználó a főmenübe vezető gombra, akkor a MainMenu állapotba lépünk (és megőrizzük a kiválasztott mentési mappát), mellékhatásként pedig küldünk egy leállási parancsot az emulációs ablaknak a \emph{CommResources} rekordban lévő csatornával. 
+Amikor a felhasználó bezárja az emulációs ablakot, akkor átmenettel a MainMenu állapotba lépünk (és megőrizzük a kiválasztott mentési mappát). 
 \vspace{0.2cm}
 \begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
 data MessageIcon = Info | Alert | Cross
 
 saveAsQuick = "You can't name your save as ..."
 
-update _ e@Emulating{saveRomName = "quick"} SaveButtonPressed 
-  = Transition (Message saveAsQuick Alert e) noop
+update comms e@Emulating{saveRomName = "quick"} SaveButtonPressed 
+  = smoothTransition comms (Message saveAsQuick Alert e)
 \end{lstlisting}
 
 A második példa azt az eshetőséget kezeli, amikor a felhasználó \emph{quick} néven szeretne egyedi mentést létrehozni. Ennek hatására az \emph{Üzenet} állapotba lépünk át ahol megjelenítünk egy figyelmeztető üzenetet (\ref{fig:warning} ábra). Arra is emlékeznünk kell, hogy melyik állapotból jöttünk, hogy később ugyanabba az állapotba térhessünk vissza. 
@@ -1069,16 +1066,16 @@ A fejlesztés a Test Driven Development (TDD) módszer szerint folyt. Mielőtt b
 
 Az emulátorok tesztelésére vannak kifejezetten erre a célre készített NES ROM-ok\footnote{\url{http://wiki.nesdev.com/w/index.php/Emulator_tests}}, amik tökéletes aprólékossággal ellenőrzik, hogy minden utasítás az elvárt módon változtatja-e a hardver belső állapotát. Azért döntöttem ezek használata mellett, mert ilyen pontosságú tesztek írása 6502 Assembly-ben rengeteg időt vett volna el és a saját tesztek lefedettsége meg se közelítette volna a professzionális tesztek által nyújtott lefedettséget.
 
-A tesztek vizuálisan és automatizáltan is futtathatóak. Vizuális futtatásnál a teszt ugyanúgy töltődik be, mint bármilyen más játék és a képernyőre írja ki a teszt eredményét. Automatizáltan futtatni csak előre ismert ROM-okat lehet, mert a tesztek nem egységesek és változó, hogy mivel jelzik az emulátor felé a terminálást, melyik memóriacímen található az eredmény kódja, mit jelentenek a kódok stb.
+A tesztek vizuálisan és automatizáltan is futtathatóak. Vizuális futtatásnál a teszt ugyanúgy töltődik be, mint bármilyen más játék és a képernyőre írja ki a teszt eredményét. Az automatizált tesztelésnél egy speciális ciklusban fut az emuláció, ami kiértékeli a teszt terminálási feltételét minden léptetés után. A Nestest kivételével a tesztek az eredményt egy kóddal jelzik a \$6000-es címen és még hibaüzeneteket is írnak egy \$6004-től kezdődő nullával terminált sztring formájában.
 
 \subsection{CPU tesztek}
 
 \begin{description}
 \item[Nestest] \hfill \\
-Részletesen végigteszteli az összes utasítást (beleértve néhány illegálisat is). Az utasítások címzési módját és sorrendjét is variálja. Összesen 8991 utasítást hajt végre. A teszthez tartozó naplóval ellenőrizhetjük, hogy a regiszterek értéke és az eltelt ciklusok száma egyezik-e az elvárttal. 
+Részletesen végigteszteli az összes utasítást (beleértve néhány illegálisat is). Az utasítások címzési módját és sorrendjét is variálja. Összesen 8991 utasítást hajt végre. A teszthez tartozó naplóval ellenőrizhetjük, hogy a regiszterek értéke és az eltelt ciklusok száma egyezik-e az elvárttal. Mivel itt nem a ROM végzi az összehasonlításokat, hanem mi a napló segítségével, ezért a többi teszttel ellentétben akkor is használható, ha a CPU még nem tud helyesen összehasonlítani vagy a vezérlés még nem működik. 
 
 \item[Instr\_test\_v5] \hfill \\
-16 tesztet tartalmaz, amik a címzési módokat, veremműveleteket, elágazásokat és megszakításokat tesztelik. Remek hibaüzeneteket ír a \$6004 címtől kezdve egy nullával terminált sztring segítségével.
+16 tesztet tartalmaz, amik a címzési módokat, veremműveleteket, elágazásokat és megszakításokat tesztelik.
 
 \item[Instr\_Misc] \hfill \\
 Az abszolút indexelt címzés és az elágazások szélsőséges eseteinek ellenőrzése.
@@ -1097,6 +1094,7 @@ Ez a tesztcsomag a vertical blanking period státusz-flaget (be/kikapcsolása me
 \end{description}
 
 \subsection{Eredmények}
+\label{results}
 
 Emulátoroknál a 100\%-os pontosság elérése nehéz feladat, mert az áramkörök felépítéséből természetes következményként adódó speciális viselkedéseket mesterségesen, összetett feltételek ellenőrzésével kell implementálni (például memóriabusz-konfliktus, NMI elnyomás, stb.).  Az emulátorom időzítésekben és az előbb említett két esetben tér el minimálisan az eredeti hardvertől. Összességében a pontosság kielégítő, és a legtöbb játéknál nem okoz gondot az eltérés.
 
@@ -1116,7 +1114,7 @@ Emulátoroknál a 100\%-os pontosság elérése nehéz feladat, mert az áramkö
 
 \subsection{Tesztelt, megbízhatóan működő programok}
 
-\subsubsection{Játékok}
+\subsubsection{Homebrew játékok}
 \begin{compactitem}
 	\item Game of Life: \url{https://www.romhacking.net/homebrew/48/}
 	\item 2048: \url{https://www.romhacking.net/homebrew/65/}

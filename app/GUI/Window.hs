@@ -201,14 +201,17 @@ controlsWidget =
 visualize :: Int -> State -> AppView Window Event
 visualize threadCount s = do
   let
-    addRevealer (Animation _) = bin Revealer [#transitionDuration := 0, #transitionType := RevealerTransitionTypeCrossfade, #revealChild := False]
+    addRevealer (SmoothTransition _) = bin Revealer [#transitionDuration := 0, #transitionType := RevealerTransitionTypeCrossfade, #revealChild := False]
     addRevealer _ =  bin Revealer [#transitionDuration := 400, #transitionType := RevealerTransitionTypeCrossfade, #revealChild := True]
     height = case s of
       ShowControls _ -> 400
       _              -> 700
     title = case s of
-      Message _ _ _  -> "Message"
+      Message _ Info _  -> "Information"
+      Message _ Alert _ -> "Warning"
+      Message _ Cross _ -> "Error"
       ShowControls _ -> "Controls"
+      Emulating{}    -> "Pure-Nes Emulator"
       _              -> "Pure-Nes Menu"
   bin
       Window
@@ -234,5 +237,5 @@ visualize threadCount s = do
         ShowControls _ ->
             controlsWidget
 
-        Animation s -> windowContent s
+        SmoothTransition s -> windowContent s
                       
