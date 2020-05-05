@@ -6,7 +6,7 @@
 \begin{figure}[H]
 	\centering
 	\includegraphics[scale=0.19]{mobo.jpg}
-	\caption{A NES alaplapja\protect\footnotemark}
+	\footcaption{A NES alaplapja}
 \end{figure}
 
 \footnotetext{\url{https://commons.wikimedia.org/wiki/File:Nintendo-NES-Mk1-Motherboard-Top.jpg}}
@@ -277,7 +277,7 @@ Az iNES fájlformátumot egy korai NES emulátor vezette be a NES játékok bin�
 
 \subsection{Színpaletta}
 
-A színpaletta \cite{ppuref} hozzárendel egy $\$0$ és $\$3F$ közötti azonosítóhoz egy színkódot. A NES csak a színpaletta színeit tudja megjeleníteni, így összesen 55 szín áll rendelkezésre (vegyük észre, hogy a fekete szín több azonosítóhoz is hozzá van rendelve). Egy pixel színét az fogja eldönteni, hogy milyen azonosító tartozik hozzá. A színpaletta hozzárendeléseit futás közben nem változtathatjuk meg, mert azok a hardverbe vannak ``égetve''.
+A színpaletta \cite{ppuref} hozzárendel egy $\$0$ és $\$3F$ közötti azonosítóhoz egy színkódot. A NES csak a színpaletta színeit tudja megjeleníteni, így összesen 55 különböző szín áll rendelkezésünkre (vegyük észre, hogy a fekete szín több azonosítóhoz is hozzá van rendelve). Egy pixel színét az fogja eldönteni, hogy milyen azonosító tartozik hozzá. A színpaletta hozzárendeléseit futás közben nem változtathatjuk meg, mert azok a hardverbe vannak ``égetve''.
 
 \vspace{0.3cm}
 \begin{figure}[H]
@@ -442,6 +442,12 @@ Ezen a ponton már minden részletet ismerünk ahhoz, hogy megérthessük a hát
 
 \begin{lstlisting}[backgroundcolor = \color{white}, language=c, basicstyle=\scriptsize]
 
+// Az eredményül kapott pixeleket tároló kétdimenziós tömb
+RGB_Kód pixelek[256][240]
+
+// A fix színpaletta
+RGB_Kód színPaletta[64] := [(84,84,84),(0,30,116),...,(0,0,0)]
+
 // Egy bájt indexedik bitjének kiolvasása (0/1)
 byte bit(byte bájt, int index)
 begin
@@ -459,9 +465,6 @@ begin
 	byte színAzonosító := olvas($3F00 + palettaSorszám*4 + azonosítóSorszám)
 	return színPaletta[színAzonosító]
 end
-
-// Az eredményül kapott pixeleket tároló kétdimenziós tömb
-RGB_Kód pixelek[256][240]
 
 procedure HáttérKirajzol
 begin
@@ -742,7 +745,7 @@ Műveletek a kazetta betöltéséhez az iNES fájlból.
 \subsection{Nes.Cartridge.Mappers}
 
 Ez a modul a mapper-ek implementációit tartalmazza. Ha új mapper-t szeretnénk hozzáadni az emulátorhoz, akkor elég pusztán itt definiálni számára egy konstruktort. A kazetta összeszerelésénél a mapper konstruktora megkapja a félkész kazettát és visszaadja az írásra/olvasásra szolgáló függvényeket tartalmazó rekordot, amik a megfelelő logikával fordítják át a címeket.
-A konstruktorok azért nem tiszta függvények, hogy tetszőleges belső állapotot létre lehessen hozni bennük. (a mapper-ek belső regisztereinek száma el szokott térni).
+A konstruktorok (\emph{nrom, unrom, cnrom}) azért nem tiszta függvények, hogy tetszőleges belső állapotot létre lehessen hozni bennük. (a mapper-ek belső regisztereinek száma el szokott térni).
 
 \begin{description}
 	\item[$\bullet\:$ mappersById :: Map Word8 (Cartridge $\rightarrow$ IO Mapper)] \hfill \\
@@ -762,13 +765,13 @@ Az emuláció során használt primitív műveletek.
 	\begin{lstlisting}[language=Haskell]
 	useMemory memory action = asks memory >>= liftIO . action
 	\end{lstlisting}
-	\item[$\bullet\:$ readMemory és writeMemory]
+	\item[$\bullet\:$ readMemory és writeMemory] \hfill \\
 	Komponens vektorral reprezentált memóriájának közvetlen olvasása és írása (a memóriatérkép nincs figyelembe véve).
-	\item[$\bullet\:$ readCartridgeWithAccessor és writeCartridgeWithAccessor]
+	\item[$\bullet\:$ readCartridgeWithAccessor és writeCartridgeWithAccessor] \hfill \\
 	A kazettához a CPU-nak és a PPU-nak is saját hozzáférése van, amit ezekkel a függvényekkel tudnak használni.
 	\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
 	readCartridgeWithAccessor :: 
-		(component -> CartridgeAccess) -> 
+		(component -> CartridgeAccess) ->
 		Word16 -> 
 		Emulator component Word8
 	writeCartridgeWithAccessor ::
@@ -784,7 +787,7 @@ A 6502 teljes utasításkészletét tartalmazó modul. Néhány segédfüggvény
 
 \begin{description}
 	\item[$\bullet\:$ readReg :: Prim a $\Rightarrow$ (CPU $\rightarrow$ Register a) $\rightarrow$ Emulator CPU a] \hfill \\
-	A megadott regiszter olvasása. A regiszterek csak primitív, kicsomagolható típusokat tárolhatnak.
+	A megadott regiszter olvasása. A regiszterek csak primitív, kicsomagolható (\emph{unbox-olható}) típusokat tárolhatnak.
 	\item[$\bullet\:$ read :: Word16 $\rightarrow$ Emulator CPU Word8] \hfill \\
 	Olvasás a memóriából. A memóriatérkép és a cím alapján dönti el, hogy honnan (RAM, PPU regiszterek, stb...) kell olvasni.
 	\item[$\bullet\:$ write :: Word16 $\rightarrow$ Word8 $\rightarrow$ Emulator CPU ()] \hfill \\
@@ -818,7 +821,7 @@ A 6502 teljes utasításkészletét tartalmazó modul. Néhány segédfüggvény
 	\item[$\bullet\:$ getBackgroundColor :: Emulator PPU (Word8, Word8)] \hfill \\
 	Kinyeri a háttér csúsztatóregisztereiből a jelenlegi pixelhez tartozó háttérpaletta sorszámát és az azon belüli indexet.  
 	\item[$\bullet\:$ overlaySpriteColor :: (Word8, Word8) $\rightarrow$ Emulator PPU Pixel] \hfill \\
-	Kombinálja az háttérszínt a sprite-rétegből származó színnel figyelembe véve a sprite-ok prioritását (háttér előtt/mögött). Az eredmény a pixel végső RGB kódja.
+	Kombinálja a háttérszínt a sprite-rétegből származó színnel figyelembe véve a sprite-ok prioritását (háttér előtt/mögött). Az eredmény a pixel végső RGB kódja.
 	\item[$\bullet\:$ clock :: Emulator PPU ()] \hfill \\
 	A PPU állapotának léptetésére használt függvény. A PPU sorfolytonosan halad végig a képernyőn és állítja elő a pixeleket, amik vagy a háttérrétegből vagy a sprite-rétegből kerülnek ki. Emellett a háttérréteg következő celláinak adatait is előre  betölti.
 	A vertikális váltás (a CRT TV elektronágyúja a jobb alsó sarokból visszaáll a bal felső sarokba) ideje alatt tétlen (lásd az időzítési diagramot\cite{frametime}).
@@ -833,9 +836,9 @@ A 6502 teljes utasításkészletét tartalmazó modul. Néhány segédfüggvény
 	Ezzel a függvénnyel engedhetünk fel egy gombot a virtuális kontrolleren.
 	\item[$\bullet\:$ read :: Controller $\rightarrow$ (Word8, Controller)] \hfill \\
 		A CPU ezzel a függvénnyel kérdezheti le a kontroller gombjainak állapotát.
-		Az $i.$ meghívása a függvénynek visszaadja az $i.$ gomb állapotát. (0 - felengedve, 1 - lenyomva) Az állapotváltoztató hatás a típusból egyértelműen látható.
+		Az $i.$ meghívása a függvénynek visszaadja az $i.$ gomb állapotát (0 - felengedve, 1 - lenyomva). A kontroller rekordjában a gombok állapota mellett azt is tárolnunk kell az \emph{index} adattaggal, hogy hanyadik gombnál tartunk. A függvény visszaadja a jelenlegi gomb állapotát és a kontroller új állapotát, ahol az index a következő gombra mutat. 
 	\item[$\bullet\:$ write :: Word8 $\rightarrow$ Controller $\rightarrow$ Controller] \hfill \\
-		A CPU a kontroller írásával vissza tudja állítani a kontrollert az alaphelyzetbe (a 0. gombot fogja újra a \emph{read} művelet lekérdezni).
+		A CPU a kontroller írásával vissza tudja állítani a kontrollert alaphelyzetbe (a 0. gombot fogja újra a \emph{read} művelet lekérdezni, avagy az \emph{index} értéke 0).
 	
 \end{description}
 
@@ -877,10 +880,12 @@ A 6502 teljes utasításkészletét tartalmazó modul. Néhány segédfüggvény
 
 \subsection{Emulator.CrtShader}
 
+A CRT effektushoz egy nyílt forráskódú OpenGL shader-t használtam \cite{crtshader}.
+
 \begin{description}
 	\item[$\bullet\:$ newShader :: ShaderType $\rightarrow$ ByteString $\rightarrow$ IO Shader] \hfill \\
 	Új GLSL shader lefordítása forráskódból. Inkompatibilis OpenGL verziónál előfordulhatnak fordítási hibák, ebben az esetben kivételt dob.
-	\item[$\bullet\:$ createProgramFrom :: [Shader] $\rightarrow$ IO Program] \hfill \\
+	\item[$\bullet\:$ createProgramFrom :: $\lbrack$Shader$\rbrack$ $\rightarrow$ IO Program] \hfill \\
 	Linkeli és validálja a shader-ekből készített programot, hiba esetén kivételt dob.
 	\item[$\bullet\:$ getCrtShaderProgram :: IO Program] \hfill \\
 	A modul exportált eljárása, ami létrehozza a CRT effektust megvalósító shader programot.
@@ -902,7 +907,7 @@ A 6502 teljes utasításkészletét tartalmazó modul. Néhány segédfüggvény
 \begin{description}
 	\item[$\bullet\:$ translateSDLEvent :: SDL.EventPayload $\rightarrow$ Maybe Command] \hfill \\
 	Megadja egy beérkező eseményhez a hozzátartozó parancsot.
-	\item[$\bullet\:$ pollCommands :: AppResources $\rightarrow$ IO [Command]] \hfill \\
+	\item[$\bullet\:$ pollCommands :: AppResources $\rightarrow$ IO $\lbrack$Command$\rbrack$] \hfill \\
 	Lekérdezi az SDL eseményeket és átfordítja őket belső parancsokra. A felhasználói felület által küldött parancsokat kiolvassa az \emph{AppResources}-ban lévő csatornából (\emph{TChan}). A végeredmény a két lista konkatenációja. 
 	\item[$\bullet\:$ executeCommand :: AppResources $\rightarrow$ Command $\rightarrow$ Emulator Nes ()] \hfill
 	Az eljárás végrehajtja a paraméterül kapott parancsot.
@@ -974,6 +979,7 @@ runNextInstruction
 \section{A CPU és a PPU szinkronizációja}
 Az emuláció valójában szekvenciálisan történik, de arra oda kell figyelnünk, hogy egy processzorutasítás végrehajtása után megfelelő számú PPU léptetés történjen meg. Mivel a \emph{runNextInstruction} visszaadja eredményül, hogy hány CPU órajel telt el elméletben az utasítás alatt, így már nem nehéz összehangolni a két komponenst annak tudatában, hogy a PPU órajel-frekvenciája háromszorosa a CPU órajel-frekvenciájának.
 A CPU-nak van hozzáférése a PPU-hoz, ezért ezt a CPU szintjén is meg tudjuk tenni.
+\vspace{0.3cm}
 \begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
 syncCPUwithPPU :: Emulator CPU ()
 syncCPUwithPPU = do
@@ -1029,7 +1035,7 @@ A második példa azt az eshetőséget kezeli, amikor a felhasználó \emph{quic
 
 \subsection{Állapotmegjelenítés}
 
-\footnotetext{Link az ikonokra: \url{https://www.flaticon.com/packs/ui-interface-23}, \newline \url{https://www.flaticon.com}}
+\footnotetext{Link a játék közben használt ikonokra: \url{https://www.flaticon.com/packs/ui-interface-23} \newline Az összes ikon megtalálható a \url{https://www.flaticon.com} oldalon.}
 A szemléltetés kedvéért kiragadtam egy részt az \emph{inGame} állapotmegjelenítő-függvényből, ahol azt láthatjuk, hogy a gomb feliratában a játék neve előtt a \emph{Pause} vagy \emph{Resume} szöveg lesz, az állapottól függően.
 \vspace{0.2cm}
 \begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
@@ -1140,9 +1146,9 @@ Emulátoroknál a 100\%-os pontosság elérése nehéz feladat, mert az áramkö
 \subsubsection{Techdemók}
 \begin{compactitem}
 	\item Raster Demo: \url{http://nesdev.com/rstrdemo.zip}
-	\item Motion \url{http://nesdev.com/anims.zip}
-	\item Fullscreen Demo \url{http://nesdev.com/FullScreen.zip}
-	\item Interlacing Demo \url{http://nesdev.com/interlac.zip}
+	\item Motion: \url{http://nesdev.com/anims.zip}
+	\item Fullscreen Demo: \url{http://nesdev.com/FullScreen.zip}
+	\item Interlacing Demo: \url{http://nesdev.com/interlac.zip}
 \end{compactitem}
 
 

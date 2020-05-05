@@ -10,7 +10,7 @@ main :: IO ()
 main = defaultMain tests
 
 tests :: TestTree
-tests = localOption (mkTimeout $ 2 * 10^7) $  -- no test run can take longer than 20 seconds
+tests = localOption (mkTimeout $ 2 * 10^7) $  -- no test can take longer than 20 seconds
   testGroup "Pure-Nes Tests" $
   [
     testGroup "CPU" $

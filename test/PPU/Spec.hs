@@ -33,32 +33,17 @@ blargg_spriteZero = "roms/tests/ppu/ppu_sprite_hit/rom_singles/"
 
 blargg_spriteOverflow = "roms/tests/ppu/ppu_sprite_overflow/rom_singles/"
 
-runTest returnLoc expectedCode path romName = do
-  nes        <- loadCartridge (path ++ romName) >>= powerUpNes
-  runEmulator nes $ do
-    resetNes
-    replicateM_ 200 emulateFrame
-    returnCode <- returnLoc
-    liftIO $ expectedCode @=? returnCode
+runTest = runTestWith (emulateCPU syncCPUwithPPU)
 
-runPPUTest = runTest (emulatePPU $ PPU.read 0x20A4) 0x31 blargg_ppu_tests
+runVblNmi = runTest blargg_vbl_nmi
 
-runVblNmi = runTestWith (emulateCPU syncCPUwithPPU) blargg_vbl_nmi
+runSpriteZero = runTest blargg_spriteZero
 
-runSpriteZero = runTestWith (emulateCPU syncCPUwithPPU) blargg_spriteZero
-
-runSpriteOverflow = runTestWith (emulateCPU syncCPUwithPPU) blargg_spriteOverflow
+runSpriteOverflow = runTest blargg_spriteOverflow
 
 tests :: [TestTree]
 tests =
   [
-    {-
-    testGroup "Memory access" [
-      testCase "Palette RAM" $ runPPUTest "palette_ram.nes",
-      testCase "Sprite  RAM" $ runPPUTest "sprite_ram.nes",
-      testCase "VRAM"        $ runPPUTest "vram_access.nes"
-    ],
-    -}
     testGroup "Synchronization" [
       testCase "Vbl basics"      $ runVblNmi "01-vbl_basics.nes",
       testCase "Vbl set time"    $ runVblNmi "02-vbl_set_time.nes",
