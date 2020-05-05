@@ -314,9 +314,9 @@ A $\$3F00 - \$3F1F$ címtartományon található paletta index egy memóriacím 
 \subsection{Alakzattáblázat}
 
 A CHR memóriában található két alakzattáblázat tárolja  az alakzatokat egy speciális formátumban \cite{ppuref}. Ha az alakzatokat úgy reprezentálnánk, hogy az alakzat minden pixeléhez eltárolnánk egy színkódot, akkor pixelenként 6 bitre lenne szükségünk (mivel 55 színkódból választhatunk). Ehelyett pixelenként csak 2 bitet (egy szignifikáns és egy kevésbé szignifikáns bitet) tárolnunk, amik együtt egy 0 és 3 közé eső sorszámot reprezentálnak. Ez a sorszám azt mondja meg nekünk, hogy valamelyik palettán belül hanyadik színpaletta-azonosítót használjuk a színkereséshez. A paletta nincs előre meghatározva a CHR-ben, a dinamikusan módosítható attribútumtábla segítségével fogjuk később meghatározni, hogy a vizsgált pixelhez melyik paletta tartozik. Mivel a paletta index írható és olvasható memória is, így a program futási időben, dinamikusan változtathatja, hogy egy paletta milyen azonosítókat tartalmaz, ezáltal pár lépésben átszínezheti az összes alakzatot, ami az adott palettát használja.
-Egy alakzat 8$\times$8 pixeles, pixeljeinek bitjeit $(8\cdot8\cdot2)\div8 = 16$ egymást követő bájt tárolja a \ref{fig:patt} ábrán szemléltetett módon.
+Egy alakzat $8\times 8$ pixeles, pixeljeinek bitjeit $(8\cdot8\cdot2)\div8 = 16$ egymást követő bájt tárolja a \ref{fig:patt} ábrán szemléltetett módon.
 Először 8 bájton keresztül az alakzat sorainak kevésbé szignifikáns bitjei, majd ezután újabb 8 bájton át a szignifikánsabb bitek sorakoznak. Az oszlopok és bitek sorszámozása fel van cserélve, tehát az $i.$ oszlophoz egy bájton belül a $7-i.$ bit tartozik.  
-Egy alakzattáblázat 16x16 darab alakzatot tartalmaz, ebből adódóan a táblázat teljes mérete $16\cdot16\cdot16 = 4096$ bájt.
+Egy alakzattáblázat $16\times 16$ darab alakzatot tartalmaz, ebből adódóan a táblázat teljes mérete $16\cdot16\cdot16 = 4096$ bájt.
 
 \begin{figure}[H]
 	\centering
@@ -336,7 +336,7 @@ Egy alakzattáblázat 16x16 darab alakzatot tartalmaz, ebből adódóan a tábl�
 
 \subsection{Rétegek}
 A képfeldolgozó két réteget képes kezelni hardveresen, ezek a háttér és a sprite rétegek \cite{ppuref}.
-Általában a képkocka azon részei tartoznak a háttérhez, amik ritkán változnak (például feliratok, számlálók, mozdulatlan képek) és a kirajzolásukhoz nem szükséges további transzformáció (eltolás, tükrözés). A háttérben az alakzatok 30 sorból és 32 oszlopból álló négyzetrácsot alkotnak (ebből és az alakzatok méretéből ered a NES 256*240 pixeles felbontása).
+Általában a képkocka azon részei tartoznak a háttérhez, amik ritkán változnak (például feliratok, számlálók, mozdulatlan képek) és a kirajzolásukhoz nem szükséges további transzformáció (eltolás, tükrözés). A háttérben az alakzatok 30 sorból és 32 oszlopból álló négyzetrácsot alkotnak (ebből és az alakzatok méretéből ered a NES $256\times 240$ pixeles felbontása).
 A háttér rétegben egyesével nem lehet alakzatokat eltolni, csak az egész háttér eltolása lehetséges. A sprite rétegben több lehetőség áll rendelkezésre, ugyanis itt egyenként, pixelpontosságú eltolással, valamint horizontális és/vagy vertikális tükrözéssel rajzolhatjuk ki az alakzatokat. A sprite rétegnél legfeljebb 64 alakzat szerepelhet egy képkockán (ez a megkötés a később ismertetett OAM méretéből adódik).  
 
 \subsection{Névtáblázatok}
@@ -345,7 +345,7 @@ A háttérréteg négyzetrácsának elrendezését a névtáblázatok tárolják
 
 \subsection{Attribútumtáblázatok}
 
-Minden névtáblázathoz tartozik egy 64 bájtos attribútumtáblázat \cite{ppuref}, ami a névtáblázat 960 darab bájtja után következik. Az attribútumtáblázatban minden bájt egy 4$\times$4 alakzatcellából álló terület palettáit határozza meg. A bájtok 4 darab 2 bites részre vannak felosztva, ahol mindegyik rész egy 2$\times$2 cellából álló terület palettájának sorszámát kódolja el (ugyan 8 paletta van, de ebből csak 4 háttérpaletta, így elég 2 bit). Ennek a reprezentációnak a következménye, hogy a háttér 4 cellából álló csoportjai mindig egy palettán osztoznak. A 16 cellát lefedő bájt felosztása a 4 cellás területek között a \ref{fig:attr} ábrán van szemléltetve.
+Minden névtáblázathoz tartozik egy 64 bájtos attribútumtáblázat \cite{ppuref}, ami a névtáblázat 960 darab bájtja után következik. Az attribútumtáblázatban minden bájt egy $4\times 4$ alakzatcellából álló terület palettáit határozza meg. A bájtok 4 darab 2 bites részre vannak felosztva, ahol mindegyik rész egy $2\times 2$ cellából álló terület palettájának sorszámát kódolja el (ugyan 8 paletta van, de ebből csak 4 háttérpaletta, így elég 2 bit). Ennek a reprezentációnak a következménye, hogy a háttér 4 cellából álló csoportjai mindig egy palettán osztoznak. A 16 cellát lefedő bájt felosztása a 4 cellás területek között a \ref{fig:attr} ábrán van szemléltetve.
 
 \begin{figure}[H]
 	\centering
@@ -369,7 +369,7 @@ Az OAM~\cite{ppuref} a sprite réteg elrendezését leíró 256 bájtos memória
 \subsection{Regiszterek}
 
 A CPU és a PPU az alább látható 9 darab egy bájtos regiszter segítségével tud egymással kommunikálni. \cite{ppuref} A regisztereket a CPU a zárójelekben található címeken tudja elérni.
-Az olvasató regiszterek \textbf{R}, az írhatók \textbf{W} betűvel vannak megjelölve.
+Az olvasható regiszterek \textbf{R}, az írhatók \textbf{W} betűvel vannak megjelölve.
 
 \vspace{0.25cm}
 
@@ -487,7 +487,7 @@ begin
 				$3C0 +		
 								
 				// Átlépjük az előző cellasorok attribútumbájtjait
-				// Emlékeztető: egy sorban 32 alakzat van amik 
+				// Emlékeztető: egy sorban 32 alakzat van, amik 
 				// négyesével osztoznak a bájton
 				(cellaSor div 4) * 8 + 	
 					
@@ -495,12 +495,13 @@ begin
 				(cellaOszlop div 4)         
 				
 			// Az attribútumbájt kiolvasása
-			byte ATB := olvas(aktívNévtáblázat + ATB_Eltolás)
+			byte ATB := olvas(aktívAlakzatTáblázat + ATB_Eltolás)
 			
-			// Az attribútumbájtnak a cellához tartozó 2 bites része lesz a palettasorszám.
+			// Az attribútumbájtnak a cellához tartozó 2 bites része lesz
+			// a palettasorszám.
 			// Ki kell számolni, hogy a cella melyik (bal felső, jobb felső, stb.)
-			// kvadránsába esik a bájt által lefedett 4*4-es területnek, ugyanis így kapjuk meg,
-			// hogy a bájt melyik 2 bitjére van szükségünk
+			// kvadránsába esik a bájt által lefedett 4*4-es területnek, ugyanis így
+			// kapjuk meg, hogy a bájt melyik 2 bitjére van szükségünk
 			byte kvadráns := (cellaSor & 0b10)*2 + (cellaOszlop & 0b10) 
 			byte palettaSorszám := (ATB >> kvadráns) & 0b11
 				
@@ -544,7 +545,7 @@ end
 \subsection{Sprite réteg kirajzolása}
 
 A kirajzolás algoritmusa annyiban változik, hogy a névtáblázatok és attribútumtáblázatok helyett az OAM memóriát használva határozzuk meg az alakzatsorszámokat és palettasorszámokat.
-A 240 sor mindegyikénél a kirajzolás megkezdése előtt ki kell értékelni, hogy melyek azok az alakzatok, amik a következő soron láthatóak. Ezeknek az adatait egy pufferbe, u.n. másodlagos OAM-ba kell helyezni (legfeljebb 8 OAM bejegyzés fér bele). Minden pixelnél megnézzük, hogy van-e olyan alakzat a másodlagos OAM-ban, ami arra a pixelre esik. Ha több is van, akkor a kisebb indexű alakzat élvez nagyobb prioritást. 
+A 240 sor mindegyikénél a kirajzolás megkezdése előtt ki kell értékelni, hogy melyek azok az alakzatok, amik a következő soron láthatóak. Ezeknek az adatait egy pufferbe, ú.n. másodlagos OAM-ba kell helyezni (legfeljebb 8 OAM bejegyzés fér bele). Minden pixelnél megnézzük, hogy van-e olyan alakzat a másodlagos OAM-ban, ami arra a pixelre esik. Ha több is van, akkor a kisebb indexű alakzat élvez nagyobb prioritást. 
 
 \clearpage
 
@@ -557,7 +558,7 @@ A feladat a NES játékkonzol CPU-ját, PPU-ját és kazettáit valós időben e
 \section{Fejlesztői környezet}
 
 A programot Haskell nyelven írtam és a GHC 8.10.1-es verziójával fordítottam. Szerkesztőprogramként Visual Studio Code-ot használtam. A Haskell-ben írt függőségi könyvtárak telepítéséhez a Stack\footnote{Haskell Tool Stack: \url{https://docs.haskellstack.org/en/stable/README/}} eszközt használtam.
-Az SDL2 és a GTK könyvtárakat Linux-on a disztribúció csomagkezelőjével, Windows-on az MSYS2 konzol csomagkezelőjével telepítettem. 
+Az SDL2 és a GTK könyvtárakat Linuxon a disztribúció csomagkezelőjével, Windowson az MSYS2 konzol csomagkezelőjével telepítettem. 
 \clearpage
 \subsubsection{Csomagok telepítése}
 \begin{itemize}
@@ -586,8 +587,7 @@ SET XDG_DATA_DIRS=C:\msys64\mingw64\share
 stack build
 \end{lstlisting}
 	Ha az első fordításnál hibát kapunk a \emph{gi-*} függőségek telepítésénél, akkor másoljuk a 
-	\emph{C:$\textbackslash$msys64$\textbackslash$mingw64$\textbackslash$bin$\textbackslash$zlib1.dll} fájlt a Stack által telepített GHC \emph{mingw/bin} mappájába. Ha már van ilyen fájl ott, akkor készítsünk róla másolatot, majd cseréljük le.
-	\footnote{További információk: \url{https://github.com/haskell-gi/haskell-gi/wiki/Using-haskell-gi-in-Windows}}
+	\emph{C:$\textbackslash$msys64$\textbackslash$mingw64$\textbackslash$bin$\textbackslash$zlib1.dll} fájlt a Stack által telepített GHC \emph{mingw/bin} mappájába. Ha már van ilyen fájl ott, akkor készítsünk róla másolatot, majd cseréljük le.\footnote{További információk: \url{https://github.com/haskell-gi/haskell-gi/wiki/Using-haskell-gi-in-Windows}}
 
 	\item Linux:
 \begin{lstlisting}[language=bash]
@@ -619,7 +619,7 @@ A \emph{Communication} modul definiálja azokat az eseményeket (\emph{Event}), 
 \section{A felhasználói felületnél használt technológiák}
 
 A GTK (GIMP Toolkit) egy nyílt forráskódú, kezelőfelületek tervezésére szolgáló szoftvercsomag.
-Az API-ja javarészt imperatív stílusú, például a widget-ek létrehozását követően mellékhatásos függvényekkel tudjuk beállítani az attribútumokat és az eseménykezelőket. A Haskellben elérhető \emph{gi-gtk-declarative}\footnote{\url{https://hackage.haskell.org/package/gi-gtk-declarative}} könyvtár ezzel szemben egy deklaratív GTK API-t ad a kezünkbe, aminek segítségével röviden és tömören tudjuk összetett vezérlőelemek megjelenését leírni. 
+Az API-ja javarészt imperatív stílusú, például a widgetek létrehozását követően mellékhatásos függvényekkel tudjuk beállítani az attribútumokat és az eseménykezelőket. A Haskellben elérhető \emph{gi-gtk-declarative}\footnote{\url{https://hackage.haskell.org/package/gi-gtk-declarative}} könyvtár ezzel szemben egy deklaratív GTK API-t ad a kezünkbe, aminek segítségével röviden és tömören tudjuk összetett vezérlőelemek megjelenését leírni. 
 A \emph{gi-gtk-declarative-app-simple}\footnote{\url{https://hackage.haskell.org/package/gi-gtk-declarative-app-simple}} erre építve definiál felhasználói felületek vezérléséhez egy egyszerű architektúrát, ahol a felületet állapotgépnek tekintjük és az állapotátmeneteket események váltják ki. A felület létrehozásához elég a kezdőállapotot, az állapotmegjelenítő $(state \rightarrow window)$ függvényt és az állapotátmenet-függvényt definiálni.
 
 \section{A felhasználói felülethez kapcsolódó modulok}
@@ -668,7 +668,7 @@ emulateSubcomponent subcomponent (Emulator effect)
 
 \section{Adatreprezentáció}
 
-A teljesítmény fontos szempont volt, ezért a regisztereket változtatható és u.n. \emph{unboxed} (közvetlenül az értéket tárolják és nem egy mutatót az értékre) referenciákkal ábrázoltam. Az egyes memóriarészeket (CPU RAM, PRG, CHR, stb...) külön-külön, változtatható és unboxed vektorokkal reprezentálom.
+A teljesítmény fontos szempont volt, ezért a regisztereket változtatható és ú.n. \emph{unboxed} (közvetlenül az értéket tárolják és nem egy mutatót az értékre) referenciákkal ábrázoltam. Az egyes memóriarészeket (CPU RAM, PRG, CHR, stb...) külön-külön, változtatható és unboxed vektorokkal reprezentálom.
 
 \begin{figure}[H]
 	\centering
@@ -741,12 +741,12 @@ Műveletek a kazetta betöltéséhez az iNES fájlból.
 
 \subsection{Nes.Cartridge.Mappers}
 
-Ez a modul a mapper-ek implementációit tartalmazza. Ha új mapper-t szeretnénk hozzáadni az emulátorhoz, akkor elég pusztán itt definiálni számára egy konstruktort. A kazetta összeszerelésénél a mapper konstruktora megkapja a félkész kazettát és visszaadja az írásra/olvasásra szolgáló függvényeket tartalmazó rekordot, amik a megfelelő logikával fordítják át a címeket.
-A konstruktorok azért nem tiszta függvények, hogy tetszőleges belső állapotot létre lehessen hozni bennük. (a mapper-ek belső regisztereinek száma el szokott térni).
+Ez a modul a mapperek implementációit tartalmazza. Ha új mappert szeretnénk hozzáadni az emulátorhoz, akkor elég pusztán itt definiálni számára egy konstruktort. A kazetta összeszerelésénél a mapper konstruktora megkapja a félkész kazettát és visszaadja az írásra és olvasásra szolgáló függvényeket tartalmazó rekordot, amik a megfelelő logikával fordítják át a címeket.
+A konstruktorok azért nem tiszta függvények, hogy tetszőleges belső állapotot létre lehessen hozni bennük (a mapperek belső regisztereinek száma el szokott térni).
 
 \begin{description}
 	\item[$\bullet\:$ mappersById :: Map Word8 (Cartridge $\rightarrow$ IO Mapper)] \hfill \\
-	Azonosító $\rightarrow$ konstruktor hozzárendelés. Ha ehhez a Map-hez hozzáadunk egy új mapper konstruktort, akkor azt a mapper-t azonnal támogatottnak érzékeli a betöltő logika.
+	Azonosító $\rightarrow$ konstruktor hozzárendelés. Ha ehhez a Maphez hozzáadunk egy új mapper konstruktort, akkor azt a mappert azonnal támogatottnak érzékeli a betöltő logika.
 	\item[$\bullet\:$ nrom  :: Cartridge $\rightarrow$ IO Mapper]
 	\item[$\bullet\:$ unrom :: Cartridge $\rightarrow$ IO Mapper]
 	\item[$\bullet\:$ cnrom :: Cartridge $\rightarrow$ IO Mapper]
@@ -786,13 +786,13 @@ A 6502 teljes utasításkészletét tartalmazó modul. Néhány segédfüggvény
 	\item[$\bullet\:$ readReg :: Prim a $\Rightarrow$ (CPU $\rightarrow$ Register a) $\rightarrow$ Emulator CPU a] \hfill \\
 	A megadott regiszter olvasása. A regiszterek csak primitív, kicsomagolható típusokat tárolhatnak.
 	\item[$\bullet\:$ read :: Word16 $\rightarrow$ Emulator CPU Word8] \hfill \\
-	Olvasás a memóriából. A memóriatérkép és a cím alapján dönti el, hogy honnan (RAM, PPU regiszterek, stb...) kell olvasni.
+	Olvasás a memóriából. A memóriatérkép és a cím alapján dönti el, hogy honnan (RAM, PPU regiszterek, stb.) kell olvasni.
 	\item[$\bullet\:$ write :: Word16 $\rightarrow$ Word8 $\rightarrow$ Emulator CPU ()] \hfill \\
 	Írás a memóriába. Hasonlóan itt is a memóriatérképet kell figyelembe venni.
 	\item[$\bullet\:$ push :: Word8 $\rightarrow$ Emulator CPU ()] \hfill \\
-	Bájt felrakása a stack-re.
+	Bájt felrakása a stackre.
 	\item[$\bullet\:$ pushAddress :: Word16 $\rightarrow$ Emulator CPU ()] \hfill \\
-	Cím felrakása a stack-re. Mivel a stack a kisebb címek felé nő, ezért először a szignifikánsabb bájtot kell felrakni, hogy tartsuk a kicsi-az-elején bájtsorrendet.
+	Cím felrakása a stackre. Mivel a stack a kisebb címek felé nő, ezért először a szignifikánsabb bájtot kell felrakni, hogy tartsuk a kicsi-az-elején bájtsorrendet.
 	\begin{lstlisting}[language=Haskell]
 	pushAddress addr = do
 		let (high, low) = splitWord16 addr 
@@ -800,10 +800,10 @@ A 6502 teljes utasításkészletét tartalmazó modul. Néhány segédfüggvény
 		push low
 	\end{lstlisting}
 	\item[$\bullet\:$ nmi :: Emulator CPU ()] \hfill \\
-	NMI megszakítás érkezésekor meghívott eljárás. Elmenti a programszámlálót és a státusz-regisztert a stack-re és a megszakítási vektor által mutatott címen folytatja a végrehajtást.
+	NMI megszakítás érkezésekor meghívott eljárás. Elmenti a programszámlálót és a státusz regisztert a stackre és a megszakítási vektor által mutatott címen folytatja a végrehajtást.
 	\item[$\bullet\:$ processInterrupts :: Emulator CPU ()] \hfill \\
-	Az interrupt-ok nem érkeznek meg azonnal a processzorhoz, hanem időre van szükségük.
-	Ennél a virtuális gépnél az interrupt regiszterek tárolják, hogy még hány utasítást kell végrehajtani a megszakításig. A processInterrupts eljárás csökkenti a számlálókat és ha valamelyik számláló eléri a nullát, akkor meghívja a megfelelő megszakítást feldolgozó eljárást. 
+	Az interruptok nem érkeznek meg azonnal a processzorhoz, hanem időre van szükségük.
+	Ennél a virtuális gépnél az interrupt regiszterek tárolják, hogy még hány utasítást kell végrehajtani a megszakításig. A processInterrupts eljárás csökkenti a számlálókat, és ha valamelyik számláló eléri a nullát, akkor meghívja a megfelelő megszakítást feldolgozó eljárást. 
 	\item[$\bullet\:$ oamDma :: Word8 $\rightarrow$ Emulator CPU ()] \hfill \\
 	Adott memórialapról másolás DMA-val a PPU OAM-ba.
 \end{description}
@@ -818,10 +818,10 @@ A 6502 teljes utasításkészletét tartalmazó modul. Néhány segédfüggvény
 	\item[$\bullet\:$ getBackgroundColor :: Emulator PPU (Word8, Word8)] \hfill \\
 	Kinyeri a háttér csúsztatóregisztereiből a jelenlegi pixelhez tartozó háttérpaletta sorszámát és az azon belüli indexet.  
 	\item[$\bullet\:$ overlaySpriteColor :: (Word8, Word8) $\rightarrow$ Emulator PPU Pixel] \hfill \\
-	Kombinálja az háttérszínt a sprite-rétegből származó színnel figyelembe véve a sprite-ok prioritását (háttér előtt/mögött). Az eredmény a pixel végső RGB kódja.
+	Kombinálja a háttérszínt a sprite-rétegből származó színnel figyelembe véve a spriteok prioritását (háttér előtt/mögött). Az eredmény a pixel végső RGB kódja.
 	\item[$\bullet\:$ clock :: Emulator PPU ()] \hfill \\
 	A PPU állapotának léptetésére használt függvény. A PPU sorfolytonosan halad végig a képernyőn és állítja elő a pixeleket, amik vagy a háttérrétegből vagy a sprite-rétegből kerülnek ki. Emellett a háttérréteg következő celláinak adatait is előre  betölti.
-	A vertikális váltás (a CRT TV elektronágyúja a jobb alsó sarokból visszaáll a bal felső sarokba) ideje alatt tétlen (lásd az időzítési diagramot\cite{frametime}).
+	A vertikális váltás (a CRT TV elektronágyúja a jobb alsó sarokból visszaáll a bal felső sarokba) ideje alatt tétlen (lásd az időzítési diagrammot~\cite{frametime}).
 \end{description}
 
 \subsection{Nes.Emulation.Controls}
@@ -845,7 +845,7 @@ A 6502 teljes utasításkészletét tartalmazó modul. Néhány segédfüggvény
 	\item[$\bullet\:$ syncCPUwithPPU :: Emulator CPU ()] \hfill \\
 	CPU utasítás végrehajtása, majd a megfelelő számú PPU órajel emulálása a szinkronizáció megőrzése érdekében.
 	\item[$\bullet\:$ emulateFrame :: Emulator Nes FrameBuffer] \hfill \\
-	Addig léptetjük a rendszert az előző függvénnyel, amíg nem végzünk a képkockával.
+	Addig lépteti a rendszert az előző függvénnyel, amíg nem végez a képkockával.
 	\item[$\bullet\:$ resetNes :: Emulator Nes ()] \hfill \\
 	Visszaállítja alaphelyzetbe a komponenseket. 
 \end{description}
@@ -862,7 +862,7 @@ A 6502 teljes utasításkészletét tartalmazó modul. Néhány segédfüggvény
 	\item[$\bullet\:$ manageHatEvent] \hfill \\
 	A DPAD Fel/Le/Balra/Jobbra/Középen eseményeit figyeli és kiadja a megfelelő parancsokat a virtuális kontroller módosítására. Mivel a virtuális kontrollernél nincs Középen állapota a DPAD-nak, ezért arra is figyelni kell, hogy ezt az állapotot \emph{``engedd fel az előző DPAD gombot''} parancsként kell továbbküldeni.
 	\item[$\bullet\:$ manageDeviceEvent] \hfill \\
-	Figyeli a kontrollercsatlakoztatásokat és az eltávolításokat.
+	Figyeli a kontrollercsatlakoztatásokat és az -eltávolításokat.
 	Az új kontrollereket inicializálja és eltárolja a rekordban, a kihúzottakat eltávolítja.
 \end{description}
 
@@ -881,7 +881,7 @@ A 6502 teljes utasításkészletét tartalmazó modul. Néhány segédfüggvény
 	\item[$\bullet\:$ newShader :: ShaderType $\rightarrow$ ByteString $\rightarrow$ IO Shader] \hfill \\
 	Új GLSL shader lefordítása forráskódból. Inkompatibilis OpenGL verziónál előfordulhatnak fordítási hibák, ebben az esetben kivételt dob.
 	\item[$\bullet\:$ createProgramFrom :: [Shader] $\rightarrow$ IO Program] \hfill \\
-	Linkeli és validálja a shader-ekből készített programot, hiba esetén kivételt dob.
+	Linkeli és validálja a shaderekből készített programot, hiba esetén kivételt dob.
 	\item[$\bullet\:$ getCrtShaderProgram :: IO Program] \hfill \\
 	A modul exportált eljárása, ami létrehozza a CRT effektust megvalósító shader programot.
 	
