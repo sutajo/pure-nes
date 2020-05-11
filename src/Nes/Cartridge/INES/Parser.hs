@@ -13,6 +13,7 @@ module Nes.Cartridge.INES.Parser (
 -- INES format: https://wiki.nesdev.com/w/index.php/INES
 -- https://formats.kaitai.io/ines/index.html 
 
+import           Control.Applicative
 import           Control.Exception
 import qualified Data.Vector.Unboxed         as VU
 import qualified Data.Vector.Unboxed.Mutable as VUM
@@ -54,7 +55,7 @@ header = replicateM 7 getWord8
 
 iNESloader :: Get INES
 iNESloader = do
-  magicNumbersMatch <- getByteString 4 <&> (== "NES\SUB")
+  magicNumbersMatch <- (getByteString 4 <&> (== "NES\SUB")) <|> return False
   when (not magicNumbersMatch) $ fail $ unlines ["iNES magic numbers are missing.", "Make sure you selected a cartridge file."]
   [  len_prg_rom , len_chr_rom 
    , flags6      , flags7      

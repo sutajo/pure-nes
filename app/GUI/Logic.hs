@@ -193,6 +193,12 @@ update comms Emulating{savePath} (Error msg)
 update comms (Message _ _ Emulating{savePath}) (Error msg) 
   = smoothTransition comms (Message (Text.pack msg) Cross (MainMenu Nothing savePath))
 
+update comms m@MainMenu{} (Error msg)
+  = smoothTransition comms (Message (Text.pack msg) Cross m)
+
+update comms (SmoothTransition Emulating{savePath}) (Error msg)
+  = smoothTransition comms (Message (Text.pack msg) Cross (MainMenu Nothing savePath))
+
 update comms _ (Error msg) 
   = smoothTransition comms (Message (Text.pack msg) Cross (MainMenu Nothing Nothing))
 
