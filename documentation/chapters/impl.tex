@@ -911,10 +911,13 @@ A CRT effektushoz egy nyílt forráskódú OpenGL shader-t használtam \cite{crt
 	Lekérdezi az SDL eseményeket és átfordítja őket belső parancsokra. A felhasználói felület által küldött parancsokat kiolvassa az \emph{AppResources}-ban lévő csatornából (\emph{TChan}). A végeredmény a két lista konkatenációja. 
 	\item[$\bullet\:$ executeCommand :: AppResources $\rightarrow$ Command $\rightarrow$ Emulator Nes ()] \hfill
 	Az eljárás végrehajtja a paraméterül kapott parancsot.
-	\item[$\bullet\:$ advanceEmulation :: ViewFunction $\rightarrow$ AppResources $\rightarrow$ Emulator Nes Bool] \hfill
+	\item[$\bullet\:$ advanceEmulation] \hfill
 	Végrehajtja az összes parancsot, lépteti az emulációt (ha az nincs szüneteltetve) és a paraméterül kapott megjelenítőfüggvénnyel frissíti a képernyőt.
+	\vspace{0.2cm}
 	\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
 	type ViewFunction = AppResources -> IOVector Word8 -> Emulator Nes ()
+	
+	advanceEmulation :: ViewFunction -> AppResources -> Emulator Nes Bool
 	\end{lstlisting}
 \end{description}
 

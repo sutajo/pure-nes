@@ -1,7 +1,7 @@
 cabal-version: 1.12
 
 name:           pure-nes
-version:        0.2.0.0
+version:        1.0
 description:    Please see the README on GitHub at <https://github.com/sutajo/pure-nes#readme>
 homepage:       https://github.com/sutajo/pure-nes
 bug-reports:    https://github.com/sutajo/pure-nes/issues
@@ -13,7 +13,6 @@ license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
     README.md
-    ChangeLog.md
 
 source-repository head
   type: git
