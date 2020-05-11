@@ -6,12 +6,11 @@ module Emulator.Framerate (
   sleepyCappedAt
 ) where
 
-import Control.Concurrent
 import Control.Monad.IO.Class
 import Control.Monad
 import Data.Word
-import Data.Time.Clock.System
 import SDL.Raw.Timer
+import SDL (delay)
 
 
 uncapped :: MonadIO m => m Bool -> m ()
@@ -40,19 +39,13 @@ cappedAt activity fps = getTicks >>= go
 
 
 sleepyCappedAt :: MonadIO m => m Bool -> Word32 -> m ()
-sleepyCappedAt activity fps = getTicks' >>= go
+sleepyCappedAt activity fps = getTicks >>= go
   where
-    getTicks' = liftIO (nanoToMicro . systemNanoseconds <$> getSystemTime)
-    nanoToMicro nano = round $ fromIntegral nano / 1000
-    freq = round $ ((1000000 :: Double) / fromIntegral fps)
+    khz = round $ (1000 / fromIntegral fps)
     go !lastTime = do
-      currentTime <- getTicks'
       shouldExit  <- activity
+      currentTime <- getTicks
       let diff = currentTime - lastTime 
-      if diff < freq
-      then do
-        liftIO $ threadDelay (freq - diff)
-        afterActivity <- getTicks'
-        when (not shouldExit) (go afterActivity)
-      else 
-        go lastTime
+      when (diff < khz) $ do
+        SDL.delay (khz - diff)
+      when (not shouldExit) (go (lastTime + khz))

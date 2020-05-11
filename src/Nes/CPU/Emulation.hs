@@ -141,7 +141,7 @@ onDifferentPage :: Word16 -> Word16 -> Bool
 onDifferentPage addr1 addr2 = addr1 .&. 0xFF00 /= addr2 .&. 0xFF00
 
 cycle :: Int -> Emulator CPU ()
-cycle n = modifyReg cyc (n+)
+cycle n = modifyReg cyc (+n)
 
 push :: Word8 -> Emulator CPU ()
 push value = do
@@ -154,7 +154,7 @@ pop = do
   sp <- readReg s
   let sp' = sp+1
   writeReg s sp'
-  read (fromIntegral sp' `setBit` 8)
+  read (fromIntegral sp' + stackBase)
 
 pushAddress :: Word16 -> Emulator CPU ()
 pushAddress addr = do
@@ -175,8 +175,8 @@ fetch = readReg pc >>= read
 
 
 adc :: Word16 -> Emulator CPU ()
-adc addr = do 
-  mem   <- read addr 
+adc addr = do
+  mem   <- read addr
   acc   <- readReg a 
   carry <- toWord8 <$> testFlag Carry
   let 
@@ -184,7 +184,7 @@ adc addr = do
     (mem16 :: Word16) = fromIntegral mem 
   writeReg a result 
   setFlag Carry ((mem16 + fromIntegral acc + fromIntegral carry) .&. 0xFF00 /= 0)
-  setFlag Overflow ((complement (acc `xor` mem) .&. (acc `xor` result)) `testBit` 7)
+  setFlag Overflow (((acc `xor` result) .&. (result `xor` mem)) `testBit` 7)
   setZero result
   setNegative result
 
@@ -444,20 +444,20 @@ sbc addr = do
   acc   <- readReg a
   carry <- toWord16 <$> testFlag Carry
   let 
-    val16 = fromIntegral value `xor` 0x00FF
+    val16 = fromIntegral value `xor` 0xFF
     (result :: Word16) = val16 + acc16 + carry
     acc16 = fromIntegral acc
     res8 = fromIntegral result
     -- A,Z,C,N := A-M-(1-C)
-    -- ==> A := A - M + 1 + C
-    -- ==> A := A + complement M + 1 + C
-    -- ==> A := A + (invert M - 1) + 1 + C
+    -- ==> A := A - M - 1 + C
+    -- ==> A := A + complement M - 1 + C
+    -- ==> A := A + (invert M + 1) - 1 + C
     -- ==> A := A + invert M + C
-    -- ==> A := A + M xor 11111111 + C
+    -- ==> A := A + M xor 0b11111111 + C
   setFlag Carry (result .&. 0xFF00 /= 0)
   setZero res8
   setNegative res8
-  setFlag Overflow (((result `xor` acc16) .&. (result `xor` val16)) `testBit` 7)
+  setFlag Overflow (((acc16 `xor` result) .&. (result `xor` val16)) `testBit` 7)
   writeReg a res8
 
 sec :: Emulator CPU ()
