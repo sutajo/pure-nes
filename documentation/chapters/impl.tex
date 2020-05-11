@@ -11,7 +11,7 @@
 
 \footnotetext{\url{https://commons.wikimedia.org/wiki/File:Nintendo-NES-Mk1-Motherboard-Top.jpg}}
 Ennek az ismertetőnek az a célja, hogy az olvasó magas szinten átlássa a NES legfontosabb egységeinek működését. A mélyebb megértéshez a forráskód tanulmányozását, valamint a \emph{Nesdev}\cite{ref} oldalt ajánlom.
-A NES emulációjához az alábbi komponenseket kellett megismernem, amik közül a CPU és a PPU működését fogom később részletesebben áttekinteni.
+A NES emulációjához az alábbi komponenseket kellett megismernem, amik közül a CPU és a PPU működését fogom később részletezni.
 
 \begin{compactdesc}
 	\item[Ricoh RP2A03:] 
@@ -288,7 +288,7 @@ A színpaletta \cite{ppuref} hozzárendel egy $\$0$ és $\$3F$ közötti azonos�
 
 \subsection{Paletta indexek}
 
-A $\$3F00 - \$3F1F$ címtartományon található paletta index egy memóriacím $\rightarrow$ azonosító hozzárendelést ír le \cite{ppuref}, azonban ezt a program már változtathatja futás során, mert RAM típusú memóriáról van szó. A paletta index 4 bájtos csoportokra, úgynevezett palettákra van felosztva. A paletták bájtjai színpalettabeli azonosítókként szolgálnak. Emiatt közvetett módon ugyan, de ki tudjuk számolni egy pixel színét, ha tudjuk, hogy melyik palettát és azon belül hanyadik azonosítót kell használnunk. Jelentős limitáció, hogy a paletták 4. színe nem változtatható, mert ezek mindig a \$3F00 címet (a háttérszínt) tükrözik.
+A $\$3F00 - \$3F1F$ címtartományon található paletta index egy memóriacím $\rightarrow$ azonosító hozzárendelést ír le \cite{ppuref}, azonban ezt a program már változtathatja futás során, mert RAM típusú memóriáról van szó. A paletta index 3 bájtos csoportokra, úgynevezett palettákra van felosztva. A paletták bájtjai színpalettabeli azonosítókként szolgálnak. Emiatt közvetett módon ugyan, de ki tudjuk számolni egy pixel színét, ha tudjuk, hogy melyik palettát és azon belül hanyadik azonosítót kell használnunk. A paletták közé eső címek (\$3F04, \$3F08, ...) az univerzális háttérszínt (\$3F00) tükrözik. 
 
 \begin{table}[H]
 	\centering
@@ -313,7 +313,7 @@ A $\$3F00 - \$3F1F$ címtartományon található paletta index egy memóriacím 
 
 \subsection{Alakzattáblázat}
 
-A CHR memóriában található két alakzattáblázat tárolja  az alakzatokat egy speciális formátumban \cite{ppuref}. Ha az alakzatokat úgy reprezentálnánk, hogy az alakzat minden pixeléhez eltárolnánk egy színkódot, akkor pixelenként 6 bitre lenne szükségünk (mivel 55 színkódból választhatunk). Ehelyett pixelenként csak 2 bitet (egy szignifikáns és egy kevésbé szignifikáns bitet) tárolnunk, amik együtt egy 0 és 3 közé eső sorszámot reprezentálnak. Ez a sorszám azt mondja meg nekünk, hogy valamelyik palettán belül hanyadik színpaletta-azonosítót használjuk a színkereséshez. A paletta nincs előre meghatározva a CHR-ben, a dinamikusan módosítható attribútumtábla segítségével fogjuk később meghatározni, hogy a vizsgált pixelhez melyik paletta tartozik. Mivel a paletta index írható és olvasható memória is, így a program futási időben, dinamikusan változtathatja, hogy egy paletta milyen azonosítókat tartalmaz, ezáltal pár lépésben átszínezheti az összes alakzatot, ami az adott palettát használja.
+A CHR memóriában található két alakzattáblázat tárolja  az alakzatokat egy speciális formátumban \cite{ppuref}. Ha az alakzatokat úgy reprezentálnánk, hogy az alakzat minden pixeléhez eltárolnánk egy színkódot, akkor pixelenként 6 bitre lenne szükségünk (mivel 55 színkódból választhatunk). Ehelyett pixelenként csak 2 bitet (egy szignifikáns és egy kevésbé szignifikáns bitet) tárolnunk, amik együtt egy 0 és 3 közé eső sorszámot reprezentálnak. Ez a sorszám azt mondja meg nekünk, hogy valamelyik palettán belül hanyadik színpaletta-azonosítót használjuk a színkereséshez. A paletta nincs előre meghatározva a CHR-ben, a dinamikusan módosítható attribútumtábla segítségével fogjuk később meghatározni, hogy a vizsgált pixelhez melyik paletta tartozik. Mivel a paletta index írható és olvasható memória is, így a program futási időben változtathatja, hogy egy paletta milyen azonosítókat tartalmaz, ezáltal pár lépésben átszínezheti az összes alakzatot, ami az adott palettát használja.
 Egy alakzat $8\times 8$ pixeles, pixeljeinek bitjeit $(8\cdot8\cdot2)\div8 = 16$ egymást követő bájt tárolja a \ref{fig:patt} ábrán szemléltetett módon.
 Először 8 bájton keresztül az alakzat sorainak kevésbé szignifikáns bitjei, majd ezután újabb 8 bájton át a szignifikánsabb bitek sorakoznak. Az oszlopok és bitek sorszámozása fel van cserélve, tehát az $i.$ oszlophoz egy bájton belül a $7-i.$ bit tartozik.  
 Egy alakzattáblázat $16\times 16$ darab alakzatot tartalmaz, ebből adódóan a táblázat teljes mérete $16\cdot16\cdot16 = 4096$ bájt.
@@ -368,7 +368,7 @@ Az OAM~\cite{ppuref} a sprite réteg elrendezését leíró 256 bájtos memória
 
 \subsection{Regiszterek}
 
-A CPU és a PPU az alább látható 9 darab egy bájtos regiszter segítségével tud egymással kommunikálni. \cite{ppuref} A regisztereket a CPU a zárójelekben található címeken tudja elérni.
+A CPU és a PPU az alább látható 9 darab egy bájtos regiszter \cite{ppuref} segítségével tud egymással kommunikálni. A regisztereket a CPU a zárójelekben található címeken tudja elérni.
 Az olvasható regiszterek \textbf{R}, az írhatók \textbf{W} betűvel vannak megjelölve.
 
 \vspace{0.25cm}
@@ -394,10 +394,10 @@ Az olvasható regiszterek \textbf{R}, az írhatók \textbf{W} betűvel vannak me
 	Ilyen esemény például a sprite-túlcsordulás, ami akkor áll fent, ha több, mint a 8 alakzat kerülne egy sorra a sprite rétegben. 
 	\item[OAMADDR(\$2003, W) és OAMDATA(\$2004, R/W):] \hfill \\
 	A processzor ezen két regiszter segítségével képes új adatokkal feltölteni az OAM memóriát.
-	Az alábbi kódrészlet azt szemlélteti, hogy az \emph{adatok} tömb tartalmát hogyan kell a CPU memóriájából
+	Az alábbi pszeudokód azt szemlélteti, hogy az \emph{adatok} tömb tartalmát hogyan kell a CPU memóriájából
 	az OAM-ba átmásolni egy megadott címtől kezdve. Az OAMDATA írása után az OAMADDR automatikusan inkrementálódik a másolás gyorsításának érdekében.
 	\begin{lstlisting}
-	OAMADDR := 8 bites OAM cim
+	OAMADDR := 8 bites OAM kezdőcím
 	for i in 1..adatok.hossz
 		OAMDATA := adatok[i]
 	\end{lstlisting}
@@ -746,7 +746,7 @@ Műveletek a kazetta betöltéséhez az iNES fájlból.
 \subsection{Nes.Cartridge.Mappers}
 
 Ez a modul a mapperek implementációit tartalmazza. Ha új mappert szeretnénk hozzáadni az emulátorhoz, akkor elég pusztán itt definiálni számára egy konstruktort. A kazetta összeszerelésénél a mapper konstruktora megkapja a félkész kazettát és visszaadja az írásra és olvasásra szolgáló függvényeket tartalmazó rekordot, amik a megfelelő logikával fordítják át a címeket.
-A konstruktorok azért nem tiszta függvények, hogy tetszőleges belső állapotot létre lehessen hozni bennük (a mapperek belső regisztereinek száma el szokott térni).
+A konstruktorok (\emph{nrom, unrom, cnrom}) azért nem tiszta függvények, hogy tetszőleges belső állapotot létre lehessen hozni bennük (a mapperek belső regisztereinek száma el szokott térni).
 
 \begin{description}
 	\item[$\bullet\:$ mappersById :: Map Word8 (Cartridge $\rightarrow$ IO Mapper)] \hfill \\
@@ -912,7 +912,7 @@ A CRT effektushoz egy nyílt forráskódú OpenGL shader-t használtam \cite{crt
 	Lekérdezi az SDL eseményeket és átfordítja őket belső parancsokra. A felhasználói felület által küldött parancsokat kiolvassa az \emph{AppResources}-ban lévő csatornából (\emph{TChan}). A végeredmény a két lista konkatenációja. 
 	\item[$\bullet\:$ executeCommand :: AppResources $\rightarrow$ Command $\rightarrow$ Emulator Nes ()] \hfill
 	Az eljárás végrehajtja a paraméterül kapott parancsot.
-	\item[$\bullet\:$ advanceEmulation] \hfill
+	\item[$\bullet\:$ advanceEmulation] \hfill \\
 	Végrehajtja az összes parancsot, lépteti az emulációt (ha az nincs szüneteltetve) és a paraméterül kapott megjelenítőfüggvénnyel frissíti a képernyőt.
 	\vspace{0.2cm}
 	\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]

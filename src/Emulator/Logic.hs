@@ -166,11 +166,16 @@ executeCommand updateScreen appResources@AppResources{..} command = do
 
   let 
     sendEvent = writeChan (fromEmulatorWindow commRes)
+    checkFolderPresence path action = do
+      folderExists <- doesDirectoryExist path 
+      if folderExists
+      then action
+      else sendEvent $ MessageText "The selected save folder has been removed." Alert
 
     withQuickSave f = 
       maybe 
       (sendEvent $ MessageText "Please select a save folder." Alert)  
-      (\folder -> f appResources (folder </> "quick.purenes")) 
+      (\folder -> checkFolderPresence folder $ f appResources (folder </> "quick.purenes")) 
       maybeSaveFolder
 
   case command of
