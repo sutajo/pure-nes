@@ -27,28 +27,15 @@ A programot azoknak ajánlom, akik egy letisztult kezelőfelülettel rendelkező
 
 A program a fenti konfiguráción történő tesztelés során problémamentesen működött.
 
-\section{Telepítés}
+\section{Telepítés és futtatás}
 
-\begin{itemize}
-	\item Windows: A programot egy telepítőfájl segítségével telepíthetjük.
-	\item Linux:
-	\begin{lstlisting}[language=bash]
-	$ tar xvf pure-nes-1.0.tar.gz
-	$ cd pure-nes-1.0
-	$ ./configure
-	$ make
-	\end{lstlisting}
-\end{itemize}
+\subsection{Windows}
+A programot egy telepítőfájl segítségével telepíthetjük (\emph{Setup.exe}).
+Telepítés után a programot \emph{Pure Nes Emulator} néven találhatjuk meg a Start Menüben vagy az asztalon (ha a telepítés során kértünk asztali parancsikont).
 
-\section{Indítás}
-\begin{itemize}
-	\item Windows: Kattintsunk a program parancsikonjára a Start Menüben vagy az asztalon.
-	\item Linux:
-	\begin{lstlisting}[language=bash]
-	pure-nes-1.0$ stack exec pure-nes
-	\end{lstlisting}
-\end{itemize}
-
+\subsection{Linux}
+Az emulátor Linuxon történő futtatásához le kell fordítani a programot a forráskódból, így ezt a platformot csak haladó szintű felhasználóknak ajánlom.
+A fordítás részleteit a \ref{sec:build} szekció tartalmazza.
 
 \section{Kompatibilis kazetták}
 

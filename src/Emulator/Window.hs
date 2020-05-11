@@ -122,7 +122,7 @@ runApp appResources@AppResources{..} = do
   runEmulator nes $ do
     when shouldReset $ do
       resetNes
-    updateWindow appResources `sleepyCappedAt` 60
+    updateWindow appResources `cappedAt` 60
 
   shouldReboot <- readIORef reboot
   when shouldReboot $ do

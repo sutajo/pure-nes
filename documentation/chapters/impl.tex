@@ -559,6 +559,7 @@ A 240 sor mindegyikénél a kirajzolás megkezdése előtt ki kell értékelni, 
 A feladat a NES játékkonzol CPU-ját, PPU-ját és kazettáit valós időben emulálni képes szoftver implementálása, ahol a játékos a játék irányítása mellett képes a virtuális gép állapotának elmentésére és betöltésére, valamint az emuláció vezérlésére. A játékokat billentyűzettel vagy kontrollerrel lehet irányítani. A program felhasználói felülettel is rendelkezik, amivel szintén tudunk mentéseket kezelni és szüneteltethetjük az emulációt.
 
 \section{Fejlesztői környezet}
+\label{sec:build}
 
 A programot Haskell nyelven írtam és a GHC 8.10.1-es verziójával fordítottam. Szerkesztőprogramként Visual Studio Code-ot használtam. A Haskell-ben írt függőségi könyvtárak telepítéséhez a Stack\footnote{Haskell Tool Stack: \url{https://docs.haskellstack.org/en/stable/README/}} eszközt használtam.
 Az SDL2 és a GTK könyvtárakat Linuxon a disztribúció csomagkezelőjével, Windowson az MSYS2 konzol csomagkezelőjével telepítettem. 
@@ -569,8 +570,10 @@ Az SDL2 és a GTK könyvtárakat Linuxon a disztribúció csomagkezelőjével, W
 \begin{lstlisting}[language=bash]
 pacman -S mingw-w64-x86_64-SDL2
 pacman -S mingw-w64-x86_64-gtk3
+pacman -S mingw-w64-x86_64-pkg-config
+pacman -S mingw-w64-x86_64-gobject-introspection
 \end{lstlisting}
-	\item Linux:
+	\item Linux (\emph{Ubuntu LTS 18.04}):
 \begin{lstlisting}[language=bash]
 sudo apt-get install libgirepository1.0-dev
 sudo apt-get install libwebkit2gtk-4.0-dev
@@ -580,14 +583,11 @@ sudo apt-get install libsdl2-dev
 \end{itemize}
 
 \subsubsection{Fordítás}
+A Stack telepítése után kövessük a platformhoz tartozó utasításokat:
 \begin{itemize}
-	\item Windows: A fordításnál be kell állítani az alábbi környezeti változókat, hogy 
-	az MSYS2-vel telepített könyvtárakról tudjon a Stack. A lenti példában az alapértelmezett MSYS2 útvonalakat állítom be.
+	\item Windows: Futtassuk a \emph{windows\_build.bat} szkriptet, ami beállítja a szükséges környezeti változókat és a Stack segítségével lefordítja a projektet. A szkriptet módosítani kell, ha az MSYS2-őt nem az alapértelmezett helyre (\emph{C:$\backslash$msys64}) telepítettük.
 \begin{lstlisting}[language=bash]
-SET PATH=C:\msys64\mingw64\bin;C:\msys64\usr\bin;%PATH%
-SET PKG_CONFIG_PATH=C:\msys64\mingw64\lib\pkgconfig
-SET XDG_DATA_DIRS=C:\msys64\mingw64\share
-stack build
+.\windows_build.bat
 \end{lstlisting}
 	Ha az első fordításnál hibát kapunk a \emph{gi-*} függőségek telepítésénél, akkor másoljuk a 
 	\emph{C:$\textbackslash$msys64$\textbackslash$mingw64$\textbackslash$bin$\textbackslash$zlib1.dll} fájlt a Stack által telepített GHC \emph{mingw/bin} mappájába. Ha már van ilyen fájl ott, akkor készítsünk róla másolatot, majd cseréljük le.\footnote{További információk: \url{https://github.com/haskell-gi/haskell-gi/wiki/Using-haskell-gi-in-Windows}}
@@ -598,6 +598,7 @@ stack build
 \end{lstlisting}
 \end{itemize}
 
+\clearpage
 \subsubsection{Futtatás}
 A programot a következő paranccsal tudjuk elindítani:
 \begin{lstlisting}[language=bash]
