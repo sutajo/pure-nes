@@ -587,14 +587,14 @@ A Stack telepítése után kövessük a platformhoz tartozó utasításokat:
 \begin{itemize}
 	\item Windows: Futtassuk a \emph{windows\_build.bat} szkriptet, ami beállítja a szükséges környezeti változókat és a Stack segítségével lefordítja a projektet. A szkriptet módosítani kell, ha az MSYS2-őt nem az alapértelmezett helyre (\emph{C:$\backslash$msys64}) telepítettük.
 \begin{lstlisting}[language=bash]
-.\windows_build.bat
+pure-nes> .\windows_build.bat
 \end{lstlisting}
 	Ha az első fordításnál hibát kapunk a \emph{gi-*} függőségek telepítésénél, akkor másoljuk a 
 	\emph{C:$\textbackslash$msys64$\textbackslash$mingw64$\textbackslash$bin$\textbackslash$zlib1.dll} fájlt a Stack által telepített GHC \emph{mingw/bin} mappájába. Ha már van ilyen fájl ott, akkor készítsünk róla másolatot, majd cseréljük le.\footnote{További információk: \url{https://github.com/haskell-gi/haskell-gi/wiki/Using-haskell-gi-in-Windows}}
 
 	\item Linux:
 \begin{lstlisting}[language=bash]
-stack build
+pure-nes$ stack build
 \end{lstlisting}
 \end{itemize}
 
