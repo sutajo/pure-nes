@@ -226,7 +226,6 @@ savePathToDisk path = only $ whenJust path (writeFile saveFolderPersistencePath)
 
 main :: IO ()
 main = do
-    threadCount    <- getNumCapabilities
     gtkMessages    <- newBroadcastTChanIO
     sdlEvents      <- newChan
     let comms = CommResources { 
@@ -242,7 +241,7 @@ main = do
       else return Nothing
 
     endAnimationWithDelay comms
-    void $ run App {    view         = visualize threadCount
+    void $ run App {    view         = visualize
                       , DAS.update   = Main.update comms
                       , inputs       = [sdlWindowEventProxy]
                       , initialState = SmoothTransition (MainMenu Nothing previousSaveFolder)

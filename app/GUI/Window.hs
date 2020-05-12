@@ -75,8 +75,8 @@ messageWidget text icon =
         ]
 
 
-startMenu :: Int -> Maybe FilePath -> Widget Event
-startMenu threadCount selectedRom =
+startMenu :: Maybe FilePath -> Widget Event
+startMenu selectedRom =
     container Box
         [#orientation := OrientationVertical, #valign := AlignCenter]
             [ 
@@ -112,12 +112,6 @@ startMenu threadCount selectedRom =
                 widget Label
                 [
                     #label := supportedMappers
-                ]
-            , BoxChild defaultBoxChildProperties $ 
-                widget Label
-                [
-                    #marginTop := 10,
-                    #label := ("Available hardware threads: " <> (Text.pack (show threadCount)))
                 ]
             , container Box
                 [#orientation := OrientationVertical, #halign := AlignEnd, #marginRight := 10, #marginTop := 70, #marginBottom := 10 ]
@@ -198,8 +192,8 @@ controlsWidget =
         ]
 
 
-visualize :: Int -> State -> AppView Window Event
-visualize threadCount s = do
+visualize :: State -> AppView Window Event
+visualize s = do
   let
     addRevealer (SmoothTransition _) = bin Revealer [#transitionDuration := 0, #transitionType := RevealerTransitionTypeCrossfade, #revealChild := False]
     addRevealer _ =  bin Revealer [#transitionDuration := 400, #transitionType := RevealerTransitionTypeCrossfade, #revealChild := True]
@@ -232,7 +226,7 @@ visualize threadCount s = do
             inGame e
 
         MainMenu{selectedRom} -> 
-            startMenu threadCount selectedRom
+            startMenu selectedRom
 
         ShowControls _ ->
             controlsWidget
