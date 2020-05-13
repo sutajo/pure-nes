@@ -98,7 +98,7 @@ visszatéréskor pedig a veremről levett címre állítjuk be a programszámlá
 A komponensek kommunikációjának egyik módja a hardveres megszakítás.
 A 6502 chip egy darab maszkolható \emph{(IRQ)} és egy nem maszkolható \emph{(NMI)} megszakítással rendelkezik \cite{6502desc}.
 A megszakítási vektorokkal a program beállíthatja, hogy egy bizonyos megszakításra milyen szubrutinnal kíván reagálni. A vektorok 2 bájtos tárolók, amik a kezelő szubrutin címét tartalmazzák. Az NMI-hez tartozó vektor a \$FFFA és a \$FFFB címeken, míg az IRQ-hoz tarozó vektor az \$FFFE és a \$FFFF címeken található \cite{cpumem}. A 6502 ``kicsi az elején'' bájtsorrendű (little-endian) processzor, ezért a címeknek mindig az alsó 8 bitjét tárolja az alacsonyabb címen, a felső 8 bitjét pedig a magasabb címen.
-A program dönthet úgy, hogy a maszkolható megszakítást figyelmen kívül hagyja (a kezelő szubrutin nem hívódik meg), ehhez az \emph{IRQ Disable} flag-et be kell állítania a státusz regiszterben. A nem maszkolható megszakítás esetén erre nincsen lehetőség, a végrehajtás mindenképpen a kezelő szubrutinhoz ugrik.
+A program dönthet úgy, hogy a maszkolható megszakítást figyelmen kívül hagyja (a kezelő szubrutin nem hívódik meg), ehhez az \emph{IRQ Disable} flaget be kell állítania a státusz regiszterben. A nem maszkolható megszakítás esetén erre nincsen lehetőség, a végrehajtás mindenképpen a kezelő szubrutinhoz ugrik.
 
 \subsection{Opkód argumentum helye, fajtája}
 
@@ -197,7 +197,7 @@ Memóriatükrözésről beszélünk, amikor fizikailag ugyanazt a memóriaterül
 	\newline Az 1-re állításával maszkoljuk az IRQ-t.
 	\item bit: D = Decimal mode
 	\newline
-	A NES nem használja ezt a flag-et.
+	A NES nem használja ezt a flaget.
 	\item bit: B = BRK Command
 	\newline Az 1-re állításával generálhatunk egy szoftveres megszakítást. 
 	\setcounter{enumi}{5}
@@ -228,7 +228,7 @@ A processzor hivatalos utasításkészlete \cite{6502desc, 6502opc, 6502instr}:
 	Összehasonlítás, tesztelés
 	\begin{compactdesc}
 		\item[CMP, CPX, CPY:]  \hfill \\ A megadott címen található bájt és rendre az A, X és Y regiszterekben található bájt között az $=$ és a $>=$ reláció kiértékelése
-		\item[BIT:] Az operandus bájt maszkolása (\&) az A regiszter tartalmával, az eredmény szerint a Z,N,V flag-ek frissítése 
+		\item[BIT:] Az operandus bájt maszkolása (\&) az A regiszter tartalmával, az eredmény szerint a Z,N,V flagek frissítése 
 	\end{compactdesc}
 	\item Veremműveletek
 	\begin{compactdesc}
@@ -245,10 +245,10 @@ A processzor hivatalos utasításkészlete \cite{6502desc, 6502opc, 6502instr}:
 		\item[BRK:] Szoftveresen generált megszakítás
 		\item[RTI:] Visszatérés megszakításkezelőből
 	\end{compactdesc}
-	\item Flag manipuláció (a utasításnév harmadik betűje a változtatott flag-et jelöli) \newline \textbf{CLC, CLD, CLI, CLV, SED, SEC, SEI}
+	\item Flag manipuláció (a utasításnév harmadik betűje a változtatott flaget jelöli) \newline \textbf{CLC, CLD, CLI, CLV, SED, SEC, SEI}
 	\newline
 	(C = Clear, S = Set)
-	\item Elágazások: vezérlés áthelyezése akkor, ha teljesül a feltétel az utasítás által vizsgált státusz flag-re
+	\item Elágazások: vezérlés áthelyezése akkor, ha teljesül a feltétel az utasítás által vizsgált státusz flagre
 	\newline \textbf{BCC(C=0), BCS(C=1), BNE(Z=0), BEQ(Z=1), BPL(N=0), BMI(N=1),  BVC(V=0), BVS(V=1)}
 	\item Bájtok mozgatása regiszterek és a memória között
 	\newline
@@ -788,7 +788,7 @@ A 6502 teljes utasításkészletét tartalmazó modul. Néhány segédfüggvény
 
 \begin{description}
 	\item[$\bullet\:$ readReg :: Prim a $\Rightarrow$ (CPU $\rightarrow$ Register a) $\rightarrow$ Emulator CPU a] \hfill \\
-	A megadott regiszter olvasása. A regiszterek csak primitív, kicsomagolható (\emph{unbox-olható}) típusokat tárolhatnak.
+	A megadott regiszter olvasása. A regiszterek csak primitív, kicsomagolható (unboxolható) típusokat tárolhatnak.
 	\item[$\bullet\:$ read :: Word16 $\rightarrow$ Emulator CPU Word8] \hfill \\
 	Olvasás a memóriából. A memóriatérkép és a cím alapján dönti el, hogy honnan (RAM, PPU regiszterek, stb.) kell olvasni.
 	\item[$\bullet\:$ write :: Word16 $\rightarrow$ Word8 $\rightarrow$ Emulator CPU ()] \hfill \\
@@ -881,13 +881,13 @@ A 6502 teljes utasításkészletét tartalmazó modul. Néhány segédfüggvény
 
 \subsection{Emulator.CrtShader}
 
-A CRT effektushoz egy nyílt forráskódú OpenGL shader-t használtam \cite{crtshader}.
+A CRT effektushoz egy nyílt forráskódú OpenGL shadert használtam \cite{crtshader}.
 
 \begin{description}
 	\item[$\bullet\:$ newShader :: ShaderType $\rightarrow$ ByteString $\rightarrow$ IO Shader] \hfill \\
 	Új GLSL shader lefordítása forráskódból. Inkompatibilis OpenGL verziónál előfordulhatnak fordítási hibák, ebben az esetben kivételt dob.
 	\item[$\bullet\:$ createProgramFrom :: $\lbrack$Shader$\rbrack$ $\rightarrow$ IO Program] \hfill \\
-	Linkeli és validálja a shader-ekből készített programot, hiba esetén kivételt dob.
+	Linkeli és validálja a shaderekből készített programot, hiba esetén kivételt dob.
 	\item[$\bullet\:$ getCrtShaderProgram :: IO Program] \hfill \\
 	A modul exportált eljárása, ami létrehozza a CRT effektust megvalósító shader programot.
 	
@@ -916,16 +916,16 @@ A CRT effektushoz egy nyílt forráskódú OpenGL shader-t használtam \cite{crt
 	Végrehajtja az összes parancsot, lépteti az emulációt (ha az nincs szüneteltetve) és a paraméterül kapott megjelenítőfüggvénnyel frissíti a képernyőt.
 	\vspace{0.2cm}
 	\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
-	type ViewFunction = AppResources -> IOVector Word8 -> Emulator Nes ()
-	
-	advanceEmulation :: ViewFunction -> AppResources -> Emulator Nes Bool
+type ViewFunction = AppResources -> IOVector Word8 -> Emulator Nes ()
+
+advanceEmulation :: ViewFunction -> AppResources -> Emulator Nes Bool
 	\end{lstlisting}
 \end{description}
 
 \subsection{Emulator.Window}
 
 \begin{description}
-	\item[$\bullet\:$ acquireResources :: FilePath $\rightarrow$ CommResources $\rightarrow$ IO AppResources] \hfill Inicializálja az SDL2 és OpenGL könyvtárakat, a létrehozott ablakot, render-ert, kirajzolásnál használt textúrát, stb. visszaadja egy rekordban.
+	\item[$\bullet\:$ acquireResources :: FilePath $\rightarrow$ CommResources $\rightarrow$ IO AppResources] \hfill Inicializálja az SDL2 és OpenGL könyvtárakat, a létrehozott ablakot, render-ert, kirajzolásnál használt textúrát stb. visszaadja egy rekordban.
 	\item[$\bullet\:$ releaseResources :: AppResources $\rightarrow$ IO ()] \hfill \\
 	Felszabadítja a lefoglalt erőforrásokat és leállítja az SDL-t.
 	\item[$\bullet\:$ updateScreen :: ViewFunction] \hfill \\
@@ -935,7 +935,7 @@ A CRT effektushoz egy nyílt forráskódú OpenGL shader-t használtam \cite{crt
 \end{description}
 
 \section{Egy processzorutasítás végrehajtása}
-Ideje, hogy felhasználjuk a Nes.CPU.Emulation modulban implementált tömérdek mennyiségű utasítást. Az első lépés, hogy az utasítás opkódját kiolvassuk.
+Ideje, hogy felhasználjuk a Nes.CPU.Emulation modulban implementált nagy mennyiségű utasítást. Az első lépés, hogy az utasítás opkódját kiolvassuk.
 \vspace{0.3cm}
 \begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
 fetch :: Emulator CPU Opcode
@@ -1063,11 +1063,11 @@ inGame Emulating{isRunning, romName} =
 
 A fenti függvény emellett még a következőkről is gondoskodni tud:
 \begin{compactitem}
-	\item Ha még nincs mentési mappa kiválasztva, akkor ne legyenek kattinthatók az érintett funkciók gombjai
-	\item Ha már volt mentési mappa kiválasztva korábbi futtatásnál, akkor a mappaválasztó URI-ját állítsuk be erre
-	\item Ha már volt mentési próbálkozás, akkor ikonnal jelezzük a sikerességét, mutassuk az időpontját
-	\item Ha már volt betöltési próbálkozás, akkor azt is hasonlóan jelenítsük meg
-	\item Szüneteltetésnél és folytatásnál változzon a funkcióhoz tartozó gomb felirata és az ikon
+	\item Ha még nincs mentési mappa kiválasztva, akkor ne legyenek kattinthatók az érintett funkciók gombjai.
+	\item Ha már volt mentési mappa kiválasztva korábbi futtatásnál, akkor a mappaválasztó URI-ját állítsuk be erre.
+	\item Ha már volt mentési próbálkozás, akkor ikonnal jelezzük a sikerességét, mutassuk az időpontját.
+	\item Ha már volt betöltési próbálkozás, akkor azt is hasonlóan jelenítsük meg.
+	\item Szüneteltetésnél és folytatásnál változzon a funkcióhoz tartozó gomb felirata és az ikon.
 \end{compactitem}
 
 \section{Tesztelés}
@@ -1099,14 +1099,14 @@ Az abszolút indexelt címzés és az elágazások szélsőséges eseteinek elle
 Ez a tesztcsomag a vertical blanking period státusz-flaget (be/kikapcsolása megfelelő időben történik), az NMI megszakítást (bekövetkezik-e, a PPU regiszterek befolyásolják-e) és a páros-páratlan képkockák 1 PPU órajelciklusnyi hosszkülönbségét ellenőrzi.
 
 \item[PPU\_sprite\_hit és PPU\_sprite\_overflow] \hfill \\
-12 tesztcsomag, amik a sprite réteggel kapcsolatos státusz flag-eket ellenőrzik (Sprite 0 Hit, Sprite Overflow).
+12 tesztcsomag, amik a sprite réteggel kapcsolatos státusz flageket ellenőrzik (Sprite 0 Hit, Sprite Overflow).
 
 \end{description}
 
 \subsection{Eredmények}
 \label{results}
 
-Emulátoroknál a 100\%-os pontosság elérése nehéz feladat, mert az áramkörök felépítéséből természetes következményként adódó speciális viselkedéseket mesterségesen, összetett feltételek ellenőrzésével kell implementálni (például memóriabusz-konfliktus, NMI elnyomás, stb.).  Az emulátorom időzítésekben és az előbb említett két esetben tér el minimálisan az eredeti hardvertől. Összességében a pontosság kielégítő, és a legtöbb játéknál nem okoz gondot az eltérés.
+Emulátoroknál a 100\%-os pontosság elérése nehéz feladat, mert az áramkörök felépítéséből természetes következményként adódó speciális viselkedéseket mesterségesen, összetett feltételek ellenőrzésével kell implementálni (például memóriabusz-konfliktus, NMI elnyomás stb.).  Az emulátorom időzítésekben és az előbb említett két esetben tér el minimálisan az eredeti hardvertől. Összességében a pontosság kielégítő, és a legtöbb játéknál nem okoz gondot az eltérés.
 
 \vspace{0.2cm}
 \begin{figure}[H]
