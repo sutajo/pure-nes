@@ -149,7 +149,7 @@ szükséges operandus nem regiszterben, hanem a memóriában van. A címzési m�
 	\begin{figure}[H]
 		\centering
 		\vspace{0.4cm}
-		\includegraphics[width=1.1\textwidth,height=70px]{indexed_indirect.png}
+		\includegraphics[width=1.0\textwidth,height=70px]{indexed_indirect.png}
 		\caption{Indexelt indirekt címzés}
 	\end{figure}
 	\item[Indirekt indexelt mód (izy, 1):]
@@ -396,11 +396,11 @@ Az olvasható regiszterek \textbf{R}, az írhatók \textbf{W} betűvel vannak me
 	A processzor ezen két regiszter segítségével képes új adatokkal feltölteni az OAM memóriát.
 	Az alábbi pszeudokód azt szemlélteti, hogy az \emph{adatok} tömb tartalmát hogyan kell a CPU memóriájából
 	az OAM-ba átmásolni egy megadott címtől kezdve. Az OAMDATA írása után az OAMADDR automatikusan inkrementálódik a másolás gyorsításának érdekében.
-	\begin{lstlisting}
-	OAMADDR := 8 bites OAM kezdőcím
-	for i in 1..adatok.hossz
-		OAMDATA := adatok[i]
-	\end{lstlisting}
+\begin{lstlisting}
+OAMADDR := 8 bites OAM kezdőcím
+for i in 1..adatok.hossz
+	OAMDATA := adatok[i]
+\end{lstlisting}
 	\item[PPUSCROLL(\$2005, W):] \hfill \\
 	Beállíthatjuk vele, hogy a hátteret hány pixellel szeretnénk arrébb csúsztatni (horizontális tükrözésnél vízszintesen, vertikális tükrözésnél függőlegesen).
 	\item[PPUADDR(\$2006, W) és PPUDATA(\$2007, R/W):] \hfill \\
@@ -717,10 +717,11 @@ A modul a Cartridge, Mapper és CartridgeAccess rekordok definícióját és a h
 	Hozzáférés kérése a kazettához a CPU számára.
 	\item[$\bullet\:$ getPPUAccess :: Cartridge $\rightarrow$ CartridgeAccess] \hfill \\
 	Hozzáférés kérése a kazettához a PPU számára.
-	\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
-	getPPUAccess :: Cartridge -> CartridgeAccess
-	getPPUAccess Cartridge{mapper=Mapper{ppuRead, ppuWrite, mirroringFunction}} = CartridgeAccess ppuRead ppuWrite mirroringFunction
-	\end{lstlisting}
+\vspace{0.2cm}
+\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
+getPPUAccess :: Cartridge -> CartridgeAccess
+getPPUAccess Cartridge{mapper=Mapper{ppuRead, ppuWrite, mirroringFunction}} = CartridgeAccess ppuRead ppuWrite mirroringFunction
+\end{lstlisting}
 \end{description}
 
 \subsection{Nes.Cartridge.INES.Parser}
@@ -736,11 +737,12 @@ Műveletek a kazetta betöltéséhez az iNES fájlból.
 	Az iNES fájl tartalmából az emuláció során használt kazettareprezentáció előállítása.
 	\item[$\bullet\:$ loadCartridge :: FilePath $\rightarrow$ IO Cartridge] \hfill \\
 	Adott elérési útvonalról egy kazetta betöltése.
-	\begin{lstlisting}[language=Haskell]
-	import Control.Monad (>=>)
-	
-	loadCartridge = tryLoadingINES >=> assembleCartridge
-	\end{lstlisting}
+\vspace{0.2cm}
+\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
+import Control.Monad (>=>)
+
+loadCartridge = tryLoadingINES >=> assembleCartridge
+\end{lstlisting}
 \end{description}
 
 \subsection{Nes.Cartridge.Mappers}
@@ -763,24 +765,24 @@ Az emuláció során használt primitív műveletek.
 	``Behelyezzük'' a kazettát és inicializáljuk a komponenseket. 
 	\item[$\bullet\:$ useMemory :: (comp $\rightarrow$ ref) $\rightarrow$ (ref $\rightarrow$ IO val) $\rightarrow$ Emulator comp val]
 	Kényelmi függvény arra, hogy a komponens rekordjának egy adott mezőjével műveletet végezzünk.
-	\begin{lstlisting}[language=Haskell]
-	useMemory memory action = asks memory >>= liftIO . action
-	\end{lstlisting}
+\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
+useMemory memory action = asks memory >>= liftIO . action
+\end{lstlisting}
 	\item[$\bullet\:$ readMemory és writeMemory] \hfill \\
 	Komponens vektorral reprezentált memóriájának közvetlen olvasása és írása (a memóriatérkép nincs figyelembe véve).
 	\item[$\bullet\:$ readCartridgeWithAccessor és writeCartridgeWithAccessor] \hfill \\
 	A kazettához a CPU-nak és a PPU-nak is saját hozzáférése van, amit ezekkel a függvényekkel tudnak használni.
-	\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
-	readCartridgeWithAccessor :: 
-		(component -> CartridgeAccess) ->
-		Word16 -> 
-		Emulator component Word8
-	writeCartridgeWithAccessor ::
-		(component -> CartridgeAccess) -> 
-		Word16 ->
-		Word8 -> 
-		Emulator component ()
-	\end{lstlisting}
+\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
+readCartridgeWithAccessor :: 
+	(component -> CartridgeAccess) ->
+	Word16 -> 
+	Emulator component Word8
+writeCartridgeWithAccessor ::
+	(component -> CartridgeAccess) -> 
+	Word16 ->
+	Word8 -> 
+	Emulator component ()
+\end{lstlisting}
 \end{description}
 
 \subsection{Nes.CPU.Emulation}
@@ -797,12 +799,12 @@ A 6502 teljes utasításkészletét tartalmazó modul. Néhány segédfüggvény
 	Bájt felrakása a stackre.
 	\item[$\bullet\:$ pushAddress :: Word16 $\rightarrow$ Emulator CPU ()] \hfill \\
 	Cím felrakása a stackre. Mivel a stack a kisebb címek felé nő, ezért először a szignifikánsabb bájtot kell felrakni, hogy tartsuk a kicsi-az-elején bájtsorrendet.
-	\begin{lstlisting}[language=Haskell]
-	pushAddress addr = do
-		let (high, low) = splitWord16 addr 
-		push high
-		push low
-	\end{lstlisting}
+\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
+pushAddress addr = do
+	let (high, low) = splitWord16 addr 
+	push high
+	push low
+\end{lstlisting}
 	\item[$\bullet\:$ nmi :: Emulator CPU ()] \hfill \\
 	NMI megszakítás érkezésekor meghívott eljárás. Elmenti a programszámlálót és a státusz regisztert a stackre és a megszakítási vektor által mutatott címen folytatja a végrehajtást.
 	\item[$\bullet\:$ processInterrupts :: Emulator CPU ()] \hfill \\
@@ -862,12 +864,25 @@ A 6502 teljes utasításkészletét tartalmazó modul. Néhány segédfüggvény
 	\item[$\bullet\:$ init :: ButtonMappings $\rightarrow$ IO JoyControlState] \hfill \\
 	Létrehozza azt a rekordot, amiben a gombhozzárendeléseket és csatlakoztatott kontrollereket tartjuk nyilván.
 	\item[$\bullet\:$ manageButtonEvent] \hfill \\
-	Visszaadja, hogy a gombnyomáshoz milyen parancsok tartoznak (gyorsmentés, gyorsbetöltés vagy játékirányítás). 
+	Visszaadja, hogy a gombnyomáshoz milyen parancsok tartoznak (gyorsmentés, gyorsbetöltés vagy a megadott játékoshoz tartozó input).
+\vspace{0.2cm}
+\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
+manageButtonEvent :: 
+  Player -> JoyControlState -> JoyButtonEventData -> IO (Maybe Command)
+\end{lstlisting}
 	\item[$\bullet\:$ manageHatEvent] \hfill \\
-	A DPAD Fel/Le/Balra/Jobbra/Középen eseményeit figyeli és kiadja a megfelelő parancsokat a virtuális kontroller módosítására. Mivel a virtuális kontrollernél nincs Középen állapota a DPAD-nak, ezért arra is figyelni kell, hogy ezt az állapotot \emph{``engedd fel az előző DPAD gombot''} parancsként kell továbbküldeni.
+	A DPAD Fel/Le/Balra/Jobbra/Középen eseményeit figyeli és átfordítja azokat a virtuális kontrollerhez tartozó inputokra. Mivel a virtuális kontrollernél nincs Középen állapota a DPAD-nak, ezért arra is figyelni kell, hogy ezt az állapotot \emph{``engedd fel az előző DPAD gombot''} inputként kell továbbküldeni.
+    \vspace{0.2cm}
+\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
+manageHatEvent :: JoyControlState -> JoyHatEventData -> IO [Input]
+\end{lstlisting}
 	\item[$\bullet\:$ manageDeviceEvent] \hfill \\
 	Figyeli a kontrollercsatlakoztatásokat és az -eltávolításokat.
 	Az új kontrollereket inicializálja és eltárolja a rekordban, a kihúzottakat eltávolítja.
+	\vspace{0.2cm}
+\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
+manageDeviceEvent :: JoyControlState -> JoyDeviceEventData -> IO ()
+\end{lstlisting}
 \end{description}
 
 \subsection{Emulator.Framerate}
@@ -890,17 +905,17 @@ A CRT effektushoz egy nyílt forráskódú OpenGL shader-t használtam \cite{crt
 	Linkeli és validálja a shader-ekből készített programot, hiba esetén kivételt dob.
 	\item[$\bullet\:$ getCrtShaderProgram :: IO Program] \hfill \\
 	A modul exportált eljárása, ami létrehozza a CRT effektust megvalósító shader programot.
-	
-	\begin{lstlisting}[language=Haskell]
-	import Control.Monad ((=<<), sequence)
-	
-	getCrtShaderProgram = 
-		createProgramFrom =<< sequence 
-		[
-			newShader VertexShader crtVertexShader, 
-			newShader FragmentShader crtFragmentShader
-		]
-	\end{lstlisting}
+\vspace{0.2cm}
+\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
+import Control.Monad ((=<<), sequence)
+
+getCrtShaderProgram = 
+	createProgramFrom =<< sequence 
+	[
+		newShader VertexShader crtVertexShader, 
+		newShader FragmentShader crtFragmentShader
+	]
+\end{lstlisting}
 \end{description}
 
 \subsection{Emulator.Logic}
@@ -915,11 +930,11 @@ A CRT effektushoz egy nyílt forráskódú OpenGL shader-t használtam \cite{crt
 	\item[$\bullet\:$ advanceEmulation] \hfill \\
 	Végrehajtja az összes parancsot, lépteti az emulációt (ha az nincs szüneteltetve) és a paraméterül kapott megjelenítőfüggvénnyel frissíti a képernyőt.
 	\vspace{0.2cm}
-	\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
-	type ViewFunction = AppResources -> IOVector Word8 -> Emulator Nes ()
-	
-	advanceEmulation :: ViewFunction -> AppResources -> Emulator Nes Bool
-	\end{lstlisting}
+\begin{lstlisting}[language=Haskell, basicstyle=\scriptsize]
+type ViewFunction = AppResources -> IOVector Word8 -> Emulator Nes ()
+
+advanceEmulation :: ViewFunction -> AppResources -> Emulator Nes Bool
+\end{lstlisting}
 \end{description}
 
 \subsection{Emulator.Window}
@@ -1005,7 +1020,7 @@ A felhasználói felület állapotait egy rekurzív algebrai adattípussal model
 	\label{fig:guistate}
 \end{figure}
 
-A logikai állapotokon felül technikai okokból szükséges volt egy ötödik állapot bevezetése is annak a megvalósításához, hogy elhalványulásos átmenetekkel tudjunk váltani az állapotok között.
+A logikai állapotokon felül technikai okokból szükséges volt egy ötödik állapot (\emph{SmoothTransition :: State -> State}) bevezetése is annak a megvalósításához, hogy elhalványulásos átmenetekkel tudjunk váltani az állapotok között.
 
 \subsection{Állapotátmenetek}
 
@@ -1106,7 +1121,7 @@ Ez a tesztcsomag a vertical blanking period státusz-flaget (be/kikapcsolása me
 \subsection{Eredmények}
 \label{results}
 
-Emulátoroknál a 100\%-os pontosság elérése nehéz feladat, mert az áramkörök felépítéséből természetes következményként adódó speciális viselkedéseket mesterségesen, összetett feltételek ellenőrzésével kell implementálni (például memóriabusz-konfliktus, NMI elnyomás, stb.).  Az emulátorom időzítésekben és az előbb említett két esetben tér el minimálisan az eredeti hardvertől. Összességében a pontosság kielégítő, és a legtöbb játéknál nem okoz gondot az eltérés.
+Az emulátorom a 6502 teljes utasításkészletét (beleértve a konzisztensen működő illegális opkódokat) támogatja. Ennek ellenére a 100\%-os pontosság elérése nehéz feladatnak bizonyult, mert az áramkörök felépítéséből természetes következményként adódó speciális viselkedéseket mesterségesen, összetett feltételek ellenőrzésével kell implementálni. Az emulátorom nem veszi figyelembe a memóriabusz-konfliktusokat és az NMI megszakítás működésének speciális eseteit, valamint időzítésekben minimálisan eltér az eredeti hardvertől. Összességében a pontosság így is kielégítő, és a legtöbb játéknál nem okoz gondot az eltérés.
 
 \vspace{0.2cm}
 \begin{figure}[H]
