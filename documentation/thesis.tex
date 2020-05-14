@@ -31,7 +31,7 @@
 \city{Budapest} % város / city
 \logo{elte_cimer_szines} % logo
 
-
+\usepackage{pdfpages}
 \newcommand{\footcaption}[1]{\caption[#1]{#1\footnotemark.}}
 
 % Irodalomjegyzék hozzáadása
@@ -65,7 +65,7 @@
 % Címlap (kötelező)
 % Title page (mandatory)
 \maketitle
-%\topicdeclaration
+\includepdf[pages=-,pagecommand={},width=\textwidth]{temabejelento.pdf}
 
 % Tartalomjegyzék (kötelező)
 % Table of contents (mandatory)
