@@ -45,6 +45,7 @@
 % Túl hosszú sorok feltüntetése
 %\overfullrule10pt
 
+\setcounter{page}{2}
 % A dolgozat
 % The document
 \begin{document}
@@ -66,9 +67,15 @@
 % Title page (mandatory)
 \maketitle
 
+{
+\thispagestyle{empty}
 \includepdf[pages=-,pagecommand={},width=\textwidth]{eredetiseg.pdf}
+}
 
+{
+\thispagestyle{empty}
 \includepdf[pages=-,pagecommand={},width=\textwidth]{temabejelento.pdf}
+}
 
 % Tartalomjegyzék (kötelező)
 % Table of contents (mandatory)

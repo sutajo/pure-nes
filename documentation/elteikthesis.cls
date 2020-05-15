@@ -518,13 +518,24 @@
 	\begin{center}
 		\vspace*{\fill}
 
-		{\large \declarationplaceholder}
+		{\includepdf[pages=-,pagecommand={},width=\textwidth]{temabejelento.pdf}}
 
 		\vspace*{\fill}
 	\end{center}
 
-
-	\cleardoublepage
 	\setcounter{page}{1}
 }
 % ------------------------------
+
+\newcommand{\authentic}{
+	\thispagestyle{empty}
+	\begin{center}
+		\vspace*{\fill}
+
+		{\includepdf[pages=-,pagecommand={},width=\textwidth]{eredetiseg.pdf}}
+
+		\vspace*{\fill}
+	\end{center}
+
+	\setcounter{page}{1}
+}

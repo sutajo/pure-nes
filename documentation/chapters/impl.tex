@@ -267,7 +267,7 @@ A processzor hivatalos utasításkészlete \cite{6502desc, 6502opc, 6502instr}:
 \section{Kazetták}
 
 A kazettákon logikai szempontból kétfajta memória található \cite{ref}: PRG és CHR.
-PRG-ből lehet ROM és RAM is a kazettán. Ezekben a processzor által végrehajtandó utasítások, avagy a játéklogika kapott helyet. A CHR fajtáját tekintve ROM vagy RAM memória, amely a játék sprite-jait tárolja, amik 8*8 pixeles kis képekből állnak. Ezeket a kis képeket ezentúl alakzatoknak fogom hívni. 
+PRG-ből lehet ROM és RAM is a kazettán. Ezekben a processzor által végrehajtandó utasítások, avagy a játéklogika kapott helyet. A CHR fajtáját tekintve ROM vagy RAM memória, amely a játék sprite-jait tárolja, amik $8\times8$ pixeles kis képekből állnak. Ezeket a kis képeket ezentúl alakzatoknak fogom hívni. 
 
 \subsection{Az iNES fájlformátum}
 
@@ -689,7 +689,9 @@ A kazetta memóriáját a \emph{Cartridge} rekord tárolja. Ehhez közvetlenül 
 Ennek a funkciónak a megvalósítása sokféleképp lehetséges. Én egy egyszerű megoldást választottam, ami abból állt, hogy azokhoz a rekordokhoz, amik változtatható referenciákat és vektorokat tartalmaznak, definiáltam egy változtathatatlan (\emph{immutable}) rekordot. A tiszta rekordokhoz automatikusan generálni lehet szerializáló műveleteket (erre a \emph{cereal}\footnote{\url{https://hackage.haskell.org/package/cereal}} könyvtárat használtam), így tehát csak annyi dolgom volt, hogy rekordok közti konverziót implementáljam.
 \vspace{0.3cm}
 \begin{lstlisting}[language=Haskell]
-data SerializedPPU = SerializedPPU {
+module Nes.PPU.Serialization
+
+data PPU = PPU {
 ...
 secondaryOam      :: [Sprite],
 ppuCtrl           :: Word8,
