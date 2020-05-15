@@ -12,7 +12,6 @@ import           Control.Exception
 import           Data.Maybe
 import qualified Data.Map                     as M
 import qualified Data.Vector.Storable.Mutable as VSM
-import           Data.Word
 import           Data.IORef
 import           Graphics.Rendering.OpenGL as OpenGL hiding (Load, scale)
 import           SDL hiding (Error)
@@ -130,7 +129,7 @@ runApp appResources@AppResources{..} = do
 
 
 -- | Update the pixels on the screen
-updateScreen :: AppResources -> VSM.IOVector Word8 -> Emulator Nes ()
+updateScreen :: ViewFunction
 updateScreen AppResources{..} pixels = liftIO $ do
   -- Upload the changes to the texture
   (texPtr, _) <- SDL.lockTexture screen Nothing
