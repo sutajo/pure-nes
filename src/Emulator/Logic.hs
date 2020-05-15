@@ -5,7 +5,8 @@ module Emulator.Logic (
   loadNes,
   sdlWindowWidth,
   sdlWindowHeight,
-  isSave
+  isSave,
+  ViewFunction
 ) where
 
 
