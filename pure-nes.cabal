@@ -57,6 +57,11 @@ library
       -fno-warn-name-shadowing
       -fwarn-unused-imports
       -O2
+      -fllvm
+      -optlc -O3
+      -optlc -mcpu=native
+      -optlo -O3
+      -optlo -mcpu=native
       -funbox-strict-fields
       -foptimal-applicative-do
       -fexpose-all-unfoldings
@@ -129,6 +134,8 @@ executable pure-nes
       "-with-rtsopts=-xn -N"
       -funbox-strict-fields
       -O2
+      -fllvm
+      -optlc-O3
       -fexcess-precision
   if os(windows)
     ghc-options:
