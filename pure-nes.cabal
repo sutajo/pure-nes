@@ -131,7 +131,7 @@ executable pure-nes
       -fwarn-unused-imports
       -threaded
       -rtsopts
-      "-with-rtsopts=-xn -N"
+      "-with-rtsopts=-xn -N2"
       -funbox-strict-fields
       -O2
       -fllvm
@@ -173,7 +173,7 @@ executable pure-nes-mobile
       -fwarn-unused-imports
       -threaded
       -rtsopts
-      "-with-rtsopts=-xn -N"
+      "-with-rtsopts=-xn -N1"
       -O2
   if os(windows)
     ghc-options:
