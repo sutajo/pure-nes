@@ -8,7 +8,7 @@ bug-reports:    https://github.com/sutajo/pure-nes/issues
 author:         Suhajda Tamás
 maintainer:     sutajo@gmail.com
 copyright:      2020 Suhajda Tamás
-license:        GPL-2.0
+license:        GPL-2
 license-file:   LICENSE
 build-type:     Simple
 extra-source-files:

@@ -32,7 +32,7 @@ $ sudo apt-get install libsdl2-dev
 
 # Build the project using Make
 ```console
-$ make
+$ stack build
 ```
 
 # Start the emulator

@@ -85,7 +85,7 @@ save haptic nes appRes path = do
       rumble haptic
 
     onError (e :: SomeException) t = do
-      putStrLn (show e)
+      print e
       sendEvent appRes (SaveResult $ IOResult (Just $ show e) t)
   liftIO $ do
     t <- formatResultTime 
@@ -104,7 +104,7 @@ load haptic appRes@AppResources{..} path = do
       rumble haptic   
 
     onError (e :: SomeException) t = do 
-      putStrLn (show e)
+      print e
       sendEvent appRes (LoadResult $ IOResult (Just $ show e) t)
 
   t <- formatResultTime
