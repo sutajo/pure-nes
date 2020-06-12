@@ -93,10 +93,10 @@ useMemory memory action = asks memory >>= liftIO . action
 {-# INLINE useMemory #-}
 
 readMemory :: Enum addr => (c -> VUM.IOVector Word8) -> addr -> Emulator c Word8
-readMemory comp addr = useMemory comp $ (`VUM.read` (fromEnum addr))
+readMemory comp addr = useMemory comp $ (`VUM.unsafeRead` (fromEnum addr))
 
 writeMemory :: Enum addr => (c -> VUM.IOVector Word8) -> addr -> Word8 -> Emulator c ()
-writeMemory comp addr val = useMemory comp $ (\arr -> VUM.write arr (fromEnum addr) val)
+writeMemory comp addr val = useMemory comp $ (\arr -> VUM.unsafeWrite arr (fromEnum addr) val)
 
 readCartridgeWithAccessor :: (component -> Cart.CartridgeAccess) -> Word16 -> Emulator component Word8
 readCartridgeWithAccessor selector addr = do

@@ -46,7 +46,7 @@ accessScreen = accessMemory screen
 readPalette :: Word8 -> Emulator PPU Pixel
 readPalette index = do
   Palette p <- accessMemory palette
-  return $ p VU.! (fromIntegral index)
+  return $ p `VU.unsafeIndex` (fromIntegral index)
 
 readCartridge :: Word16 -> Emulator PPU Word8
 readCartridge = readCartridgeWithAccessor cartridgeAccess
