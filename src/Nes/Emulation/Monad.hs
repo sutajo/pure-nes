@@ -15,6 +15,9 @@ module Nes.Emulation.Monad (
     useMemory,
     readMemory,
     writeMemory,
+    readReg,
+    writeReg,
+    modifyReg,
     getApu,
     setApu,
     readCartridgeWithAccessor,
@@ -38,6 +41,7 @@ import           Data.Primitive(Prim)
 import qualified Data.Vector.Mutable as VM
 import           Data.Mutable
 import           Data.Functor
+import           Nes.Emulation.Registers
 import           Nes.APU.Memory         as APU
 import           Nes.CPU.Memory         as CPU
 import           Nes.PPU.Memory         as PPU
@@ -90,13 +94,21 @@ directPPUAccess = accessPPU . createPPUAccess
 
 useMemory :: (component -> reference) -> (reference -> IO value) -> Emulator component value
 useMemory memory action = asks memory >>= liftIO . action
-{-# INLINE useMemory #-}
 
 readMemory :: Enum addr => (c -> VUM.IOVector Word8) -> addr -> Emulator c Word8
 readMemory comp addr = useMemory comp $ (`VUM.unsafeRead` (fromEnum addr))
 
 writeMemory :: Enum addr => (c -> VUM.IOVector Word8) -> addr -> Word8 -> Emulator c ()
 writeMemory comp addr val = useMemory comp $ (\arr -> VUM.unsafeWrite arr (fromEnum addr) val)
+
+readReg :: Prim a => (component -> Register a) -> Emulator component a
+readReg = flip useMemory readIORefU
+
+writeReg :: Prim a => (component -> Register a) -> a -> Emulator component ()
+writeReg reg val = useMemory reg (flip writeIORefU val)
+
+modifyReg :: Prim a => (component -> Register a) -> (a -> a) -> Emulator component ()
+modifyReg reg f = readReg reg >>= writeReg reg . f
 
 readCartridgeWithAccessor :: (component -> Cart.CartridgeAccess) -> Word16 -> Emulator component Word8
 readCartridgeWithAccessor selector addr = do

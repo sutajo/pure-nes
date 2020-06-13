@@ -78,21 +78,12 @@ writeOam = writePPUComponent primaryOam
 
 getOamAddr = readReg ppuOamAddr
 
-readReg :: Prim a => (PPU -> IORefU a) -> Emulator PPU a
-readReg = flip useMemory readIORefU
-
-writeReg :: Prim a => (PPU -> IORefU a) -> a -> Emulator PPU ()
-writeReg reg val = useMemory reg (`writeIORefU` val)
-
 transfer source dest = readReg source >>= writeReg dest 
 
 (.=) :: Prim a => (PPU -> IORefU a) -> a -> Emulator PPU ()
 (.=) = writeReg
 
 infix 0 .=
-
-modifyReg :: Prim a => (PPU -> IORefU a) -> (a -> a) -> Emulator PPU ()
-modifyReg reg f = readReg reg >>= writeReg reg . f
 
 ($=) :: Prim a => (PPU -> IORefU a) -> (a -> a) -> Emulator PPU ()
 ($=) = modifyReg

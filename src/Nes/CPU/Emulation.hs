@@ -51,15 +51,6 @@ mergeWord8 low high = (fromIntegral high `shiftL` 8) .|. fromIntegral low
 stackBase :: Word16
 stackBase = 0x0100
 
-readReg :: Prim a => (CPU -> Register a) -> Emulator CPU a
-readReg = flip useMemory readIORefU
-
-writeReg :: Prim a => (CPU -> Register a) -> a -> Emulator CPU ()
-writeReg reg val = useMemory reg (flip writeIORefU val)
-
-modifyReg :: Prim a => (CPU -> Register a) -> (a -> a) -> Emulator CPU ()
-modifyReg reg f = readReg reg >>= writeReg reg . f
-
 readRAM :: Word16 -> Emulator CPU Word8
 readRAM = readMemory ram
 
