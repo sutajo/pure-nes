@@ -27,7 +27,7 @@ sampleOscillator :: Oscillator Float -> [Int16]
 sampleOscillator (Oscillator f) =
   map (\n ->
          let t = fromIntegral n / 44100 :: Float
-             freq = 200 * 2 * pi
+             freq = 2 * pi
          in round (fromIntegral (maxBound `div` 2 :: Int16) * f (t * freq)))
       [0 :: Int32 ..]
 

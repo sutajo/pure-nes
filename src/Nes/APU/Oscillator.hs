@@ -37,8 +37,11 @@ plotWaveForms oscillators = do
 
 plotWaveForm x = plotWaveForms [x]
 
+scaleFrequency :: Float -> Oscillator Float -> Oscillator Float
+scaleFrequency x (Oscillator f) = Oscillator $ \t -> f (t*x)
+
 sineWaveGenerator :: Oscillator Float
-sineWaveGenerator = Oscillator sin
+sineWaveGenerator = scaleFrequency 200 (Oscillator sin)
 
 plotSine = plotWaveForm (sineWaveGenerator, "sin(t)")
 
