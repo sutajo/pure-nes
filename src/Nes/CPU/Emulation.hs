@@ -167,17 +167,17 @@ fetch = readReg pc >>= read
 
 adc :: Word16 -> Emulator CPU ()
 adc addr = do
-  mem   <- read addr
-  acc   <- readReg a 
-  carry <- toWord8 <$> testFlag Carry
+  mem   <- fromIntegral <$> read addr
+  acc   <- fromIntegral <$> readReg a 
+  carry <- fromEnum <$> testFlag Carry
   let 
-    result = mem + acc + carry
-    (mem16 :: Word16) = fromIntegral mem 
-  writeReg a result 
-  setFlag Carry ((mem16 + fromIntegral acc + fromIntegral carry) .&. 0xFF00 /= 0)
+    (result  :: Int) = mem + acc + carry
+    (result8 :: Word8) = fromIntegral result
+  writeReg a result8
+  setZero result8
+  setNegative result8
+  setFlag Carry (result .&. 0xFF00 /= 0)
   setFlag Overflow (((acc `xor` result) .&. (result `xor` mem)) `testBit` 7)
-  setZero result
-  setNegative result
 
   
 and :: Word16 -> Emulator CPU ()
