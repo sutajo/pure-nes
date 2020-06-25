@@ -250,3 +250,4 @@ TSWLatexianTemp*
 
 # generated if using elsarticle.cls
 *.spl
+resources/Emulator/saveFolder.txt
