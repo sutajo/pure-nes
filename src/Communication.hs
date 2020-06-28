@@ -17,7 +17,7 @@ data IOResult = IOResult { errorMsg :: Maybe String, time :: String }
 
 data MessageIcon = Info | Alert | Cross
 
-data Event 
+data Event
   = FileSelectionChanged (Maybe FilePath) -- A new file was selected in the main menu
   | SavePathChanged (Maybe FilePath)      -- A new save folder was selected
   | LoadPathChanged (Maybe FilePath)      -- New file was selected to be loaded
@@ -40,7 +40,7 @@ data Event
   | Noop
 
 -- The SDL window loop executes the following commands
-data Command 
+data Command
   = Quit { notifyGUI :: Bool }
   | Save FilePath
   | Load FilePath
@@ -59,11 +59,11 @@ data Command
   | ToggleCrtShader
   | SwitchWindowMode
   | AdjustViewport Int32 Int32
-  deriving (Eq) 
+  deriving (Eq)
 
 data CommResources = CommResources {
   toEmulatorWindow   :: TChan Command,
-  fromEmulatorWindow :: Chan Event 
+  fromEmulatorWindow :: Chan Event
 }
 
 data EmulationException
@@ -73,7 +73,7 @@ data EmulationException
 
 instance Show EmulationException where
   show = \case
-    QuickSaveNotFound -> unlines $ ["Could not find a quicksave file in the selected","folder."]
+    QuickSaveNotFound -> unlines ["Could not find a quicksave file in the selected","folder."]
     Other msg -> msg
 
 failure :: String -> IO a

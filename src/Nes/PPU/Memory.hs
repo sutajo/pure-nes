@@ -41,10 +41,10 @@ newtype Palette = Palette (VU.Vector Pixel) deriving (Show, Generic, Serialize)
 type FrameBuffer = VSM.IOVector Word8
 
 loadPalette :: FilePath -> IO B.ByteString
-loadPalette path = do 
-    let 
-      parseByte = A.decimal <* A.skipSpace 
-      parser    = A.skipSpace *> A.many' parseByte <* A.endOfInput 
+loadPalette path = do
+    let
+      parseByte = A.decimal <* A.skipSpace
+      parser    = A.skipSpace *> A.many' parseByte <* A.endOfInput
     result <- B.readFile path <&> A.parseOnly parser
     case result of
         Left error -> fail $ "Failed to load palette data. Reason: " ++ show error
@@ -117,13 +117,12 @@ newtype PPUAccess = PPUAccess { useAccess :: PPU } -- TODO: Narrow this down to 
 2400 -> 2000
 2800 -> 2400
 2C00 -> 2400
--} 
+-}
 
 
 powerUp :: InterruptRegisters -> Cartridge -> IO PPU
-powerUp interruptAccess cartridge = 
-    PPU                             <$>
-    pure palette2C02                <*>
+powerUp interruptAccess cartridge =
+    PPU palette2C02                 <$>
     VSM.replicate (256*240*3) 0     <*>
     VUM.new (2 * 0x400)             <*>
     VUM.new 0x20                    <*>
@@ -160,7 +159,7 @@ powerUp interruptAccess cartridge =
     return interruptAccess
 
 
-data StatusFlag 
+data StatusFlag
   = SpriteOverflow
   | SpriteZeroHit
   | VerticalBlank
@@ -182,7 +181,7 @@ palette2C02 = Palette
     ,(48, 0,  136)
     ,(68, 0,  100)
     ,(92, 0,  48 )
-    ,(84, 4,  0  ) 
+    ,(84, 4,  0  )
     ,(60, 24, 0  )
     ,(32, 42, 0  )
     ,(8,  58, 0  )
@@ -239,5 +238,5 @@ palette2C02 = Palette
     ,(160,214,228)
     ,(160,162,160)
     ,(0,  0,  0  )
-    ,(0,  0,  0  ) 
+    ,(0,  0,  0  )
     ]

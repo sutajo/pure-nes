@@ -35,7 +35,7 @@ nrom Cartridge{..} = pure Mapper{..}
   prg_ram_size = VUM.length prg_ram
   mirrored  addr = fromIntegral $ (addr - 0x8000) .&. 0x3FFF
   intact addr = fromIntegral (addr `clearBit` 15)
-  prg_ram_addr addr = (fromIntegral (addr .&. 0x1FFF)) .&. (prg_ram_size-1)
+  prg_ram_addr addr = fromIntegral (addr .&. 0x1FFF) .&. (prg_ram_size-1)
   readWith :: (Word16 -> Int) -> Word16 -> IO Word8
   readWith mode addrUnsafe
     | addr <= 0x7FFF = VUM.unsafeRead prg_ram (prg_ram_addr addr)
@@ -53,16 +53,16 @@ nrom Cartridge{..} = pure Mapper{..}
   ppuRead :: Word16 -> IO Word8
   ppuRead addrUnsafe = VUM.unsafeRead chr (mkChrAddr addrUnsafe)
   ppuWrite addrUnsafe val = if hasChrRam
-    then VUM.unsafeWrite chr (mkChrAddr addrUnsafe) val 
+    then VUM.unsafeWrite chr (mkChrAddr addrUnsafe) val
     else pure () -- On NROM writing ROM is a nop. See: https://forums.nesdev.com/viewtopic.php?f=3&t=17584
 
 
 mmc1 :: Cartridge -> IO Mapper
 mmc1 Cartridge{..} = do
-  regs@[ 
+  regs@[
       control
-    , chrb0  
-    , chrb1  
+    , chrb0
+    , chrb1
     , prgb
     , load
     , loadCount ] <- replicateM 6 (newIORefU (0 :: Word8))
@@ -84,7 +84,7 @@ mmc1 Cartridge{..} = do
     resetShiftRegister = do
       writeIORefU load      0
       writeIORefU loadCount 0
-    
+
     cpuRead addr
       | addr < 0x8000 = VUM.unsafeRead prg_ram (addrInt .&. 0x1FFF)
       | otherwise = do
@@ -93,15 +93,15 @@ mmc1 Cartridge{..} = do
         if ctrl `testBit` 3
         then do
           let prgOffset = if ctrl `testBit` 2 then 0x4000 else 0
-          VUM.unsafeRead prg_rom $ prgOffset + 0x4000 * (fromIntegral $ (prg .&. 0xF) `shiftR` 1) + (addrInt .&. 0x3FFF)
+          VUM.unsafeRead prg_rom $ prgOffset + 0x4000 * fromIntegral ((prg .&. 0xF) `shiftR` 1) + (addrInt .&. 0x3FFF)
         else
-          VUM.unsafeRead prg_rom $ 0x8000 * (fromIntegral $ (prg .&. 0xF) `shiftR` 1) + (addrInt .&. 0x7FFF)
+          VUM.unsafeRead prg_rom $ 0x8000 * fromIntegral ((prg .&. 0xF) `shiftR` 1) + (addrInt .&. 0x7FFF)
       where addrInt = fromIntegral addr
-        
+
     cpuWrite addr val
       | addr < 0x8000 = VUM.unsafeWrite prg_ram (fromIntegral addr .&. 0x1FFF) val
       | otherwise = do
-        if (val `testBit` 7) then
+        if val `testBit` 7 then
           resetShiftRegister
         else do
           lc <- readIORefU loadCount
@@ -112,26 +112,26 @@ mmc1 Cartridge{..} = do
             let registerIndex = fromIntegral ((addr - 0x8000) `quot` 0x2000)
             readIORefU load >>= writeIORefU (regs !! registerIndex)
             resetShiftRegister
-          else 
+          else
             modifyIORefU loadCount (+1)
 
-    ppuRead addr = 
+    ppuRead addr =
       let addrInt = fromIntegral addr in
-      if hasChrRam 
+      if hasChrRam
       then VUM.unsafeRead chr (fromIntegral addrInt .&. 0x1FFF)
       else do
         ctrl <- readIORefU control
         chr0 <- readIORefU chrb0
         if ctrl `testBit` 4
-        then 
-         (if addr `testBit` 12 
+        then
+         (if addr `testBit` 12
           then do
             chr0 <- readIORefU chrb0
             VUM.unsafeRead chr $ 0x1000 * fromIntegral chr0 + (addrInt .&. 0x0FFF)
           else do
             chr1 <- readIORefU chrb1
             VUM.unsafeRead chr $ 0x1000 * fromIntegral chr1 + (addrInt .&. 0x0FFF))
-        else 
+        else
           VUM.unsafeRead chr $ 0x2000 * (fromIntegral chr0 `shiftR` 1) + (addrInt .&. 0x1FFF)
 
     ppuWrite addr val = do
@@ -154,16 +154,16 @@ unrom Cartridge{..} = do
     cpuRead addr
       | addr < 0x8000 = VUM.unsafeRead prg_ram $ fromIntegral (addr - 0x6000)
       | addr < 0xC000 = do
-        offset <- readIORefU control <&> (\reg -> reg * 0x4000)
+        offset <- readIORefU control <&> (* 0x4000)
         VUM.unsafeRead prg_rom (offset + fromIntegral (addr - 0x8000))
       | otherwise = VUM.unsafeRead prg_rom ((prgBanks-1) * 0x4000 + fromIntegral (addr - 0xC000))
-        
+
     cpuWrite addr val
-      | addr < 0x8000 = VUM.unsafeWrite prg_ram (fromIntegral (addr - 0x6000)) val 
+      | addr < 0x8000 = VUM.unsafeWrite prg_ram (fromIntegral (addr - 0x6000)) val
       | otherwise = control `writeIORefU` (fromIntegral val `rem` prgBanks)
 
     ppuRead addr = VUM.unsafeRead chr $ fromIntegral addr
-    ppuWrite addr val = 
+    ppuWrite addr val =
       if hasChrRam
       then VUM.unsafeWrite chr (fromIntegral addr) val
       else pure ()
@@ -185,13 +185,13 @@ cnrom Cartridge{..} = do
       2 -> addr .&. 0x7FFF
 
     cpuRead addr = VUM.unsafeRead prg_rom $ fromIntegral (bank addr)
-        
+
     cpuWrite _ val = control `writeIORefU` (fromIntegral val .&. 0b11)
 
     ppuAddr addr = do
       readIORefU control <&> (\reg -> fromIntegral reg * 0x2000 + (fromIntegral addr .&. 0x1FFF))
 
-    ppuRead  addrIn = ppuAddr addrIn >>= VUM.unsafeRead chr
+    ppuRead = ppuAddr >=> VUM.unsafeRead chr
     ppuWrite addrIn val = do
       addr <- ppuAddr addrIn
       when hasChrRam (VUM.unsafeWrite chr addr val)

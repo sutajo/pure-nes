@@ -11,7 +11,7 @@ import Control.Applicative
 import Graphics.Rendering.Chart.Easy
 import Graphics.Rendering.Chart.Backend.Diagrams
 
-newtype Oscillator a = Oscillator { 
+newtype Oscillator a = Oscillator {
   sample :: Float -> a
 }
 
@@ -46,9 +46,9 @@ sineWaveGenerator = scaleFrequency 200 (Oscillator sin)
 plotSine = plotWaveForm (sineWaveGenerator, "sin(t)")
 
 pulseWaveGenerator :: Float -> Float -> Float -> Int -> Oscillator Float
-pulseWaveGenerator period pulseTime amplitude elementCount = Oscillator (\t -> (f t) * amplitude)
+pulseWaveGenerator period pulseTime amplitude elementCount = Oscillator (\t -> f t * amplitude)
   where
-    f t = dutyCycles + sum (map (element t) [1..elementCount]) 
+    f t = dutyCycles + sum (map (element t) [1..elementCount])
     dutyCycles = pulseTime / period
     element t n = let
       pin = pi * fromIntegral n

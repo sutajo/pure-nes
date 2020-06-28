@@ -196,14 +196,14 @@ void main(){
 
 |]
 
-data ShaderException 
+data ShaderException
   = ShaderValidationError
   | ShaderLinkingError
   | ShaderCompileError
   deriving Exception
 
 instance Show ShaderException where
-  show = let common = "\n Please make sure the video driver is up to date and OpenGL 3.0 is supported." in 
+  show = let common = "\n Please make sure the video driver is up to date and OpenGL 3.0 is supported." in
     \case
       ShaderCompileError    -> "Failed to compile the GLSL vertex or fragment shader for the CRT effect." ++ common
       ShaderLinkingError    -> "Failed to link the OpenGL shader program." ++ common
@@ -228,7 +228,7 @@ newShader shaderType source = do
 createProgramFrom :: [Shader] -> IO Program
 createProgramFrom shaders = do
     program <- createProgram
-    attachedShaders program $= shaders 
+    attachedShaders program $= shaders
     linkProgram program
     linkSuccess <- linkStatus program
     unless linkSuccess $ throw ShaderLinkingError
@@ -240,10 +240,10 @@ createProgramFrom shaders = do
 
 
 getCrtShaderProgram :: IO Program
-getCrtShaderProgram = 
-  createProgramFrom =<< sequence 
+getCrtShaderProgram =
+  createProgramFrom =<< sequence
   [
-    newShader VertexShader crtVertexShader, 
+    newShader VertexShader crtVertexShader,
     newShader FragmentShader crtFragmentShader
   ]
 

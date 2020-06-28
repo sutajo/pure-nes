@@ -18,7 +18,7 @@ data INES = INES {
     flags9        :: Word8,
     chr_rom_bs    :: ByteString,
     prg_rom_bs    :: ByteString,
-    prg_ram_size  :: Int 
+    prg_ram_size  :: Int
 } deriving (Show)
 
 
@@ -29,7 +29,7 @@ data Mirroring
   deriving (Show, Enum, Generic, Serialize)
 
 
-newtype MapperState = MapperState [Word8] 
+newtype MapperState = MapperState [Word8]
   deriving (Generic, Serialize)
 
 
@@ -62,23 +62,23 @@ data Cartridge = Cartridge {
 } deriving (Generic)
 
 
-dummyMapper = 
-  Mapper 
-  dummyRead 
-  dummyWrite 
-  dummyRead 
-  dummyWrite 
-  (pure $ MapperState []) 
-  (\_ -> undefined)
-  (pure (\_ -> undefined))
+dummyMapper =
+  Mapper
+  dummyRead
+  dummyWrite
+  dummyRead
+  dummyWrite
+  (pure $ MapperState [])
+  (const undefined)
+  (pure (const undefined))
  where dummyRead = const (pure 0); dummyWrite _ _ = pure ()
 
 
 getCPUAccess :: Cartridge -> CartridgeAccess
-getCPUAccess Cartridge{mapper=Mapper{cpuRead, cpuWrite}} = 
-  CartridgeAccess 
-  cpuRead 
-  cpuWrite 
+getCPUAccess Cartridge{mapper=Mapper{cpuRead, cpuWrite}} =
+  CartridgeAccess
+  cpuRead
+  cpuWrite
   (pure $ \_ -> error "Querying mirroring from the CPU is not allowed.")
 
 getPPUAccess :: Cartridge -> CartridgeAccess

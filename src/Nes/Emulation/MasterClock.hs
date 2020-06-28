@@ -35,4 +35,4 @@ emulateFrame = do
 resetNes :: Emulator Nes ()
 resetNes = do
   emulateCPU CPU.reset
-  emulatePPU PPU.reset 
+  emulatePPU PPU.reset

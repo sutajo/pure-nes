@@ -33,7 +33,7 @@ import           GUI.State
 
 
 mkResultTimeLabel :: IOResult -> Text.Text
-mkResultTimeLabel (IOResult x t) = prefix x <> (Text.pack t) <>  [r| </span> |]
+mkResultTimeLabel (IOResult x t) = prefix x <> Text.pack t <>  [r| </span> |]
   where
     prefix Nothing  = [r| <span size="larger" foreground="#6FC6AE"> |]
     prefix (Just _) = [r| <span size="larger" foreground="#E24C4B"> |]
@@ -81,7 +81,7 @@ fileChooserButtonFromUri maybePath attributes = Widget (CustomWidget {..})
       updateClasses sc mempty fileChooserClasses
       return (fileChooser, SomeState (StateTreeWidget (StateTreeNode fileChooser sc mempty ())))
 
-    customPatch :: FileChooserProperties -> FileChooserProperties -> SomeState -> CustomPatch FileChooserButton SomeState 
+    customPatch :: FileChooserProperties -> FileChooserProperties -> SomeState -> CustomPatch FileChooserButton SomeState
     customPatch (old :: FileChooserProperties) (new :: FileChooserProperties) (SomeState st)
       | old == new = CustomKeep
       | otherwise = CustomModify $ \(scale :: Gtk.FileChooserButton) -> do
@@ -93,12 +93,12 @@ fileChooserButtonFromUri maybePath attributes = Widget (CustomWidget {..})
     customSubscribe _  _ (fileChooser :: Gtk.FileChooserButton) cb = do
       handler <- QGtk.on fileChooser
                   #selectionChanged
-                  (cb =<< fmap SavePathChanged (fileChooserGetFilename fileChooser))
+                  (cb . SavePathChanged =<< fileChooserGetFilename fileChooser)
       return (fromCancellation (GI.signalHandlerDisconnect fileChooser handler))
 
 
 inGame :: State -> Widget Event
-inGame Emulating{..} = 
+inGame Emulating{..} =
     container Box
     [#orientation := OrientationVertical, #valign := AlignCenter, #margin := 10 ]
     [
@@ -110,11 +110,11 @@ inGame Emulating{..} =
             BoxChild defaultBoxChildProperties { fill = True } $ container Box
             [#orientation := OrientationVertical, #valign := AlignCenter, #margin := 10, #expand := True ]
             [
-                BoxChild defaultBoxChildProperties { padding = 10 } $ 
+                BoxChild defaultBoxChildProperties { padding = 10 } $
                     widget Image [ #file := Text.append "resources/GUI/" (if isRunning then "pause.png" else "play.png")]
-            ,   BoxChild defaultBoxChildProperties { padding = 10, fill = True } $ 
+            ,   BoxChild defaultBoxChildProperties { padding = 10, fill = True } $
                     widget Button
-                    [ 
+                    [
                         #label := ((if isRunning then "Pause " else "Resume ") <> romName),
                         on #clicked (TogglePause True)
                     ]
@@ -123,11 +123,11 @@ inGame Emulating{..} =
         ,   BoxChild defaultBoxChildProperties { fill = True } $ container Box
             [#orientation := OrientationVertical, #valign := AlignCenter, #margin := 10, #expand := True ]
             [
-                BoxChild defaultBoxChildProperties { padding = 10 } $ 
+                BoxChild defaultBoxChildProperties { padding = 10 } $
                     widget Image [ #file := "resources/GUI/back2.png"]
-            ,   BoxChild defaultBoxChildProperties { padding = 10, fill = True } $ 
+            ,   BoxChild defaultBoxChildProperties { padding = 10, fill = True } $
                     widget Button
-                    [ 
+                    [
                         #label := "Return to ROM selection"
                     ,   on #clicked ReturnToSelection
                     ]
@@ -138,25 +138,25 @@ inGame Emulating{..} =
         -- Saving icons
     ,   BoxChild defaultBoxChildProperties { padding = 15, expand = True, fill = True } $
             case saveResultSuccess of
-                Nothing -> 
-                    container Box [#orientation := OrientationHorizontal, #halign := AlignCenter] $ 
+                Nothing ->
+                    container Box [#orientation := OrientationHorizontal, #halign := AlignCenter]
                         [BoxChild defaultBoxChildProperties $ widget Image [ #file := "resources/GUI/save.png"]]
-                Just result -> 
-                    let 
+                Just result ->
+                    let
                         img = case errorMsg result of
                             Nothing -> "tick.png"
                             Just _  -> "cross.png"
                     in
-                        container Box [#orientation := OrientationVertical, #halign := AlignCenter] $
+                        container Box [#orientation := OrientationVertical, #halign := AlignCenter]
                         [
-                            container Box [#orientation := OrientationHorizontal, #halign := AlignCenter] $
+                            container Box [#orientation := OrientationHorizontal, #halign := AlignCenter]
                             [
-                                BoxChild defaultBoxChildProperties $ 
+                                BoxChild defaultBoxChildProperties $
                                 widget Image [ #file := Text.append "resources/GUI/" img, #marginRight := 40]
-                            , BoxChild defaultBoxChildProperties $ 
+                            , BoxChild defaultBoxChildProperties $
                                 widget Image [ #file := "resources/GUI/save.png"]
                             ]
-                
+
                         ,   BoxChild defaultBoxChildProperties $
                                 widget Label [#label := mkResultTimeLabel result, #useMarkup := True, #marginTop := 10]
                         ]
@@ -165,7 +165,7 @@ inGame Emulating{..} =
           -- Save message              
     ,   BoxChild defaultBoxChildProperties $
             widget Label
-            [ 
+            [
                 #label := saveLabel,
                 #useMarkup := True,
                 #marginBottom := 5
@@ -174,18 +174,18 @@ inGame Emulating{..} =
 
           -- Save inputs
     ,   BoxChild defaultBoxChildProperties { fill = True } $
-            container Box [#orientation := OrientationHorizontal, #valign := AlignCenter, #marginTop := 15, #marginBottom := 15] $
+            container Box [#orientation := OrientationHorizontal, #valign := AlignCenter, #marginTop := 15, #marginBottom := 15]
             [
                 BoxChild defaultBoxChildProperties $
                     widget Button
-                    [ 
+                    [
                         #label := "   Quicksave   ",
                         #marginLeft  := 5,
                         #marginRight := 10,
                         on #clicked QuickSavePressed,
                         #sensitive := isJust savePath
                     ]
-            ,   BoxChild defaultBoxChildProperties { fill = True } $ 
+            ,   BoxChild defaultBoxChildProperties { fill = True } $
                     fileChooserButtonFromUri savePath
                     [   onM #selectionChanged (fmap SavePathChanged . fileChooserGetFilename),
                         #action := FileChooserActionSelectFolder, #expand := True, #createFolders := True
@@ -193,11 +193,11 @@ inGame Emulating{..} =
             ]
 
     ,   BoxChild defaultBoxChildProperties { fill = True } $
-            container Box [#orientation := OrientationHorizontal, #valign := AlignCenter, #marginTop := 15, #marginBottom := 15] $
+            container Box [#orientation := OrientationHorizontal, #valign := AlignCenter, #marginTop := 15, #marginBottom := 15]
             [
                 BoxChild defaultBoxChildProperties $
                     widget Button
-                    [ 
+                    [
                         #label := "Save progress",
                         #marginLeft  := 5,
                         #marginRight := 10,
@@ -205,9 +205,9 @@ inGame Emulating{..} =
                         #sensitive := (isJust savePath && saveRomName /= "")
                     ]
 
-    ,   BoxChild defaultBoxChildProperties { fill = True } $ 
+    ,   BoxChild defaultBoxChildProperties { fill = True } $
             widget Entry
-                [ #expand := True, 
+                [ #expand := True,
                   #placeholderText := "How should I call this save?",
                   onM #changed (\e -> SaveNameChanged . Text.unpack <$> editableGetChars e 0 (-1)),
                   #sensitive := isJust savePath,
@@ -219,57 +219,57 @@ inGame Emulating{..} =
         -- Loading
     ,   BoxChild defaultBoxChildProperties { padding = 15, expand = True, fill = True } $
             case loadResultSuccess of
-                Nothing -> 
-                    container Box [#orientation := OrientationHorizontal, #halign := AlignCenter] $
+                Nothing ->
+                    container Box [#orientation := OrientationHorizontal, #halign := AlignCenter]
                     [BoxChild defaultBoxChildProperties $ widget Image [ #file := "resources/GUI/reload.png"]]
                 Just result ->
-                    let 
+                    let
                         img = case errorMsg result of
                             Nothing -> "tick.png"
                             Just _  -> "cross.png"
-                    in 
-                    container Box [#orientation := OrientationVertical, #halign := AlignCenter] $
+                    in
+                    container Box [#orientation := OrientationVertical, #halign := AlignCenter]
                     [
-                        container Box [#orientation := OrientationHorizontal, #halign := AlignCenter] $
+                        container Box [#orientation := OrientationHorizontal, #halign := AlignCenter]
                         [
-                            BoxChild defaultBoxChildProperties $ 
+                            BoxChild defaultBoxChildProperties $
                                 widget Image [ #file := Text.append "resources/GUI/" img, #marginRight := 40]
-                        ,   BoxChild defaultBoxChildProperties $ 
+                        ,   BoxChild defaultBoxChildProperties $
                                 widget Image [ #file := "resources/GUI/reload.png"]
                         ]
-                    
+
                     ,   BoxChild defaultBoxChildProperties $
                             widget Label [#label := mkResultTimeLabel result, #useMarkup := True, #marginTop := 5]
                     ]
 
     ,   BoxChild defaultBoxChildProperties $
             widget Label
-            [ 
+            [
                 #label := loadLabel,
                 #useMarkup := True,
                 #marginBottom := 5
             ]
 
     ,   BoxChild defaultBoxChildProperties {fill = True} $
-            container Box [#orientation := OrientationVertical, #valign := AlignCenter, #marginTop := 5, #marginBottom := 15] $
+            container Box [#orientation := OrientationVertical, #valign := AlignCenter, #marginTop := 5, #marginBottom := 15]
             [
                 BoxChild defaultBoxChildProperties { fill = True } $
-                container Box [#orientation := OrientationHorizontal, #valign := AlignCenter, #marginTop := 15, #marginBottom := 15] $
+                container Box [#orientation := OrientationHorizontal, #valign := AlignCenter, #marginTop := 15, #marginBottom := 15]
                 [
                     BoxChild defaultBoxChildProperties $
                         widget Button
-                        [ 
+                        [
                             #label := "Quickload",
                             #marginLeft  := 5,
                             #marginRight := 10,
                             on #clicked QuickReloadPressed,
                             #sensitive := isJust savePath
                         ]
-                ,   BoxChild defaultBoxChildProperties {fill = True} $ 
-                        widget FileChooserButton 
-                        [ 
+                ,   BoxChild defaultBoxChildProperties {fill = True} $
+                        widget FileChooserButton
+                        [
                             onM #selectionChanged (fmap LoadPathChanged . fileChooserGetFilename),
-                            #action := FileChooserActionOpen, #expand := True 
+                            #action := FileChooserActionOpen, #expand := True
                         ]
                 ]
             ]

@@ -100,7 +100,7 @@ serialize = do
 
 deserialize :: CartridgeAccess -> InterruptRegisters -> PPU -> IO M.PPU
 deserialize cartridgeAccess interruptAccess PPU{..} = do
-  let 
+  let
     palette = spalette
   screen             <- VSM.replicate (256*240*3) 0
   nametable          <- VU.thaw snametable

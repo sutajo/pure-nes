@@ -52,21 +52,19 @@ data Nes =  Nes {
     cpu         ::  CPU,
     ppu         ::  PPU,
     apu         ::  IORef APU,
-    cartridge   ::  Cart.Cartridge   
+    cartridge   ::  Cart.Cartridge
 }
 
 powerUpNes :: Cart.Cartridge -> IO Nes
 powerUpNes cart = do
   (cpu, ppu) <- CPU.powerUp cart
 
-  Nes           <$>
-    return cpu  <*>
-    return ppu  <*>
+  Nes cpu ppu            <$>
     newIORef APU.powerUp <*>
     pure cart
 
 
-newtype Emulator component value = Emulator (ReaderT component IO value) 
+newtype Emulator component value = Emulator (ReaderT component IO value)
   deriving (Functor, Applicative, Monad, MonadIO, MonadReader component)
 
 
@@ -96,10 +94,10 @@ useMemory :: (component -> reference) -> (reference -> IO value) -> Emulator com
 useMemory memory action = asks memory >>= liftIO . action
 
 readMemory :: Enum addr => (c -> VUM.IOVector Word8) -> addr -> Emulator c Word8
-readMemory comp addr = useMemory comp $ (`VUM.unsafeRead` (fromEnum addr))
+readMemory comp addr = useMemory comp (`VUM.unsafeRead` fromEnum addr)
 
 writeMemory :: Enum addr => (c -> VUM.IOVector Word8) -> addr -> Word8 -> Emulator c ()
-writeMemory comp addr val = useMemory comp $ (\arr -> VUM.unsafeWrite arr (fromEnum addr) val)
+writeMemory comp addr val = useMemory comp (\arr -> VUM.unsafeWrite arr (fromEnum addr) val)
 
 readReg :: Prim a => (component -> Register a) -> Emulator component a
 readReg = flip useMemory readIORefU
@@ -123,7 +121,7 @@ writeCartridgeWithAccessor selector addr val = do
 getMirroring :: (component -> Cart.CartridgeAccess) -> Emulator component (Word16 -> Word16)
 getMirroring selector = do
   getmirroring <- asks (Cart.getMirroring . selector)
-  liftIO $ getmirroring
+  liftIO getmirroring
 
 getApu :: Emulator Nes APU
 getApu = useMemory apu readIORef
@@ -134,7 +132,7 @@ setApu val = useMemory apu (`writeIORef` val)
 -- Cpu interrupts
 
 sendPendingInterrupt :: (InterruptRegisters -> Register8) -> Word8 -> (component -> InterruptRegisters) -> Emulator component ()
-sendPendingInterrupt register pendingCycles component = 
+sendPendingInterrupt register pendingCycles component =
   useMemory (register . component) $ \reg -> reg `writeIORefU` pendingCycles
 
 sendPendingNmi :: Word8 -> (component -> InterruptRegisters) -> Emulator component ()
@@ -152,7 +150,7 @@ sendIrq = sendPendingIrq 1
 -- Controller access
 
 readController :: Int -> Emulator CPU Word8
-readController index = 
+readController index =
   useMemory controllers $ \cs -> do
     controller <- VM.read cs index
     let (byte, newControllerState) = Controls.read controller
@@ -166,4 +164,4 @@ modifyController action index =
 writeController byte = modifyController (Controls.write byte)
 
 processInput input = modifyController (Controls.processInput input)
-    
+

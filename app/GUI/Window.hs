@@ -33,14 +33,14 @@ import           GUI.InGame
 
 
 mkResultTimeLabel :: IOResult -> Text
-mkResultTimeLabel (IOResult x t) = prefix x <> (Text.pack t) <>  [r| </span> |]
+mkResultTimeLabel (IOResult x t) = prefix x <> Text.pack t <>  [r| </span> |]
   where
     prefix Nothing  = [r| <span size="larger" foreground="#6FC6AE"> |]
     prefix (Just _) = [r| <span size="larger" foreground="#E24C4B"> |]
 
 
 supportedMappers :: Text
-supportedMappers = 
+supportedMappers =
  [r|Mapper 0 - NROM
 Mapper 2 - UNROM
 Mapper 3 - CNROM
@@ -54,13 +54,13 @@ as it would overwrite the previous quicksave.
 
 
 messageWidget :: Text -> MessageIcon -> Widget Event
-messageWidget text icon = 
+messageWidget text icon =
     container Box
         [#orientation := OrientationVertical, #valign := AlignCenter, #margin := 10 ]
         [
-            let 
-                path = 
-                    Text.append "resources/GUI/" $ 
+            let
+                path =
+                    Text.append "resources/GUI/" $
                     case icon of
                         Alert -> "alert.png"
                         Info  -> "info.png"
@@ -68,9 +68,9 @@ messageWidget text icon =
             in
               BoxChild defaultBoxChildProperties { padding = 25 } $
                 widget Image [#file := path]
-            , BoxChild defaultBoxChildProperties { padding = 15 } $ 
+            , BoxChild defaultBoxChildProperties { padding = 15 } $
                 widget Label [#label := text]
-            , BoxChild defaultBoxChildProperties { padding = 15 } $ 
+            , BoxChild defaultBoxChildProperties { padding = 15 } $
                 widget Button [#label := "Ok", on #clicked MessageAck]
         ]
 
@@ -79,15 +79,15 @@ startMenu :: Maybe FilePath -> Widget Event
 startMenu selectedRom =
     container Box
         [#orientation := OrientationVertical, #valign := AlignCenter]
-            [ 
-                BoxChild defaultBoxChildProperties { padding = 10 } $ 
+            [
+                BoxChild defaultBoxChildProperties { padding = 10 } $
                     widget Image [#file := "resources/GUI/logo.png", #marginTop := 30, #marginBottom := 25, #halign := AlignCenter]
-                , BoxChild defaultBoxChildProperties { padding = 15 } $ 
+                , BoxChild defaultBoxChildProperties { padding = 15 } $
                     widget Label
                     [#label := "Please select the ROM you wish to run."]
-                , BoxChild defaultBoxChildProperties { padding = 10 } $ 
+                , BoxChild defaultBoxChildProperties { padding = 10 } $
                     widget FileChooserButton
-                    [ 
+                    [
                         onM #selectionChanged (fmap FileSelectionChanged . fileChooserGetFilename),
                         #marginLeft  := 20,
                         #marginRight := 20,
@@ -96,19 +96,19 @@ startMenu selectedRom =
             , container Box
                 [#orientation := OrientationHorizontal, #halign := AlignCenter, #margin := 10 ]
                 [
-                    BoxChild defaultBoxChildProperties { padding = 15 } $ 
+                    BoxChild defaultBoxChildProperties { padding = 15 } $
                     widget Button [#label := "Start Emulator", on #clicked StartEmulator, #sensitive := isJust selectedRom ]
-                , BoxChild defaultBoxChildProperties { padding = 15 } $ 
+                , BoxChild defaultBoxChildProperties { padding = 15 } $
                     widget Button [#label := "Show controls", on #clicked ShowControlsPressed]
                 ]
-            , BoxChild defaultBoxChildProperties $ 
+            , BoxChild defaultBoxChildProperties $
                 widget Label
                 [
                     #marginTop := 30,
                     #label := "Supported mappers:",
                     #halign := AlignCenter
                 ]
-            , BoxChild defaultBoxChildProperties $ 
+            , BoxChild defaultBoxChildProperties $
                 widget Label
                 [
                     #label := supportedMappers
@@ -116,13 +116,13 @@ startMenu selectedRom =
             , container Box
                 [#orientation := OrientationVertical, #halign := AlignEnd, #marginRight := 10, #marginTop := 70, #marginBottom := 10 ]
                 [
-                    BoxChild defaultBoxChildProperties $ 
+                    BoxChild defaultBoxChildProperties $
                     widget Label
                     [
-                        #label := Text.append "Compiler: " 
+                        #label := Text.append "Compiler: "
                         (Text.pack $ map toUpper compilerName ++ " " ++ intercalate "." (map show . versionBranch $ compilerVersion))
                     ]
-                , BoxChild defaultBoxChildProperties $ 
+                , BoxChild defaultBoxChildProperties $
                     widget Label
                     [
                         #label := Text.append "Compilation date: " $(stringE =<< runIO ((show . utctDay) `fmap` getCurrentTime))
@@ -133,9 +133,9 @@ startMenu selectedRom =
 
 mkControlHelpBox :: [(Text, Text, Text)] -> Widget Event
 mkControlHelpBox controls =
-  container 
+  container
   Grid
-  [#orientation := OrientationVertical, #valign := AlignCenter, #marginBottom := 20, #marginRight := 25, #marginLeft := 25] 
+  [#orientation := OrientationVertical, #valign := AlignCenter, #marginBottom := 20, #marginRight := 25, #marginLeft := 25]
   (V.fromList $ concat $ mkTopRow 1 toprow : zipWith mkHelpRow [2..] controls)
   where
     span attrs x = "<span " <> Text.intercalate " " (map (\(attr, val) -> attr <> [r| ="|] <> val <> [r|"|]) attrs) <> ">" <> x <> [r|</span>|]
@@ -145,32 +145,32 @@ mkControlHelpBox controls =
     underlinedorange = span [("weight", "ultrabold"), ("foreground", "#eb660e"), ("underline", "single")]
     underlinedblue   = span [("weight", "ultrabold"), ("foreground", "#033b94"), ("underline", "single")]
     mkTopRow index (action, key, joybutton) = [
-        GridChild defaultGridChildProperties { leftAttach = 1, topAttach = index } $ 
+        GridChild defaultGridChildProperties { leftAttach = 1, topAttach = index } $
           widget Label [#label := underlinedorange action, #useMarkup := True, #xalign := 0, #marginRight := 25, #marginBottom := 20]
-      , GridChild defaultGridChildProperties { leftAttach = 2, topAttach = index } $ 
+      , GridChild defaultGridChildProperties { leftAttach = 2, topAttach = index } $
           widget Label [#label := underlinedblue key, #useMarkup := True, #xalign := 0, #marginRight := 25, #marginBottom := 20]
-      , GridChild defaultGridChildProperties { leftAttach = 3, topAttach = index } $ 
+      , GridChild defaultGridChildProperties { leftAttach = 3, topAttach = index } $
           widget Label [#label := underlinedblue joybutton, #useMarkup := True, #xalign := 0, #marginBottom := 20]
       ]
     mkHelpRow index (action, key, joybutton) = [
-        GridChild defaultGridChildProperties { leftAttach = 1, topAttach = index } $ 
+        GridChild defaultGridChildProperties { leftAttach = 1, topAttach = index } $
           widget Label [#label := orange action, #useMarkup := True, #xalign := 0, #marginRight := 25, #marginBottom := 15]
-      , GridChild defaultGridChildProperties { leftAttach = 2, topAttach = index } $ 
+      , GridChild defaultGridChildProperties { leftAttach = 2, topAttach = index } $
           widget Label [#label := blue key, #useMarkup := True, #xalign := 0, #marginRight := 25, #marginBottom := 15]
-      , GridChild defaultGridChildProperties { leftAttach = 3, topAttach = index } $ 
+      , GridChild defaultGridChildProperties { leftAttach = 3, topAttach = index } $
           widget Label [#label := blue joybutton, #useMarkup := True, #xalign := 0, #marginBottom := 15]
       ]
 
 
 controlsWidget :: Widget Event
-controlsWidget = 
+controlsWidget =
     container Box
         [#orientation := OrientationVertical, #valign := AlignCenter, #halign := AlignCenter, #margin := 10 ]
         [
-          BoxChild defaultBoxChildProperties $ 
+          BoxChild defaultBoxChildProperties $
             widget Image [#file := "resources/GUI/info.png", #marginBottom := 35]
         , BoxChild defaultBoxChildProperties $
-            mkControlHelpBox [ 
+            mkControlHelpBox [
                 ("Up", "Up arrow", "DPAD Up"),
                 ("Down", "Down arrow", "DPAD Down"),
                 ("Left", "Left arrow", "DPAD Left"),
@@ -187,7 +187,7 @@ controlsWidget =
                 ("Step one cpu instruction (when paused)", "E", "Not available"),
                 ("Step one frame (when paused)", "F", "Not available")
             ]
-        , BoxChild defaultBoxChildProperties { padding = 15 } $ 
+        , BoxChild defaultBoxChildProperties { padding = 15 } $
             widget Button [#label := "Ok", on #clicked MessageAck]
         ]
 
@@ -222,14 +222,14 @@ visualize s = do
         Message {text, icon} ->
             messageWidget text icon
 
-        e@Emulating{} -> 
+        e@Emulating{} ->
             inGame e
 
-        MainMenu{selectedRom} -> 
+        MainMenu{selectedRom} ->
             startMenu selectedRom
 
         ShowControls _ ->
             controlsWidget
 
         SmoothTransition s -> windowContent s
-                      
+

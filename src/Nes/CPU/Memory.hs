@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, RecordWildCards, DeriveAnyClass #-}
+{-# LANGUAGE MultiParamTypeClasses, RecordWildCards #-}
 
 module Nes.CPU.Memory (
   CPU(..),
@@ -43,7 +43,7 @@ data CPU = CPU {
   ram             ::  RAM,
   ppuAccess       ::  PPUAccess,
   cartridgeAccess ::  CartridgeAccess,
-  controllers     ::  IOVector Controls.Controller 
+  controllers     ::  IOVector Controls.Controller
 }
 
 powerUp :: Cartridge -> IO (CPU, PPU)
@@ -65,7 +65,7 @@ powerUp cart = do
   controllers <- VM.replicate 2 Controls.powerUp
   return (CPU{..}, ppu)
 
-data Flag 
+data Flag
   = Carry
   | Zero
   | InterruptDisable
@@ -73,7 +73,7 @@ data Flag
   | BreakCommand
   | Unused
   | Overflow
-  | Negative 
+  | Negative
   deriving (Enum)
 
 data Interrupt

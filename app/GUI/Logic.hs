@@ -37,7 +37,7 @@ emit = return . Just
 
 
 resultEvent :: Monad m => IOResult -> String -> m (Maybe Event)
-resultEvent result op = 
+resultEvent result op =
   let prefix = "Oops! Something went wrong during " ++ op ++ ":\n" in
   case errorMsg result of
     Nothing  -> noop
@@ -62,10 +62,10 @@ updateNestedEmulationState f x = x
 
 endAnimationWithDelay CommResources{fromEmulatorWindow} = forkIO $ do
   threadDelay (10^2 * 2)
-  writeChan fromEmulatorWindow $ EndAnimation
+  writeChan fromEmulatorWindow EndAnimation
 
 smoothTransitionAction :: CommResources -> State -> IO a -> Transition State Event
-smoothTransitionAction comms s action = Transition (SmoothTransition s) (action >> only (endAnimationWithDelay comms)) 
+smoothTransitionAction comms s action = Transition (SmoothTransition s) (action >> only (endAnimationWithDelay comms))
 
 smoothTransition :: CommResources -> State -> Transition State Event
 smoothTransition comms s = smoothTransitionAction comms s (pure ())
@@ -75,7 +75,7 @@ update :: CommResources -> State -> Event -> Transition State Event
 
 -- New filepath selected in the main menu
 
-update _ s@MainMenu{} (FileSelectionChanged p) 
+update _ s@MainMenu{} (FileSelectionChanged p)
   = Transition s{selectedRom = p} (return Nothing)
 
 
@@ -88,9 +88,9 @@ update comms (ShowControls s) MessageAck = smoothTransition comms s
 
 -- Start the emulator thread
 
-update comms (MainMenu (Just path) savePath) StartEmulator 
+update comms (MainMenu (Just path) savePath) StartEmulator
   = smoothTransitionAction comms
-    (Emulating (Text.pack . takeBaseName $ path) True savePath "" "" Nothing Nothing) 
+    (Emulating (Text.pack . takeBaseName $ path) True savePath "" "" Nothing Nothing)
     (launchEmulator path comms >> (sendMsg comms . NewSaveFolder) savePath)
 
 
@@ -102,13 +102,13 @@ update comms s@(MainMenu Nothing _) StartEmulator
 update comms e@Emulating{savePath = Nothing} SaveButtonPressed
   = smoothTransition comms (chooseSaveFolderFirst e)
 
-update comms e@Emulating{saveRomName = ""} SaveButtonPressed 
+update comms e@Emulating{saveRomName = ""} SaveButtonPressed
   = smoothTransition comms (Message "You need to give a name to your save file." Alert e)
 
 update comms e@Emulating{savePath = Nothing} QuickSavePressed
   = smoothTransition comms (chooseSaveFolderFirst e)
 
-update comms e@Emulating{saveRomName = "quick"} SaveButtonPressed 
+update comms e@Emulating{saveRomName = "quick"} SaveButtonPressed
   = smoothTransition comms (Message saveAsQuick Alert e)
 
 update comms e@Emulating{ savePath = Nothing } QuickReloadPressed
@@ -132,10 +132,10 @@ update comms e@Emulating{} (LoadPathChanged (Just path))
 update comms e@Emulating{} (SavePathChanged s)
   = Transition (e {savePath = s}) (sendMsg comms (NewSaveFolder s) >> savePathToDisk s)
 
-update comms Emulating{savePath} ReturnToSelection 
+update comms Emulating{savePath} ReturnToSelection
   = smoothTransitionAction comms (MainMenu Nothing savePath) (sendMsg comms (Quit False))
 
-update _ _ ReturnToSelection 
+update _ _ ReturnToSelection
   = Transition (MainMenu Nothing Nothing) noop
 
 -- Update record fields
@@ -144,10 +144,10 @@ update _ e@Emulating{} (SaveNameChanged s)
   = Transition e{saveRomName = s} noop
 
 update _ e@Emulating{} (SaveResult res)
-  = Transition e{saveResultSuccess = Just $ res} $ resultEvent res "saving"
+  = Transition e{saveResultSuccess = Just res} $ resultEvent res "saving"
 
 update _ e@Emulating{} (LoadResult res)
-  = Transition e{loadResultSuccess = Just $ res} $ resultEvent res "loading"
+  = Transition e{loadResultSuccess = Just res} $ resultEvent res "loading"
 
 update _ m@Message{} (MessageText newMsg newIcon)
   = Transition (m {text = Text.pack newMsg, icon = newIcon}) noop
@@ -156,28 +156,28 @@ update _ m@Message{} (MessageText newMsg newIcon)
 -- Pause and resume
 
 update comms s (TogglePause shouldForward)
-  = Transition 
-    (updateNestedEmulationState (\ e@Emulating{isRunning = r} -> e {isRunning = not r}) s) 
+  = Transition
+    (updateNestedEmulationState (\ e@Emulating{isRunning = r} -> e {isRunning = not r}) s)
     (if shouldForward then sendMsg comms (SwitchEmulationMode False) else noop)
 
 
 -- Return to main menu if the SDL window was closed
 
-update comms Emulating{savePath} SDLWindowClosed 
+update comms Emulating{savePath} SDLWindowClosed
   = smoothTransition comms (MainMenu Nothing savePath)
 
-update comms (Message _ _ Emulating{savePath}) SDLWindowClosed 
+update comms (Message _ _ Emulating{savePath}) SDLWindowClosed
   = smoothTransition comms (MainMenu Nothing savePath)
 
-update _ m@MainMenu{} SDLWindowClosed 
+update _ m@MainMenu{} SDLWindowClosed
   = Transition m noop
 
-update comms _ SDLWindowClosed 
+update comms _ SDLWindowClosed
   = smoothTransition comms (MainMenu Nothing Nothing)
 
 -- Displaying messages
 
-update comms s (MessageText msg icon) 
+update comms s (MessageText msg icon)
   = smoothTransition comms (Message (Text.pack msg) icon s)
 
 update comms (Message _ _ stateBefore) MessageAck
@@ -187,10 +187,10 @@ update comms (Message _ _ stateBefore) MessageAck
 -- Display error messages with a cross
 -- and then return to the main menu
 
-update comms Emulating{savePath} (Error msg) 
+update comms Emulating{savePath} (Error msg)
   = smoothTransition comms (Message (Text.pack msg) Cross (MainMenu Nothing savePath))
 
-update comms (Message _ _ Emulating{savePath}) (Error msg) 
+update comms (Message _ _ Emulating{savePath}) (Error msg)
   = smoothTransition comms (Message (Text.pack msg) Cross (MainMenu Nothing savePath))
 
 update comms m@MainMenu{} (Error msg)
@@ -199,12 +199,12 @@ update comms m@MainMenu{} (Error msg)
 update comms (SmoothTransition Emulating{savePath}) (Error msg)
   = smoothTransition comms (Message (Text.pack msg) Cross (MainMenu Nothing savePath))
 
-update comms _ (Error msg) 
+update comms _ (Error msg)
   = smoothTransition comms (Message (Text.pack msg) Cross (MainMenu Nothing Nothing))
 
 -- Exit the application
 
-update _  _ Closed 
+update _  _ Closed
   = Exit
 
 -- End animation
@@ -228,11 +228,11 @@ main :: IO ()
 main = do
     gtkMessages    <- newBroadcastTChanIO
     sdlEvents      <- newChan
-    let comms = CommResources { 
-                toEmulatorWindow   = gtkMessages, 
-                fromEmulatorWindow = sdlEvents 
+    let comms = CommResources {
+                toEmulatorWindow   = gtkMessages,
+                fromEmulatorWindow = sdlEvents
               }
-    let sdlWindowEventProxy = forever $ liftIO (readChan sdlEvents) >>= yield 
+    let sdlWindowEventProxy = forever $ liftIO (readChan sdlEvents) >>= yield
 
     previousSaveFolder <- do
       exists <- doesFileExist saveFolderPersistencePath

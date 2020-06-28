@@ -57,8 +57,7 @@ sdlWindowHeight = nesScreenHeight * scale
 formatResultTime :: IO String
 formatResultTime = do
   tz <- getCurrentTimeZone
-  t  <- getCurrentTime
-  return $ formatTime defaultTimeLocale "%H:%M:%S" (utcToLocalTime tz t)
+  formatTime defaultTimeLocale "%H:%M:%S" . utcToLocalTime tz <$> getCurrentTime
 
 
 isSave path = ".purenes" `isExtensionOf` path
@@ -78,7 +77,7 @@ sendEvent AppResources{..} = writeChan (fromEmulatorWindow commRes)
 
 -- | Write the NES state to a file
 save haptic nes appRes path = do
-  let 
+  let
     tryToSave t = do
       serializeToFile path nes
       sendEvent appRes (SaveResult $ IOResult Nothing t)
@@ -88,27 +87,27 @@ save haptic nes appRes path = do
       print e
       sendEvent appRes (SaveResult $ IOResult (Just $ show e) t)
   liftIO $ do
-    t <- formatResultTime 
-    tryToSave t `catch` (\ e -> onError e t) 
+    t <- formatResultTime
+    tryToSave t `catch` (`onError` t)
 
 
 -- | Read the NES state from a file
 load haptic appRes@AppResources{..} path = do
-  let 
+  let
     tryToLoad t = do
       newNes <- liftIO $ loadNes path
       writeIORef nes newNes
       writeIORef reboot True
       writeIORef reset (not $ isSave path)
       sendEvent appRes (LoadResult $ IOResult Nothing t)
-      rumble haptic   
+      rumble haptic
 
-    onError (e :: SomeException) t = do 
+    onError (e :: SomeException) t = do
       print e
       sendEvent appRes (LoadResult $ IOResult (Just $ show e) t)
 
   t <- formatResultTime
-  tryToLoad t `catch` (\ e -> onError e t)
+  tryToLoad t `catch` (`onError` t)
 
 
 -- | Rumble the joystick if it has haptic feedback
@@ -124,7 +123,7 @@ translateSDLEvent (JoyHatEvent eventData)    = Just $ JoyHatCommand eventData
 translateSDLEvent (JoyButtonEvent eventData) = Just $ JoyButtonCommand eventData
 translateSDLEvent (JoyDeviceEvent eventData) = Just $ JoyDeviceCommand eventData
 translateSDLEvent (SDL.KeyboardEvent (SDL.KeyboardEventData _ motion _ sym)) =
-  let 
+  let
     onlyOnPress = case motion of
       Pressed  -> Just
       Released -> const Nothing
@@ -156,27 +155,27 @@ translateSDLEvent _ = Nothing
 type ViewFunction = AppResources -> VSM.IOVector Word8 -> Emulator Nes ()
 
 -- | Execute a single command
-executeCommand :: 
+executeCommand ::
     ViewFunction ->
-    AppResources -> 
-    Command -> 
+    AppResources ->
+    Command ->
     Emulator Nes ()
 executeCommand updateScreen appResources@AppResources{..} command = do
   joys            <- liftIO $ readIORef joys
-  maybeSaveFolder <- liftIO $ readIORef saveFolder 
+  maybeSaveFolder <- liftIO $ readIORef saveFolder
 
-  let 
+  let
     sendEvent = writeChan (fromEmulatorWindow commRes)
     checkFolderPresence path action = do
-      folderExists <- doesDirectoryExist path 
+      folderExists <- doesDirectoryExist path
       if folderExists
       then action
       else sendEvent $ MessageText "The selected save folder has been removed." Alert
 
-    withQuickSave f = 
-      maybe 
-      (sendEvent $ MessageText "Please select a save folder." Alert)  
-      (\folder -> checkFolderPresence folder $ f appResources (folder </> "quick.purenes")) 
+    withQuickSave f =
+      maybe
+      (sendEvent $ MessageText "Please select a save folder." Alert)
+      (\folder -> checkFolderPresence folder $ f appResources (folder </> "quick.purenes"))
       maybeSaveFolder
 
   case command of
@@ -192,7 +191,7 @@ executeCommand updateScreen appResources@AppResources{..} command = do
       withQuickSave $ \appResources path -> do
         saveExists <- doesFileExist path
         if saveExists
-        then load haptic appResources path 
+        then load haptic appResources path
         else do
           sendEvent (MessageText (show QuickSaveNotFound) Alert)
 
@@ -221,19 +220,19 @@ executeCommand updateScreen appResources@AppResources{..} command = do
 
     PlayerTwoInput input -> do
       emulateCPU $ input `processInput` 1
-    
+
     SwitchEmulationMode shouldForward -> do
       screen <- emulatePPU PPU.accessScreen
       liftIO $ do
         modifyIORef' continousMode not
         when shouldForward (sendEvent (TogglePause False))
         continous <- readIORef continousMode
-        when (not continous) (liftIO $ VSM.set screen 0)
+        unless continous (liftIO $ VSM.set screen 0)
         putStrLn ("Switched to " ++ (if continous then "continous" else "step-by-step") ++ " mode.")
 
     StepClockCycle -> do
       whenM (liftIO $ readIORef continousMode <&> not) $ do
-        oldFrameCount <- emulatePPU $ PPU.getFrameCount
+        oldFrameCount <- emulatePPU PPU.getFrameCount
         emulateCPU $ do
           syncCPUwithPPU
           pc    <- readReg pc
@@ -242,7 +241,7 @@ executeCommand updateScreen appResources@AppResources{..} command = do
             TIO.putStrLn "======| Next instructions:"
             TIO.putStrLn $ disassemble pc bytes
         (pixels, newFrameCount)  <- emulatePPU $ do
-          PPU.drawPalette 
+          PPU.drawPalette
           (,) <$> PPU.accessScreen <*> PPU.getFrameCount
         when (newFrameCount /= oldFrameCount) (liftIO $ VSM.set pixels 0)
         updateScreen appResources pixels
@@ -263,8 +262,8 @@ executeCommand updateScreen appResources@AppResources{..} command = do
       liftIO $ whenM (readIORef continousMode) $ do
         inFullScreen <- readIORef fullscreen
 
-        if inFullScreen 
-        then do 
+        if inFullScreen
+        then do
           cursorVisible $= True
           setWindowMode window Windowed
           windowSize window $= V2 (fromIntegral sdlWindowWidth) (fromIntegral sdlWindowHeight)
@@ -274,7 +273,7 @@ executeCommand updateScreen appResources@AppResources{..} command = do
           setWindowMode window FullscreenDesktop
 
         modifyIORef' fullscreen not
-      
+
     AdjustViewport w h -> do
       viewport $= (Position 0 0, Size (fromIntegral w) (fromIntegral h))
 
@@ -289,12 +288,12 @@ executeCommand updateScreen appResources@AppResources{..} command = do
 -- | Poll events from both the SDL Window and the GUI
 pollCommands :: AppResources -> IO [Command]
 pollCommands res@AppResources{..} = do
-  sdlCommands <- (catMaybes . map (translateSDLEvent . eventPayload)) <$> SDL.pollEvents
+  sdlCommands <- mapMaybe (translateSDLEvent . eventPayload) <$> SDL.pollEvents
   gtkCommands <- atomically $ readAllTChan (toEmulatorWindow commRes)
   return (gtkCommands ++ sdlCommands)
 
 
-advanceEmulation :: 
+advanceEmulation ::
     ViewFunction ->
     AppResources ->
     Emulator Nes Bool

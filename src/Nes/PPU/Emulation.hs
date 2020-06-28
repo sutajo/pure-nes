@@ -1,5 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
-
 module Nes.PPU.Emulation (
   reset,
   clock,
@@ -27,7 +25,7 @@ import qualified Data.Vector.Unboxed          as VU
 import qualified Data.Vector.Unboxed.Mutable  as VUM
 import qualified Data.Vector.Storable.Mutable as VSM
 import           Prelude hiding (read)
-import           Nes.PPU.Memory 
+import           Nes.PPU.Memory
 import           Nes.Emulation.Monad hiding (ppuReadCartridge)
 import           Nes.Emulation.Registers
 
@@ -46,7 +44,7 @@ accessScreen = accessMemory screen
 readPalette :: Word8 -> Emulator PPU Pixel
 readPalette index = do
   Palette p <- accessMemory palette
-  return $ p `VU.unsafeIndex` (fromIntegral index)
+  return $ p `VU.unsafeIndex` fromIntegral index
 
 readCartridge :: Word16 -> Emulator PPU Word8
 readCartridge = readCartridgeWithAccessor cartridgeAccess
@@ -63,7 +61,7 @@ writePPUComponent = writeMemory
 usePaletteIndices usage addr
  | addr `testBit` 4 && addr .&. 0b11 == 0 = usage (addr `clearBit` 4)
  | otherwise = usage addr
-  
+
 readPaletteIndices  = usePaletteIndices (readPPUComponent  paletteIndices)
 writePaletteIndices = usePaletteIndices (writePPUComponent paletteIndices)
 
@@ -78,7 +76,7 @@ writeOam = writePPUComponent primaryOam
 
 getOamAddr = readReg ppuOamAddr
 
-transfer source dest = readReg source >>= writeReg dest 
+transfer source dest = readReg source >>= writeReg dest
 
 (.=) :: Prim a => (PPU -> IORefU a) -> a -> Emulator PPU ()
 (.=) = writeReg
@@ -102,8 +100,8 @@ increment = (`modifyReg` (+1))
 between :: Ord a => a -> a -> a -> Bool
 between a b = liftA2 (&&) (a<=) (<=b)
 
-modifyStatusFlag :: (Word8 -> Int -> Word8) -> StatusFlag -> Emulator PPU () 
-modifyStatusFlag f x = ppuStatus $= (`f` (fromEnum x))
+modifyStatusFlag :: (Word8 -> Int -> Word8) -> StatusFlag -> Emulator PPU ()
+modifyStatusFlag f x = ppuStatus $= (`f` fromEnum x)
 
 setStatusFlag   = modifyStatusFlag setBit
 
@@ -115,7 +113,7 @@ advanceVRAMAddress = do
   pvtVRamAddr $= (+ if ppuCtrl `testBit` 2 then 32 else 1)
 
 getFrameCount = readReg emuFrameCount
-getCoarsePosition = readReg pvtVRamAddr <&> (\v -> (v .&. 0x1F, (v `shiftR` 5) .&. 0x1F)) 
+getCoarsePosition = readReg pvtVRamAddr <&> (\v -> (v .&. 0x1F, (v `shiftR` 5) .&. 0x1F))
 
 clearVblAfterStatusRead :: Emulator PPU ()
 clearVblAfterStatusRead = do
@@ -145,7 +143,7 @@ cpuReadRegister addr = createPPUAccess $
       vramAddr  <- readReg pvtVRamAddr
       let paletteRead = vramAddr >= 0x3F00
 
-      result <- 
+      result <-
         if paletteRead
         then do
           read (vramAddr - 0x1000) >>= writeReg pvtDataBuffer
@@ -156,7 +154,7 @@ cpuReadRegister addr = createPPUAccess $
 
       advanceVRAMAddress
       return result
-  
+
   in case addr of
     0x2002 -> readStatusReg
     0x2004 -> readOamData
@@ -165,18 +163,18 @@ cpuReadRegister addr = createPPUAccess $
 
 
 cpuWriteRegister :: Word16 -> Word8 -> Emulator PPUAccess ()
-cpuWriteRegister addr val = createPPUAccess $ 
-  let 
-    val16 = fromIntegral val 
-  in 
+cpuWriteRegister addr val = createPPUAccess $
+  let
+    val16 = fromIntegral val
+  in
     case addr of
       0x2000 -> do
         status  <- readReg ppuStatus
         occured <- isPositive emuNmiOccured
 
         let nmiOuput = val    `testBit` 7
-        let inVBlank = status `testBit` 7 
-        let shouldOccur = inVBlank && not occured && nmiOuput 
+        let inVBlank = status `testBit` 7
+        let shouldOccur = inVBlank && not occured && nmiOuput
         when shouldOccur $ do
           assignBool emuNmiOccured True
           sendPendingNmi 2 interruptAccess
@@ -200,20 +198,20 @@ cpuWriteRegister addr val = createPPUAccess $
             pvtFineX    .=  val .&. 0x7
             pvtTempAddr $= \reg -> reg .&. 0x7FE0 .|. val16 `shiftR` 3
           _ -> do
-            pvtTempAddr $= 
+            pvtTempAddr $=
               \reg -> reg .&. 0xC1F .|. (val16 .&. 0x7) `shiftL` 12 .|. (val16 `shiftR` 3) `shiftL` 5
         pvtAddressLatch $= complement
 
       0x2006 -> do
         latch <- readReg pvtAddressLatch
-        case latch of 
+        case latch of
           0 -> do  -- higher byte is being written
             pvtTempAddr $= \reg -> reg .&. 0xFF .|. (val16 .&. 0x3F) `shiftL` 8
           _ -> do  -- lower  byte is being written
             tempAddr <- readReg pvtTempAddr
             let result = (tempAddr .&. 0xFF00) .|. val16
             pvtTempAddr .= result
-            pvtVRamAddr .= result 
+            pvtVRamAddr .= result
         pvtAddressLatch $= complement
 
       0x2007 -> do
@@ -267,19 +265,19 @@ drawBackground = do
     forM_ [0..31] $ \coarsex -> do
       val      <- read (0x2000 + baseNametableAddr + coarsey * 32 + coarsex)
       attrbyte <- read (0x2000 + baseNametableAddr + 0x3C0 + ((coarsey `shiftR` 2)*8 + coarsex `shiftR` 2))
-      let attr = (attrbyte `shiftR` (fromIntegral $ ((coarsey .&. 0b10)*2 + coarsex .&. 0b10))) .&. 0b11
+      let attr = (attrbyte `shiftR` fromIntegral ((coarsey .&. 0b10)*2 + coarsex .&. 0b10)) .&. 0b11
       forM_ [0..7] $ \row -> do
         forM_ [0..7] $ \col -> do
           let pattOffset = fromIntegral val*16
           tile_lsb <- read (basePattAddr+pattOffset+row)
           tile_msb <- read (basePattAddr+pattOffset+row+8)
-          let 
+          let
             c = fromIntegral col
             get a i = fromEnum $ a `testBit` i
             pixel = fromIntegral $ ((tile_msb `get` c) `shiftL` 1) .|. (tile_lsb `get` c)
             x = fromIntegral (coarsex*8 + (7 - col))
             y = fromIntegral (coarsey*8 + row)
-          
+
           color <- getColor attr pixel
           setPixel x y color
 
@@ -296,9 +294,9 @@ drawPatternTable paletteId = do
           tile_lsb <- read (patterntab * 0x1000 + offset + row)
           tile_msb <- read (patterntab * 0x1000 + offset + row + 8)
           forM_ [0..7] $ \col -> do
-            let 
+            let
               c = fromIntegral col
-              get a i = fromEnum $ a `testBit` i 
+              get a i = fromEnum $ a `testBit` i
               pixel = fromIntegral $ ((tile_msb `get` c) `shiftL` 1) .|. (tile_lsb `get` c)
             color <- getColor paletteId pixel
             setPixel (fromIntegral patterntab * 128 + fromIntegral(x*8 + (7 - col))) (58 + fromIntegral(y*8 + row)) color
@@ -317,9 +315,9 @@ drawSprites = do
         let (row16 :: Word16) = fromIntegral row
         tile_lsb <- read (basePattAddr+pattOffset+row16)
         tile_msb <- read (basePattAddr+pattOffset+row16+8)
-        let 
+        let
           c = fromIntegral col
-          get a i = fromEnum $ a `testBit` i 
+          get a i = fromEnum $ a `testBit` i
           pixel = fromIntegral $ ((tile_msb `get` c) `shiftL` 1) .|. (tile_lsb `get` c)
         color <- getColor ((attr .&. 0b11) + 4) pixel
         let fineX = if attr `testBit` 6 then col else 7-col
@@ -327,7 +325,7 @@ drawSprites = do
         let finalX = x + fineX
         let finalY = y + fineY
         when (between 0 239 finalY && between 0 255 finalX && not (attr `testBit` 5)) $
-          setPixel (fromIntegral $ finalX) (fromIntegral $ finalY) color
+          setPixel (fromIntegral finalX) (fromIntegral finalY) color
 
 
 drawPalette = do
@@ -350,10 +348,10 @@ isBackgroundRenderingEnabled = readReg ppuMask <&> (`testBit` 3)
 
 
 isBackgroundHidden :: Emulator PPU Bool
-isBackgroundHidden = 
+isBackgroundHidden =
   liftA2 (&&)
     (readReg ppuMask <&> not . (`testBit` 1))
-    (readReg emuCycle <&> (between 1 8))
+    (readReg emuCycle <&> between 1 8)
 
 
 getBackgroundColor :: Emulator PPU (Word8, Word8)
@@ -370,7 +368,7 @@ getBackgroundColor = do
     let pixel   = fromIntegral $ pixelHi   `shiftL` 1 .|. pixelLo
     let palette = fromIntegral $ paletteHi `shiftL` 1 .|. paletteLo
     pure (palette, pixel)
-  else 
+  else
     pure (0,0)
 
 
@@ -379,10 +377,10 @@ isSpriteRenderingEnabled = readReg ppuMask <&> (`testBit` 4)
 
 
 isSpriteHidden :: Emulator PPU Bool
-isSpriteHidden = 
+isSpriteHidden =
   liftA2 (&&)
     (readReg ppuMask <&> not . (`testBit` 2))
-    (readReg emuCycle <&> (between 1 8))
+    (readReg emuCycle <&> between 1 8)
 
 
 overlaySpriteColor :: (Word8, Word8) -> Emulator PPU Pixel
@@ -392,17 +390,17 @@ overlaySpriteColor (bgPalette, bgPixel) = do
   cycle   <- readReg emuCycle
   mask    <- readReg ppuMask
 
-  let defaultSpriteValues = pure (0, 0, True, False) 
+  let defaultSpriteValues = pure (0, 0, True, False)
 
-  (spPalette, spPixel, 
+  (spPalette, spPixel,
    behindBgd, isSpriteZero) <- if not spriteHidden && spritesEnabled then
       do
-        secondaryOam  <- useMemory secondaryOam readIORef 
+        secondaryOam  <- useMemory secondaryOam readIORef
         let
-          get a i = fromEnum $ a `testBit` i 
+          get a i = fromEnum $ a `testBit` i
           getFineX Sprite{..}   = if flipHori then cycleTimer else 7-cycleTimer
-          spPixel s@Sprite{..}  = 
-            let fineX = getFineX s 
+          spPixel s@Sprite{..}  =
+            let fineX = getFineX s
             in fromIntegral $ ((pattMsb `get` fineX) `shiftL` 1) .|. (pattLsb `get` fineX)
           activeSprite s@Sprite{cycleTimer} = cycleTimer >= 0 && spPixel s /= 0
           activeSprites = filter activeSprite secondaryOam
@@ -413,18 +411,18 @@ overlaySpriteColor (bgPalette, bgPixel) = do
       else
         defaultSpriteValues
 
-  renderingEnabled <- isRenderingEnabled 
-  
+  renderingEnabled <- isRenderingEnabled
+
   let
     whenLeftEdgeEnabled =
       if mask .&. 0b110 /= 0b110
-      then when (not $ between 1 8 cycle || cycle == 256)
+      then unless (between 1 8 cycle || cycle == 256)
       else when (cycle /= 256)
-    checkSpriteZeroHit = 
+    checkSpriteZeroHit =
       when (isSpriteZero && renderingEnabled) $
-        whenLeftEdgeEnabled $ 
+        whenLeftEdgeEnabled $
           setStatusFlag SpriteZeroHit
-          
+
 
     overlaySpriteColor = getColor spPalette spPixel
     getBackgroundPixel = getColor bgPalette bgPixel
@@ -435,27 +433,27 @@ overlaySpriteColor (bgPalette, bgPixel) = do
     combine _ _ False = do checkSpriteZeroHit; overlaySpriteColor
     combine _ _ _____ = do checkSpriteZeroHit; getBackgroundPixel
 
-  combine bgPixel spPixel behindBgd  
-  
+  combine bgPixel spPixel behindBgd
+
 
 drawPixel :: Emulator PPU ()
 drawPixel = do
   cycle    <- readReg emuCycle
   scanline <- readReg emuScanLine
-  getBackgroundColor >>= overlaySpriteColor >>= setPixel (cycle - 1) scanline 
+  getBackgroundColor >>= overlaySpriteColor >>= setPixel (cycle - 1) scanline
 
 
 updateShiftregisters :: Emulator PPU ()
 updateShiftregisters = do
-  at  <- readReg emuNextAT        
-  lsb <- readReg emuNextLSB       
+  at  <- readReg emuNextAT
+  lsb <- readReg emuNextLSB
   msb <- readReg emuNextMSB
   let updatePatt lo shifter = shifter .|. fromIntegral lo
   let updateAttr lo shifter = shifter .|. (if lo /= 0 then 0xFF else 0x00)
-  emuPattShifterLo $= (updatePatt lsb)
-  emuPattShifterHi $= (updatePatt msb)
-  emuAttrShifterLo $= (updateAttr (at .&. 0b01))
-  emuAttrShifterHi $= (updateAttr (at .&. 0b10))
+  emuPattShifterLo $= updatePatt lsb
+  emuPattShifterHi $= updatePatt msb
+  emuAttrShifterLo $= updateAttr (at .&. 0b01)
+  emuAttrShifterHi $= updateAttr (at .&. 0b10)
 
 
 shiftRegisters :: Emulator PPU ()
@@ -466,12 +464,12 @@ shiftRegisters = do
         emuPattShifterHi,
         emuAttrShifterLo,
         emuAttrShifterHi
-      ] $ (`modifyReg` (`shiftL` 1))
+      ] (`modifyReg` (`shiftL` 1))
 
 
 scanLine :: Int -> Emulator PPU ()
-scanLine step = 
-  let 
+scanLine step =
+  let
     getPattAddr = do
       patternOffset <- readReg ppuCtrl   <&> \ctrl -> if ctrl `testBit` 4 then 0x1000 else 0
       ntId          <- readReg emuNextNT <&> fromIntegral
@@ -486,7 +484,7 @@ scanLine step =
       v                  <- readReg pvtVRamAddr
       (coarseX, coarseY) <- getCoarsePosition
       attributeGroup <- read (0x23C0 .|. (v .&. 0xC00) .|. (coarseY .&. 0x1C) `shiftL` 1 .|. coarseX `shiftR` 2)
-      let  attr = attributeGroup `shiftR` (fromIntegral $ ((coarseY .&. 0b10) `shiftL` 1 .|. coarseX .&. 0b10))
+      let  attr = attributeGroup `shiftR` fromIntegral ((coarseY .&. 0b10) `shiftL` 1 .|. coarseX .&. 0b10)
       emuNextAT .= attr .&. 0b11
     4 -> do
       addr <- getPattAddr
@@ -532,16 +530,16 @@ incrementVertical = whenRendering $ do
     pvtVRamAddr $= (.&. 0x8FFF)
     let coarseY = (vramAddr .&. 0x3E0) `shiftR` 5
     case coarseY of
-      29 -> (pvtVRamAddr $= (\addr -> (addr .&. 0xFC1F) `xor` 0x800))
-      31 -> (pvtVRamAddr $= (.&. 0xFC1F))
-      __ -> (pvtVRamAddr $= (+0x20))
+      29 -> pvtVRamAddr $= (\addr -> (addr .&. 0xFC1F) `xor` 0x800)
+      31 -> pvtVRamAddr $= (.&. 0xFC1F)
+      __ -> pvtVRamAddr $= (+0x20)
 
 
 resetOamAddr :: Emulator PPU ()
 resetOamAddr = ppuOamAddr .= 0
 
 
-findCandidateSpritesThat :: 
+findCandidateSpritesThat ::
   (Word8  -> Bool) ->  -- Filter function
   Int     ->           -- Max number of candidates needed
   [Word8] ->           -- Base address of all sprites
@@ -552,7 +550,7 @@ findCandidateSpritesThat filter = go
     go _ [] = return []
     go count (addr : rest) = do
       byte <- readOam addr
-      if filter byte 
+      if filter byte
       then (addr:) <$> go (count - 1) rest
       else go count rest
 
@@ -563,7 +561,7 @@ reloadSecondaryOam = do
   ctrl     <- readReg ppuCtrl
   mask     <- readReg ppuMask
   scanLine <- readReg emuScanLine
-  let 
+  let
     basePattAddr = if ctrl `testBit` 3 then 0x1000 else 0x0
     spriteHeight = if ctrl `testBit` 5 then 16 else 8
 
@@ -573,7 +571,7 @@ reloadSecondaryOam = do
     let fallOnCurrentScanline y = y /= 0xFF && between 0 (spriteHeight-1) (scanLine - fromIntegral y)
     findCandidateSpritesThat fallOnCurrentScanline 9 [oamAddr, oamAddr+0x4 .. 0xFC]
     -- Low accuracy: filterM (fmap fallOnCurrentScanline . readOam) [oamAddr, oamAddr+0x4 .. 0xFC]
- 
+
   spritesEnabled <- isRenderingEnabled
   when (length candidateAddresses == 9 && spritesEnabled) $ do
     setStatusFlag SpriteOverflow
@@ -585,7 +583,7 @@ reloadSecondaryOam = do
       tile       <- readOam (addr+1)
       attributes <- readOam (addr+2)
       cycleTimer <- readOam (addr+3) <&> negate . fromIntegral
-      let 
+      let
         paletteId  = (attributes .&. 0b11) .|. 4
         behindBgd  = attributes `testBit` 5
         flipHori   = attributes `testBit` 6
@@ -645,7 +643,7 @@ moveToNextPosition cycle scanline = do
 enterVerticalBlank :: Emulator PPU ()
 enterVerticalBlank = do
   lastStatusRead <- readReg emuLastStatusRead
-  currentClock   <- readReg emuClocks 
+  currentClock   <- readReg emuClocks
   when (lastStatusRead /= currentClock) $ do
     setStatusFlag VerticalBlank
     ppuCtrl <- readReg ppuCtrl
@@ -676,7 +674,7 @@ clock = do
     any = const True; is = (==)
     step = (cycle - 1) .&. 0x7
     vBlank = between 240 260
-    ifVisible = when (between 1 256 cycle && between 0 239 scanline)  
+    ifVisible = when (between 1 256 cycle && between 0 239 scanline)
     executeCycle = do
       when (between 2 258 cycle || between 321 337 cycle) $ do
         shiftRegisters
@@ -696,11 +694,11 @@ clock = do
         (      between 258 320,     not.vBlank,  resetOamAddr                               )
       ]
 
-  runPhase cycle scanline $ phases
+  runPhase cycle scanline phases
   moveToNextPosition cycle scanline
   increment emuClocks
 
-  where 
+  where
     noop = pure ()
     runPhase cycle scanline phases = do
       let match = find ( \(cp, sp, _) -> cp cycle && sp scanline ) phases

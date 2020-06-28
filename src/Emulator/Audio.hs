@@ -47,7 +47,7 @@ audioCallBack samples format buffer =
 acquireAudioResources oscillator = do
   SDL.initialize [InitAudio]
   samples <- newIORef (sampleOscillator oscillator)
-  let 
+  let
     spec = OpenDeviceSpec
       {
           openDeviceFreq     = Desire 44100

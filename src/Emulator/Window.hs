@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, RecordWildCards, ScopedTypeVariables, GADTs, QuasiQuotes #-}
+{-# LANGUAGE OverloadedStrings, RecordWildCards, ScopedTypeVariables, GADTs #-}
 
 module Emulator.Window (
   runEmulatorWindow
@@ -42,7 +42,7 @@ bye = putStrLn "Emulator closed successfully."
 -- | Main entry point of the window
 runEmulatorWindow :: FilePath -> CommResources -> IO ()
 runEmulatorWindow romPath comms = runInBoundThread $ do
-  bracket (acquireResources romPath comms) releaseResources runApp 
+  bracket (acquireResources romPath comms) releaseResources runApp
   bye
 
 
@@ -56,12 +56,12 @@ acquireResources romPath comms = do
   SDL.initializeAll
   greetings
 
-  let 
+  let
     windowConfig = SDL.defaultWindow {
-      windowInitialSize = V2 (fromIntegral $ sdlWindowWidth) (fromIntegral $ sdlWindowHeight),
+      windowInitialSize = V2 (fromIntegral sdlWindowWidth) (fromIntegral sdlWindowHeight),
       windowResizable = True,
       windowPosition = Absolute $ P $ V2 0 20,
-      windowGraphicsContext = OpenGLContext defaultOpenGL { 
+      windowGraphicsContext = OpenGLContext defaultOpenGL {
         glColorPrecision = V4 8 8 8 8,
         glProfile = Core Normal 3 0
       }
@@ -69,7 +69,7 @@ acquireResources romPath comms = do
 
   window    <- SDL.createWindow "Pure-Nes Emulator" windowConfig
 
-  let 
+  let
     buttonMappings = M.fromList [(0, Controls.Select), (1, Controls.Start), (2, Controls.A), (3, Controls.B)]
     commRes = comms
     rendererConfig = RendererConfig {
@@ -116,7 +116,7 @@ runApp :: AppResources -> IO ()
 runApp appResources@AppResources{..} = do
   nes           <- readIORef nes
   writeIORef reboot False
-  
+
   shouldReset  <- readIORef reset
   runEmulator nes $ do
     when shouldReset $ do
@@ -147,7 +147,7 @@ updateScreen AppResources{..} pixels = liftIO $ do
     currentProgram $= Just crtProgram
     glBindTexture screen
     uniform textureUniform $= (0 :: GLint)
-    let 
+    let
       mintex = 0 :: Float
       maxtex = 1 :: Float
       screenMin = -1 :: GLfloat
@@ -174,4 +174,4 @@ updateWindow :: AppResources -> Emulator Nes Bool
 updateWindow appResources@AppResources{..} = do
   advanceEmulation updateScreen appResources
 
-    
+

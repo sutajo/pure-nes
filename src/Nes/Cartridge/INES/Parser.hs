@@ -23,7 +23,7 @@ import           Data.Word
 import           Data.Binary
 import           Data.Binary.Get
 import           Data.Bits
-import           Data.ByteString      as BS hiding (readFile, putStrLn, map, notElem) 
+import           Data.ByteString      as BS hiding (readFile, putStrLn, map, notElem)
 import qualified Data.ByteString.Lazy as B (readFile, toStrict)
 import           Control.Monad
 import           Nes.Cartridge.Memory
@@ -39,7 +39,7 @@ data CartridgeException
 instance Show CartridgeException where
   show = \case
     UnsupportedMapper id ->
-      "Unfortunately you can't play this game yet with this emulator.\n" ++ 
+      "Unfortunately you can't play this game yet with this emulator.\n" ++
       "Mapper " ++ show id ++ " is currently not supported."
     ParsingFailed msg -> msg
 
@@ -56,24 +56,24 @@ header = replicateM 7 getWord8
 iNESloader :: Get INES
 iNESloader = do
   magicNumbersMatch <- (getByteString 4 <&> (== "NES\SUB")) <|> return False
-  when (not magicNumbersMatch) $ fail $ unlines ["iNES magic numbers are missing.", "Make sure you selected a cartridge file."]
-  [  len_prg_rom , len_chr_rom 
-   , flags6      , flags7      
-   , len_prg_ram , flags9      
-   , _ ] <- header   
+  unless magicNumbersMatch $ fail $ unlines ["iNES magic numbers are missing.", "Make sure you selected a cartridge file."]
+  [  len_prg_rom , len_chr_rom
+   , flags6      , flags7
+   , len_prg_ram , flags9
+   , _ ] <- header
   skip 5
-  let 
+  let
     has_trainer = testBit flags6 2
     has_playChoice = testBit flags7 0
-    prg_ram_size = (prg_ram_page_size * fromIntegral len_prg_ram)
-  when (flags9 `testBit` 0) $ fail "This emulator can only handle NTSC ROMs." 
-  when (has_trainer) $ skip 512      --We are skipping trainers for now
+    prg_ram_size = prg_ram_page_size * fromIntegral len_prg_ram
+  when (flags9 `testBit` 0) $ fail "This emulator can only handle NTSC ROMs."
+  when has_trainer $ skip 512      --We are skipping trainers for now
   prg_rom_bs  <- getByteString (prg_rom_page_size * fromIntegral len_prg_rom)
   chr_rom_bs  <- getByteString (chr_rom_page_size * fromIntegral len_chr_rom)
   when has_playChoice (skip 8224)
   title       <- B.toStrict <$> getRemainingLazyByteString
   return INES{..}
-    
+
 
 tryLoadingINES :: FilePath -> IO INES
 tryLoadingINES path = do
@@ -81,8 +81,8 @@ tryLoadingINES path = do
     case runGetOrFail iNESloader contents of
       Left (_,_,err) -> do
         throw (ParsingFailed err)
-      Right (_,_,cartridge) -> 
-        pure cartridge 
+      Right (_,_,cartridge) ->
+        pure cartridge
 
 
 toVector :: ByteString -> IO (VUM.IOVector Word8)
@@ -91,7 +91,7 @@ toVector bs = VU.thaw $ VU.fromList (BS.unpack bs)
 
 assembleCartridge :: INES -> IO Cartridge
 assembleCartridge INES{..} = do
-  let 
+  let
     mapperId = (flags6 `shiftR` 4) .|. (flags7 .&. 0xF0)
     mirror = if flags6 `testBit` 3 then FourScreen else (toEnum . fromEnum) (flags6 `testBit` 0)
   when (mapperId `M.notMember` mappersById) $ throw (UnsupportedMapper mapperId)
@@ -99,7 +99,7 @@ assembleCartridge INES{..} = do
   chr     <- if hasChrRam then VUM.new 0x2000 else toVector chr_rom_bs
   prg_rom <- toVector prg_rom_bs
   prg_ram <- VUM.new (if prg_ram_size == 0 then 0x2000 else fromIntegral prg_ram_size)
-  let 
+  let
     cart = Cartridge{..}
     mapper = dummyMapper
   assembledMapper <- (mappersById M.! mapperId) cart

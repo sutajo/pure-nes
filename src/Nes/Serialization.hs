@@ -41,15 +41,15 @@ serializeToFile path nes = B.writeFile path (encode nes)
 
 deserialize :: Nes -> IO M.Nes
 deserialize Nes{..} = do
-  let 
+  let
     CPU.CPU{..} = cpu
   interrupts <- CPU.deserializeInterruptAccess interruptAccess
   cartridge  <- Cartridge.deserialize cartridge
-  ppu        <- PPU.deserialize (getPPUAccess cartridge) interrupts ppu 
+  ppu        <- PPU.deserialize (getPPUAccess cartridge) interrupts ppu
   cpu        <- CPU.deserialize (getCPUAccess cartridge) (PPUAccess ppu) interrupts cpu
   apu        <- newIORef apu
   return $ M.Nes cpu ppu apu cartridge
-    
+
 deserializeErrorMsg = [r|
 Could not deserialize Nes from the save file.
 This is not a save file or it may have been corrupted.
@@ -60,4 +60,4 @@ deserializeFromFile path = do
   file <- B.readFile path
   case decode file of
     Left  err -> failure deserializeErrorMsg
-    Right nes -> deserialize nes 
+    Right nes -> deserialize nes

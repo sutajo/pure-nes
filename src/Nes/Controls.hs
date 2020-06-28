@@ -18,7 +18,7 @@ import GHC.Generics
 
 -- http://wiki.nesdev.com/w/index.php/Standard_controller
 
-data Button  
+data Button
   =  A
   |  B
   |  Select
@@ -29,7 +29,7 @@ data Button
   |  Right
   deriving (Enum, Eq)
 
-data Input 
+data Input
   = Press Button
   | Release Button
   deriving (Eq)
@@ -40,7 +40,7 @@ data Controller = Controller {
 } deriving (Show, Generic, Serialize)
 
 modify :: (Word8 -> Int -> Word8) -> Button -> Controller -> Controller
-modify f k c@Controller {buttons = btns} = c { buttons = btns `f` (fromEnum k) }
+modify f k c@Controller {buttons = btns} = c { buttons = btns `f` fromEnum k }
 
 press :: Button -> Controller -> Controller
 press = modify setBit
@@ -55,23 +55,23 @@ processInput input = case input of
 
 powerUp :: Controller
 powerUp =
-  let 
+  let
     buttons = 0
     index = 0
   in Controller{..}
 
 read :: Controller -> (Word8, Controller)
-read c@Controller{..} = 
-  let 
+read c@Controller{..} =
+  let
     byte = (buttons `shiftR` index) .&. 0x1
     newController = c {index = index + 1}
-  in 
-  if index == 8 
+  in
+  if index == 8
   then (1, c)
   else (byte, newController)
 
 write :: Word8 -> Controller -> Controller
 write byte c
-  | byte `testBit` 0 = c {index = 0} 
+  | byte `testBit` 0 = c {index = 0}
   | otherwise = c
 

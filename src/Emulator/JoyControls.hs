@@ -42,7 +42,7 @@ data ConnectedJoy = ConnectedJoy {
 } deriving (Show)
 
 instance Eq ConnectedJoy where
-  (ConnectedJoy {id = id1}) == (ConnectedJoy {id = id2}) = id1 == id2
+  ConnectedJoy {id = id1} == ConnectedJoy {id = id2} = id1 == id2
 
 instance Ord ConnectedJoy where
   compare = compare `on` Emulator.JoyControls.id
@@ -56,7 +56,7 @@ data JoyControlState = JoyControlState {
 
 
 init :: ButtonMappings -> IO JoyControlState
-init mappings = 
+init mappings =
     JoyControlState <$>
     newIORef HatCentered <*>
     newIORef M.empty <*>
@@ -68,7 +68,7 @@ listJoys JoyControlState{..} = do
   putStr "Available joys:"
   availableJoysticks >>= print
   putStr "Opened joysticks:"
-  readIORef connectedJoys >>= print 
+  readIORef connectedJoys >>= print
 
 
 convertHatState :: JoyHatPosition -> Button
@@ -81,7 +81,7 @@ convertHatState hatPos = case hatPos of
 
 
 getEventJoy :: Int32 -> M.Map Int32 ConnectedJoy -> Maybe ConnectedJoy
-getEventJoy searchedId map = map M.!? searchedId  
+getEventJoy searchedId map = map M.!? searchedId
 
 
 getEventJoyHaptic :: JoyControlState -> JoyButtonEventData -> IO (Maybe Haptic)
@@ -94,7 +94,7 @@ manageButtonEvent :: Player -> JoyControlState -> JoyButtonEventData -> IO (Mayb
 manageButtonEvent _ s e@(JoyButtonEventData _ 4 JoyButtonPressed) = getEventJoyHaptic s e <&> Just . QuickSave
 manageButtonEvent _ s e@(JoyButtonEventData _ 6 JoyButtonPressed) = getEventJoyHaptic s e <&> Just . QuickLoad
 manageButtonEvent player JoyControlState{..} (JoyButtonEventData _ btn state) =
-  let 
+  let
     command = case player of
       PlayerOne -> PlayerOneInput
       PlayerTwo -> PlayerTwoInput
@@ -103,8 +103,7 @@ manageButtonEvent player JoyControlState{..} (JoyButtonEventData _ btn state) =
       JoyButtonPressed  -> Press
       JoyButtonReleased -> Release
   in return $ do
-    button <- mappedButton
-    return $ command (action button)
+    command . action <$> mappedButton
 
 
 manageHatEvent :: JoyControlState -> JoyHatEventData -> IO [Input]
@@ -115,7 +114,7 @@ manageHatEvent JoyControlState{..} (JoyHatEventData _ _ newState) = execWriterT 
     then tell [Release $ convertHatState prevHat]
     else pure ()
     liftIO $ writeIORef previousHatState newState
-    when (newState /= HatCentered) $ do 
+    when (newState /= HatCentered) $ do
       tell [Press $ convertHatState newState]
 
 
@@ -125,10 +124,10 @@ initHaptic joy = do
   let joyIsHaptic = fmap (1==) . joystickIsHaptic
   isHaptic <- joyIsHaptic ptr
   if isHaptic then do
-    haptic <- hapticOpenFromJoystick ptr 
+    haptic <- hapticOpenFromJoystick ptr
     success <- hapticRumbleInit haptic <&> ( == 0)
-    if success 
-    then return $ Just haptic 
+    if success
+    then return $ Just haptic
     else hapticClose haptic >> return Nothing
   else return Nothing
 
