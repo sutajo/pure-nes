@@ -111,23 +111,6 @@ releaseResources AppResources{..} = do
   SDL.quit
 
 
--- | Main loop
-runApp :: AppResources -> IO ()
-runApp appResources@AppResources{..} = do
-  nes           <- readIORef nes
-  writeIORef reboot False
-
-  shouldReset  <- readIORef reset
-  runEmulator nes $ do
-    when shouldReset $ do
-      resetNes
-    updateWindow appResources `cappedAt` 60
-
-  shouldReboot <- readIORef reboot
-  when shouldReboot $ do
-    runApp appResources
-
-
 -- | Update the pixels on the screen
 updateScreen :: ViewFunction
 updateScreen AppResources{..} pixels = liftIO $ do
@@ -169,9 +152,26 @@ updateScreen AppResources{..} pixels = liftIO $ do
     copy renderer screen Nothing Nothing
     present renderer
 
+
 -- | Main loop body
 updateWindow :: AppResources -> Emulator Nes Bool
-updateWindow appResources@AppResources{..} = do
-  advanceEmulation updateScreen appResources
+updateWindow = advanceEmulation updateScreen
+
+
+-- | Main loop
+runApp :: AppResources -> IO ()
+runApp appResources@AppResources{..} = do
+  nes           <- readIORef nes
+  writeIORef reboot False
+
+  shouldReset  <- readIORef reset
+  runEmulator nes $ do
+    when shouldReset $ do
+      resetNes
+    updateWindow appResources `cappedAt` 60
+
+  shouldReboot <- readIORef reboot
+  when shouldReboot $ do
+    runApp appResources
 
 
