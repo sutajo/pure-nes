@@ -57,11 +57,6 @@ library
       -fno-warn-name-shadowing
       -fwarn-unused-imports
       -O2
-      -fllvm
-      -optlc -O3
-      -optlc -mcpu=native
-      -optlo -O3
-      -optlo -mcpu=native
       -funbox-strict-fields
       -foptimal-applicative-do
       -fexpose-all-unfoldings
@@ -75,6 +70,13 @@ library
       -fstg-cse
       -fexcess-precision
       --funfolding-keeness-factor=3
+  if !os(windows)
+    ghc-options:
+      -fllvm
+      -optlc -O3
+      -optlc -mcpu=native
+      -optlo -O3
+      -optlo -mcpu=native
   build-depends:
        base >=4.7 && <5
      , monad-loops

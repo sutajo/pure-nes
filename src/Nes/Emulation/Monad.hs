@@ -141,7 +141,7 @@ sendPendingNmi = sendPendingInterrupt nmi
 sendNmi :: (component -> InterruptRegisters) -> Emulator component ()
 sendNmi = sendPendingNmi 1
 
-sendPendingIrq :: Word8 -> (component -> InterruptRegisters) ->Emulator component ()
+sendPendingIrq :: Word8 -> (component -> InterruptRegisters) -> Emulator component ()
 sendPendingIrq = sendPendingInterrupt irq
 
 sendIrq :: (component -> InterruptRegisters) -> Emulator component ()
