@@ -10,7 +10,7 @@ the field of emulation using functional programming.
 
 The main focus was to use efficient techniques in a readable fashion to achieve good performance.
 
-The program is completely cross platform, built on top of Gtk and SDL2.
+The program is completely cross platform, built on top of GTK+ and SDL2.
 
 [If you speak hungarian, click here if you want to read my thesis :)](documentation/thesis.pdf)
 
@@ -24,6 +24,12 @@ Only CPU and PPU are emulated, meaning that there is only video output. However,
 
 You can either play with a keyboard or a controller. The controls are listed in the main menu.
 
+I tested a few games on my Ryzen 7 2700 processor and the average FPS lied between 150-170 FPS (with Ubuntu + LLVM backend).
+Even an old Core 2 Duo processor is fast enough to run the emulation in real-time.
+
+There is a GHC bug on Windows that prevents compilation with the LLVM backend. Due to the fact that the NCG backend generally
+produces slower code, the emulator runs somewhat slower on Windows. 
+
 # Build instructions for Ubuntu
 
 # Install Gtk
@@ -36,7 +42,7 @@ $ sudo apt-get install libgirepository1.0-dev libwebkit2gtk-4.0-dev libgtksource
 $ sudo apt-get install libsdl2-dev
 ```
 
-# Build the project using Make
+# Build the project
 ```console
 $ stack build
 ```
