@@ -80,6 +80,13 @@ library
       -optlo -O3
       -optlo -mcpu=native
       --funfolding-keeness-factor=3
+  if !os(windows)
+    ghc-options:
+      -fllvm
+      -optlc -O3
+      -optlc -mcpu=native
+      -optlo -O3
+      -optlo -mcpu=native
   build-depends:
        base >=4.7 && <5
      , monad-loops

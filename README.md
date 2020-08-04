@@ -1,10 +1,8 @@
-# pure-nes
+# pure-nes: NES emulator written in Haskell
 
 [![Build Status](https://dev.azure.com/tufh3g/Build/_apis/build/status/sutajo.pure-nes?branchName=master)](https://dev.azure.com/tufh3g/Build/_build/latest?definitionId=1&branchName=master)
 
 ![Alter Ego by Shiru](showcase/shiru.png)
-
-![Concentration Room by Damian Yerrick](showcase/croom.png)
 
 # Description
 This project is a part of my Bachelor's thesis, which aims to explore 
@@ -14,9 +12,17 @@ The main focus was to use efficient techniques in a readable fashion to achieve 
 
 The program is completely cross platform, built on top of Gtk and SDL2.
 
-# Compatibility
+[If you speak hungarian, click here if you want to read my thesis :)](documentation/thesis.pdf)
 
-Supported mappers: 0 and 2
+# Functionality and compatibility
+
+The following mappers are supported: 0, 2, 3
+
+Overall the emulation is quite accurate, except for some timing issues and edge cases regarding the PPU.
+
+Only CPU and PPU are emulated, meaning that there is only video output. However, I'm planning on implementing the APU soon.
+
+You can either play with a keyboard or a controller. The controls are listed in the main menu.
 
 # Build instructions for Ubuntu
 
