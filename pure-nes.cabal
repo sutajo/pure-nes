@@ -56,12 +56,6 @@ library
       -Wunused-binds
       -fno-warn-name-shadowing
       -fwarn-unused-imports
-      -O2
-      -fllvm
-      -optlc -O3
-      -optlc -mcpu=native
-      -optlo -O3
-      -optlo -mcpu=native
       -funbox-strict-fields
       -foptimal-applicative-do
       -fexpose-all-unfoldings
@@ -74,6 +68,17 @@ library
       -fpedantic-bottoms
       -fstg-cse
       -fexcess-precision
+      -O2
+  if os(windows)
+    ghc-options:
+      -msse2
+  if !os(windows)
+    ghc-options:
+      -fllvm
+      -optlc -O3
+      -optlc -mcpu=native
+      -optlo -O3
+      -optlo -mcpu=native
       --funfolding-keeness-factor=3
   build-depends:
        base >=4.7 && <5
@@ -134,8 +139,8 @@ executable pure-nes
       "-with-rtsopts=-xn -N2"
       -funbox-strict-fields
       -O2
-      -fllvm
-      -optlc-O3
+      --fllvm
+      --optlc-O3
       -fexcess-precision
   if os(windows)
     ghc-options:
