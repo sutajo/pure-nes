@@ -86,8 +86,8 @@ getPPUAccess Cartridge{mapper=Mapper{ppuRead, ppuWrite, mirroringFunction}} = Ca
 
 
 horizontalMirroring :: Word16 -> Word16
-horizontalMirroring addr = a - ((a .&. 0x800) `shiftR` 1)
-  where a = (addr .&. 0xFFF) .&. complement 0x400
+horizontalMirroring addr = a - ((a .&. 0x800) `unsafeShiftR` 1)
+  where a = addr .&. 3071
 
 
 verticalMirroring :: Word16 -> Word16

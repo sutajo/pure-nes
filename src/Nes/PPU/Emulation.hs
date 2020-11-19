@@ -113,7 +113,7 @@ advanceVRAMAddress = do
   pvtVRamAddr $= (+ if ppuCtrl `testBit` 2 then 32 else 1)
 
 getFrameCount = readReg emuFrameCount
-getCoarsePosition = readReg pvtVRamAddr <&> (\v -> (v .&. 0x1F, (v `shiftR` 5) .&. 0x1F))
+getCoarsePosition = readReg pvtVRamAddr <&> (\v -> (v .&. 0x1F, (v `unsafeShiftR` 5) .&. 0x1F))
 
 clearVblAfterStatusRead :: Emulator PPU ()
 clearVblAfterStatusRead = do
@@ -181,7 +181,7 @@ cpuWriteRegister addr val = createPPUAccess $
 
         ppuCtrl .= val
         assignBool emuNmiOccured shouldOccur
-        pvtTempAddr $= \reg -> (reg .&. 0x73FF) .|. ((val16 .&. 3) `shiftL` 10)
+        pvtTempAddr $= \reg -> (reg .&. 0x73FF) .|. ((val16 .&. 3) `unsafeShiftL` 10)
 
       0x2001 -> ppuMask .= val
 
@@ -196,17 +196,17 @@ cpuWriteRegister addr val = createPPUAccess $
         case latch of
           0 -> do
             pvtFineX    .=  val .&. 0x7
-            pvtTempAddr $= \reg -> reg .&. 0x7FE0 .|. val16 `shiftR` 3
+            pvtTempAddr $= \reg -> reg .&. 0x7FE0 .|. val16 `unsafeShiftR` 3
           _ -> do
             pvtTempAddr $=
-              \reg -> reg .&. 0xC1F .|. (val16 .&. 0x7) `shiftL` 12 .|. (val16 `shiftR` 3) `shiftL` 5
+              \reg -> reg .&. 0xC1F .|. (val16 .&. 0x7) `unsafeShiftL` 12 .|. (val16 `unsafeShiftR` 3) `unsafeShiftL` 5
         pvtAddressLatch $= complement
 
       0x2006 -> do
         latch <- readReg pvtAddressLatch
         case latch of
           0 -> do  -- higher byte is being written
-            pvtTempAddr $= \reg -> reg .&. 0xFF .|. (val16 .&. 0x3F) `shiftL` 8
+            pvtTempAddr $= \reg -> reg .&. 0xFF .|. (val16 .&. 0x3F) `unsafeShiftL` 8
           _ -> do  -- lower  byte is being written
             tempAddr <- readReg pvtTempAddr
             let result = (tempAddr .&. 0xFF00) .|. val16
@@ -243,13 +243,13 @@ write addrUnsafe val
 
 getColor :: Word8 -> Word8 -> Emulator PPU Pixel
 getColor palette pixel = do
-  index <- readPaletteIndices (fromIntegral (palette `shiftL` 2 + pixel))
+  index <- readPaletteIndices (fromIntegral (palette `unsafeShiftL` 2 + pixel))
   readPalette (index .&. 0x3F)
 
 setPixel :: Int -> Int -> Pixel -> Emulator PPU ()
 setPixel x y (r,g,b) = do
   screen <- accessScreen
-  let offset = (y `shiftL` 8 + x) * 3
+  let offset = (y `unsafeShiftL` 8 + x) * 3
   liftIO $ do
     VSM.write screen  offset      r
     VSM.write screen (offset + 1) g
@@ -260,12 +260,12 @@ drawBackground :: Emulator PPU ()
 drawBackground = do
   ctrl <- readReg ppuCtrl
   let baseNametableAddr = (fromIntegral ctrl .&. 0b11) * 0x400
-  let basePattAddr = (fromIntegral ctrl `shiftR` 4 .&. 0b1) * 0x1000
+  let basePattAddr = (fromIntegral ctrl `unsafeShiftR` 4 .&. 0b1) * 0x1000
   forM_ [0..29] $ \coarsey -> do
     forM_ [0..31] $ \coarsex -> do
       val      <- read (0x2000 + baseNametableAddr + coarsey * 32 + coarsex)
-      attrbyte <- read (0x2000 + baseNametableAddr + 0x3C0 + ((coarsey `shiftR` 2)*8 + coarsex `shiftR` 2))
-      let attr = (attrbyte `shiftR` fromIntegral ((coarsey .&. 0b10)*2 + coarsex .&. 0b10)) .&. 0b11
+      attrbyte <- read (0x2000 + baseNametableAddr + 0x3C0 + ((coarsey `unsafeShiftR` 2)*8 + coarsex `unsafeShiftR` 2))
+      let attr = (attrbyte `unsafeShiftR` fromIntegral ((coarsey .&. 0b10)*2 + coarsex .&. 0b10)) .&. 0b11
       forM_ [0..7] $ \row -> do
         forM_ [0..7] $ \col -> do
           let pattOffset = fromIntegral val*16
@@ -274,7 +274,7 @@ drawBackground = do
           let
             c = fromIntegral col
             get a i = fromEnum $ a `testBit` i
-            pixel = fromIntegral $ ((tile_msb `get` c) `shiftL` 1) .|. (tile_lsb `get` c)
+            pixel = fromIntegral $ ((tile_msb `get` c) `unsafeShiftL` 1) .|. (tile_lsb `get` c)
             x = fromIntegral (coarsex*8 + (7 - col))
             y = fromIntegral (coarsey*8 + row)
 
@@ -297,7 +297,7 @@ drawPatternTable paletteId = do
             let
               c = fromIntegral col
               get a i = fromEnum $ a `testBit` i
-              pixel = fromIntegral $ ((tile_msb `get` c) `shiftL` 1) .|. (tile_lsb `get` c)
+              pixel = fromIntegral $ ((tile_msb `get` c) `unsafeShiftL` 1) .|. (tile_lsb `get` c)
             color <- getColor paletteId pixel
             setPixel (fromIntegral patterntab * 128 + fromIntegral(x*8 + (7 - col))) (58 + fromIntegral(y*8 + row)) color
 
@@ -318,7 +318,7 @@ drawSprites = do
         let
           c = fromIntegral col
           get a i = fromEnum $ a `testBit` i
-          pixel = fromIntegral $ ((tile_msb `get` c) `shiftL` 1) .|. (tile_lsb `get` c)
+          pixel = fromIntegral $ ((tile_msb `get` c) `unsafeShiftL` 1) .|. (tile_lsb `get` c)
         color <- getColor ((attr .&. 0b11) + 4) pixel
         let fineX = if attr `testBit` 6 then col else 7-col
         let fineY = if attr `testBit` 7 then 8-row else 1+row
@@ -365,8 +365,8 @@ getBackgroundColor = do
     pixelHi   <- readReg emuPattShifterHi <&> getBit
     paletteLo <- readReg emuAttrShifterLo <&> getBit
     paletteHi <- readReg emuAttrShifterHi <&> getBit
-    let pixel   = fromIntegral $ pixelHi   `shiftL` 1 .|. pixelLo
-    let palette = fromIntegral $ paletteHi `shiftL` 1 .|. paletteLo
+    let pixel   = fromIntegral $ pixelHi   `unsafeShiftL` 1 .|. pixelLo
+    let palette = fromIntegral $ paletteHi `unsafeShiftL` 1 .|. paletteLo
     pure (palette, pixel)
   else
     pure (0,0)
@@ -401,7 +401,7 @@ overlaySpriteColor (bgPalette, bgPixel) = do
           getFineX Sprite{..}   = if flipHori then cycleTimer else 7-cycleTimer
           spPixel s@Sprite{..}  =
             let fineX = getFineX s
-            in fromIntegral $ ((pattMsb `get` fineX) `shiftL` 1) .|. (pattLsb `get` fineX)
+            in fromIntegral $ ((pattMsb `get` fineX) `unsafeShiftL` 1) .|. (pattLsb `get` fineX)
           activeSprite s@Sprite{cycleTimer} = cycleTimer >= 0 && spPixel s /= 0
           activeSprites = filter activeSprite secondaryOam
         case activeSprites of
@@ -464,7 +464,7 @@ shiftRegisters = do
         emuPattShifterHi,
         emuAttrShifterLo,
         emuAttrShifterHi
-      ] (`modifyReg` (`shiftL` 1))
+      ] (`modifyReg` (`unsafeShiftL` 1))
 
 
 scanLine :: Int -> Emulator PPU ()
@@ -474,7 +474,7 @@ scanLine step =
       patternOffset <- readReg ppuCtrl   <&> \ctrl -> if ctrl `testBit` 4 then 0x1000 else 0
       ntId          <- readReg emuNextNT <&> fromIntegral
       v             <- readReg pvtVRamAddr
-      return (patternOffset + ntId `shiftL` 4 + ((v `shiftR` 12) .&. 0b111))
+      return (patternOffset + ntId `unsafeShiftL` 4 + ((v `unsafeShiftR` 12) .&. 0b111))
   in case step of
     0 -> do
       updateShiftregisters
@@ -483,8 +483,8 @@ scanLine step =
     2 -> do
       v                  <- readReg pvtVRamAddr
       (coarseX, coarseY) <- getCoarsePosition
-      attributeGroup <- read (0x23C0 .|. (v .&. 0xC00) .|. (coarseY .&. 0x1C) `shiftL` 1 .|. coarseX `shiftR` 2)
-      let  attr = attributeGroup `shiftR` fromIntegral ((coarseY .&. 0b10) `shiftL` 1 .|. coarseX .&. 0b10)
+      attributeGroup <- read (0x23C0 .|. (v .&. 0xC00) .|. (coarseY .&. 0x1C) `unsafeShiftL` 1 .|. coarseX `unsafeShiftR` 2)
+      let  attr = attributeGroup `unsafeShiftR` fromIntegral ((coarseY .&. 0b10) `unsafeShiftL` 1 .|. coarseX .&. 0b10)
       emuNextAT .= attr .&. 0b11
     4 -> do
       addr <- getPattAddr
@@ -528,7 +528,7 @@ incrementVertical = whenRendering $ do
     pvtVRamAddr $= (+0x1000)
   else do
     pvtVRamAddr $= (.&. 0x8FFF)
-    let coarseY = (vramAddr .&. 0x3E0) `shiftR` 5
+    let coarseY = (vramAddr .&. 0x3E0) `unsafeShiftR` 5
     case coarseY of
       29 -> pvtVRamAddr $= (\addr -> (addr .&. 0xFC1F) `xor` 0x800)
       31 -> pvtVRamAddr $= (.&. 0xFC1F)
@@ -559,7 +559,6 @@ reloadSecondaryOam :: Emulator PPU ()
 reloadSecondaryOam = do
   resetOamAddr
   ctrl     <- readReg ppuCtrl
-  mask     <- readReg ppuMask
   scanLine <- readReg emuScanLine
   let
     basePattAddr = if ctrl `testBit` 3 then 0x1000 else 0x0
@@ -595,7 +594,7 @@ reloadSecondaryOam = do
         8 -> do
           let
             row         = flip $ fromIntegral (scanLine - fromIntegral y)
-            pattOffset  = fromIntegral tile `shiftL` 4
+            pattOffset  = fromIntegral tile `unsafeShiftL` 4
             totalOffset = basePattAddr .|. pattOffset .|. row
           pattLsb <- read totalOffset
           pattMsb <- read (totalOffset+8)
@@ -606,7 +605,7 @@ reloadSecondaryOam = do
             yDiff         = fromIntegral $ scanLine - fromIntegral y
             bankOffset    = if tile `testBit` 0 then 0x1000 else 0x0
             (current, next) = if flipVert then (1,0) else (0,1)
-            patternOffset = (fromIntegral tile .&. 0xFE + if yDiff < 8 then current else next) `shiftL` 4
+            patternOffset = (fromIntegral tile .&. 0xFE + if yDiff < 8 then current else next) `unsafeShiftL` 4
             rowOffset     = flip yDiff .&. 7
             totalOffset   = bankOffset .|. patternOffset .|. rowOffset
           pattLsb <- read totalOffset

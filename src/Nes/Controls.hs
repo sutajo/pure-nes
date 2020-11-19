@@ -63,7 +63,7 @@ powerUp =
 read :: Controller -> (Word8, Controller)
 read c@Controller{..} =
   let
-    byte = (buttons `shiftR` index) .&. 0x1
+    byte = (buttons `unsafeShiftR` index) .&. 0x1
     newController = c {index = index + 1}
   in
   if index == 8

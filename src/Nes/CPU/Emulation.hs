@@ -41,10 +41,10 @@ toWord16 :: Bool -> Word16
 toWord16 = fromIntegral . fromEnum
 
 splitWord16 :: Word16 -> (Word8, Word8)
-splitWord16 word = (fromIntegral (word `shiftR` 8) , fromIntegral (word .&. 0x00FF))
+splitWord16 word = (fromIntegral (word `unsafeShiftR` 8) , fromIntegral (word .&. 0x00FF))
 
 mergeWord8 :: Word8 -> Word8 -> Word16
-mergeWord8 low high = (fromIntegral high `shiftL` 8) .|. fromIntegral low
+mergeWord8 low high = (fromIntegral high `unsafeShiftL` 8) .|. fromIntegral low
 
 -- 0x0100     0x01FF
 -- [  <--GROWTH--- ]
@@ -192,7 +192,7 @@ asl :: Emulator CPU Word8 -> (Word8 -> Emulator CPU ()) -> Emulator CPU ()
 asl acquire store = do
   val <- acquire
   setFlag Carry (val `testBit` 7)
-  let result = val `shiftL` 1
+  let result = val `unsafeShiftL` 1
   setNegative result
   setZero result
   store result
@@ -348,7 +348,7 @@ lsr :: Emulator CPU Word8 -> (Word8 -> Emulator CPU ()) -> Emulator CPU ()
 lsr acquire store = do
   a' <- acquire
   setFlag Carry (a' `testBit` 0)
-  let result = a' `shiftR` 1
+  let result = a' `unsafeShiftR` 1
   store result
   setZero result
   setNegative result
@@ -391,7 +391,7 @@ rol :: Emulator CPU Word8 -> (Word8 -> Emulator CPU ()) -> Emulator CPU ()
 rol acquire store = do
   val <- acquire
   c   <- toWord8 <$> testFlag Carry
-  let result = (val `shiftL` 1) .|. c
+  let result = (val `unsafeShiftL` 1) .|. c
   setFlag Carry (val `testBit` 7)
   setNegative result
   setZero result
@@ -407,7 +407,7 @@ ror :: Emulator CPU Word8 -> (Word8 -> Emulator CPU ()) -> Emulator CPU ()
 ror acquire store = do
   val <- acquire
   c   <- toWord8 <$> testFlag Carry
-  let result = (val `shiftR` 1) .|. (c `shiftL` 7)
+  let result = (val `unsafeShiftR` 1) .|. (c `unsafeShiftL` 7)
   setFlag Carry (val `testBit` 0)
   setNegative result
   setZero result
@@ -791,7 +791,7 @@ sh reg addr = do
   let (_, lo) = splitWord16 addr
   reg <- readReg reg
   let
-    result     = (fromIntegral (addr `shiftR` 8) + 1) .&. reg
+    result     = (fromIntegral (addr `unsafeShiftR` 8) + 1) .&. reg
     targetAddr = mergeWord8 lo result
   write targetAddr result
 
@@ -856,7 +856,7 @@ processInterrupts = do
 oamDma :: Word8 -> Emulator CPU ()
 oamDma pageId = do
   let
-    (baseAddr :: Word16) = fromIntegral pageId `shiftL` 8
+    (baseAddr :: Word16) = fromIntegral pageId `unsafeShiftL` 8
 
   (oamOffset :: Word16) <- directPPUAccess $ PPU.getOamAddr <&> fromIntegral
 

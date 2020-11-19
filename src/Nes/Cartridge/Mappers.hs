@@ -93,9 +93,9 @@ mmc1 Cartridge{..} = do
         if ctrl `testBit` 3
         then do
           let prgOffset = if ctrl `testBit` 2 then 0x4000 else 0
-          VUM.unsafeRead prg_rom $ prgOffset + 0x4000 * fromIntegral ((prg .&. 0xF) `shiftR` 1) + (addrInt .&. 0x3FFF)
+          VUM.unsafeRead prg_rom $ prgOffset + 0x4000 * fromIntegral ((prg .&. 0xF) `unsafeShiftR` 1) + (addrInt .&. 0x3FFF)
         else
-          VUM.unsafeRead prg_rom $ 0x8000 * fromIntegral ((prg .&. 0xF) `shiftR` 1) + (addrInt .&. 0x7FFF)
+          VUM.unsafeRead prg_rom $ 0x8000 * fromIntegral ((prg .&. 0xF) `unsafeShiftR` 1) + (addrInt .&. 0x7FFF)
       where addrInt = fromIntegral addr
 
     cpuWrite addr val
@@ -105,7 +105,7 @@ mmc1 Cartridge{..} = do
           resetShiftRegister
         else do
           lc <- readIORefU loadCount
-          modifyIORefU load $ \reg -> reg .|. ((val .&. 1) `shiftL` fromIntegral lc)
+          modifyIORefU load $ \reg -> reg .|. ((val .&. 1) `unsafeShiftL` fromIntegral lc)
 
           if lc == 5
           then do
@@ -132,7 +132,7 @@ mmc1 Cartridge{..} = do
             chr1 <- readIORefU chrb1
             VUM.unsafeRead chr $ 0x1000 * fromIntegral chr1 + (addrInt .&. 0x0FFF))
         else
-          VUM.unsafeRead chr $ 0x2000 * (fromIntegral chr0 `shiftR` 1) + (addrInt .&. 0x1FFF)
+          VUM.unsafeRead chr $ 0x2000 * (fromIntegral chr0 `unsafeShiftR` 1) + (addrInt .&. 0x1FFF)
 
     ppuWrite addr val = do
       when hasChrRam (VUM.unsafeWrite chr (fromIntegral addr .&. 0x1FFF) val)
