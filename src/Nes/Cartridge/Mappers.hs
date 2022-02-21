@@ -14,12 +14,14 @@ import qualified Data.Map as M
 import qualified Data.Vector.Unboxed.Mutable as VUM
 import           Data.Word
 import           Nes.Cartridge.Memory
+import           Nes.Emulation.Registers
+import Numeric (showHex, showIntAtBase)
 
 
 mappersById :: M.Map Word8 (Cartridge -> IO Mapper)
 mappersById = [
     (0, nrom),
-    --(1, mmc1),
+    (1, mmc1),
     (2, unrom),
     (3, cnrom)
   ]
@@ -59,16 +61,30 @@ nrom Cartridge{..} = pure Mapper{..}
 
 mmc1 :: Cartridge -> IO Mapper
 mmc1 Cartridge{..} = do
-  regs@[
-      control
-    , chrb0
-    , chrb1
-    , prgb
-    , load
-    , loadCount ] <- replicateM 6 (newIORefU (0 :: Word8))
+  let (prgBanks :: Int) = VUM.length prg_rom `quot` 0x4000
 
-  let
-    resetControl = modifyIORefU control (.|. 0x0C)
+  -- Initialize registers
+  control       <- newIORefU 0x1C
+  load          <- newIORefU 0b10000
+  selectPrg16Hi <- newIORefU $ fromIntegral (prgBanks - 1)
+
+  [   selectChr8
+    , selectChr4Lo
+    , selectChr4Hi
+    , selectPrg32
+    , selectPrg16Lo ] <- replicateM 5 (newIORefU (0 :: Word8))
+
+  let 
+    regs :: [Register8] = [
+        control,
+        selectChr8,
+        selectChr4Lo,
+        selectChr4Hi,
+        selectPrg32,
+        selectPrg16Lo,
+        selectPrg16Hi,
+        load 
+      ]
 
     serialize = MapperState <$> forM regs readIORefU
     deserialize (MapperState values) = zipWithM_ writeIORefU regs values
@@ -81,63 +97,74 @@ mmc1 Cartridge{..} = do
         2 -> verticalMirroring
         3 -> horizontalMirroring
 
-    resetShiftRegister = do
-      writeIORefU load      0
-      writeIORefU loadCount 0
+    resetLoadRegister = writeIORefU load 0b10000
 
     cpuRead addr
-      | addr < 0x8000 = VUM.unsafeRead prg_ram (addrInt .&. 0x1FFF)
+      | addr < 0x8000 = VUM.read prg_ram (addrInt .&. 0x1FFF)
       | otherwise = do
-        ctrl <- readIORefU control
-        prg  <- readIORefU prgb
-        if ctrl `testBit` 3
-        then do
-          let prgOffset = if ctrl `testBit` 2 then 0x4000 else 0
-          VUM.unsafeRead prg_rom $ prgOffset + 0x4000 * fromIntegral ((prg .&. 0xF) `unsafeShiftR` 1) + (addrInt .&. 0x3FFF)
-        else
-          VUM.unsafeRead prg_rom $ 0x8000 * fromIntegral ((prg .&. 0xF) `unsafeShiftR` 1) + (addrInt .&. 0x7FFF)
-      where addrInt = fromIntegral addr
+        ctrl    <- readIORefU control
+        prg32   <- readIORefU selectPrg32
+        prg16Lo <- readIORefU selectPrg16Lo
+        prg16Hi <- readIORefU selectPrg16Hi
+        let 
+          _16KbPrgMode = ctrl `testBit` 3
+          mappedAddr
+            | not _16KbPrgMode = 0x8000 * fromIntegral prg32 .|. (addrInt .&. 0x7FFF)
+            | otherwise = fromIntegral (if addr <= 0xBFFF then prg16Lo else prg16Hi) * 0x4000 + (addrInt .&. 0x3FFF)
+        VUM.read prg_rom mappedAddr
+      where 
+        addrInt = fromIntegral addr
 
     cpuWrite addr val
-      | addr < 0x8000 = VUM.unsafeWrite prg_ram (fromIntegral addr .&. 0x1FFF) val
+      | addr <= 0x7FFF = VUM.write prg_ram (fromIntegral addr .&. 0x1FFF) val
+      | val `testBit` 7 = do
+          resetLoadRegister
+          modifyIORefU control (.|. 0xC)
       | otherwise = do
-        if val `testBit` 7 then
-          resetShiftRegister
-        else do
-          lc <- readIORefU loadCount
-          modifyIORefU load $ \reg -> reg .|. ((val .&. 1) `unsafeShiftL` fromIntegral lc)
+          loadRegFull <- (`testBit` 0) <$> readIORefU load
+          modifyIORefU load (\reg -> ((val .&. 0b1) `shiftL` 4) .|. (reg `shiftR` 1))
+          ld <- readIORefU load
+          when loadRegFull $ do
+            let targetRegister = (addr `shiftR` 13) .&. 0b11
+            ctrl <- readIORefU control
+            let _4KbChrMode = ctrl `testBit` 4
+            case targetRegister of
+              0 -> writeIORefU control (ld .&. 0x1F)
+              1 -> do
+                uncurry writeIORefU $ if _4KbChrMode then (selectChr4Lo, val .&. 0x1F) else (selectChr8, val .&. 0x1E)
+              2 -> when _4KbChrMode $ do
+                writeIORefU selectChr4Hi (ld .&. 0x1F)
+              3 -> do
+                let prgSelectMode = (ctrl `shiftR` 2) .&. 0b11
+                if prgSelectMode <= 1
+                then 
+                  writeIORefU selectPrg32 ((ld .&. 0xE) `shiftR` 1)
+                else case prgSelectMode of
+                  2 -> do
+                    writeIORefU selectPrg16Lo 0
+                    writeIORefU selectPrg16Hi (ld .&. 0xF)
+                  3 -> do
+                    writeIORefU selectPrg16Lo (ld .&. 0xF)
+                    writeIORefU selectPrg16Hi $ fromIntegral (prgBanks-1)
+            resetLoadRegister
 
-          if lc == 5
-          then do
-            let registerIndex = fromIntegral ((addr - 0x8000) `quot` 0x2000)
-            readIORefU load >>= writeIORefU (regs !! registerIndex)
-            resetShiftRegister
-          else
-            modifyIORefU loadCount (+1)
-
-    ppuRead addr =
-      let addrInt = fromIntegral addr in
-      if hasChrRam
-      then VUM.unsafeRead chr (fromIntegral addrInt .&. 0x1FFF)
-      else do
-        ctrl <- readIORefU control
-        chr0 <- readIORefU chrb0
-        if ctrl `testBit` 4
-        then
-         (if addr `testBit` 12
-          then do
-            chr0 <- readIORefU chrb0
-            VUM.unsafeRead chr $ 0x1000 * fromIntegral chr0 + (addrInt .&. 0x0FFF)
-          else do
-            chr1 <- readIORefU chrb1
-            VUM.unsafeRead chr $ 0x1000 * fromIntegral chr1 + (addrInt .&. 0x0FFF))
-        else
-          VUM.unsafeRead chr $ 0x2000 * (fromIntegral chr0 `unsafeShiftR` 1) + (addrInt .&. 0x1FFF)
+    ppuRead addr = do
+      ctrl   <- readIORefU control
+      chr4Lo <- readIORefU selectChr4Lo
+      chr4Hi <- readIORefU selectChr4Hi
+      chr8   <- readIORefU selectChr8
+      let 
+        _4KbChrMode = ctrl `testBit` 4
+        mappedAddr
+          | _4KbChrMode = fromIntegral (if addr <= 0x0FFF then chr4Lo else chr4Hi) * 0x1000 .|. (addrInt .&. 0x0FFF)
+          | otherwise   = fromIntegral chr8 * 0x2000 .|. (addrInt .&. 0x1FFF)
+      VUM.read chr mappedAddr
+      where
+        addrInt = fromIntegral addr
 
     ppuWrite addr val = do
-      when hasChrRam (VUM.unsafeWrite chr (fromIntegral addr .&. 0x1FFF) val)
+      when hasChrRam (VUM.write chr (fromIntegral addr `mod` VUM.length chr) val)
 
-  resetControl
   return Mapper{..}
 
 
