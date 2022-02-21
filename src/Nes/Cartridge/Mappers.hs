@@ -15,7 +15,6 @@ import qualified Data.Vector.Unboxed.Mutable as VUM
 import           Data.Word
 import           Nes.Cartridge.Memory
 import           Nes.Emulation.Registers
-import Numeric (showHex, showIntAtBase)
 
 
 mappersById :: M.Map Word8 (Cartridge -> IO Mapper)
@@ -131,7 +130,7 @@ mmc1 Cartridge{..} = do
             case targetRegister of
               0 -> writeIORefU control (ld .&. 0x1F)
               1 -> do
-                uncurry writeIORefU $ if _4KbChrMode then (selectChr4Lo, val .&. 0x1F) else (selectChr8, val .&. 0x1E)
+                uncurry writeIORefU $ if _4KbChrMode then (selectChr4Lo, ld .&. 0x1F) else (selectChr8, ld .&. 0x1E)
               2 -> when _4KbChrMode $ do
                 writeIORefU selectChr4Hi (ld .&. 0x1F)
               3 -> do
